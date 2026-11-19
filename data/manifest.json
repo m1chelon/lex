@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-11-19T01:54:24.231Z",
+ "generatedAt": "2026-11-19T13:40:17.510Z",
  "edital": {
   "id": "tjsp-02-2026",
   "title": "Edital de Abertura nº 02/2026 — Escrevente Técnico Judiciário (2ª a 10ª RAJs)",
@@ -156,7 +156,7 @@
      "Atualização: o Sicon registra Lei nº 13.994 de 24/04/2020 (24/04/2020) alterando art(s). 22, 23, e a compilação não a cita. Nenhum artigo exigido no edital é atingido."
     ]
    },
-   "bytes": 62548
+   "bytes": 62538
   },
   {
    "id": "l12153",
@@ -422,7 +422,7 @@
      "Identificador duplicado ritjsp.2.i4 (rótulo repetido na fonte) — mantido como ritjsp.2.i4_2"
     ]
    },
-   "bytes": 270434
+   "bytes": 270394
   },
   {
    "id": "nscgj",
@@ -457,7 +457,7 @@
      "Art. 636-A: na fonte oficial o rótulo aparece sem \"Art.\" (\"636-A\") — mantido como na fonte."
     ]
    },
-   "bytes": 1530289
+   "bytes": 1530089
   },
   {
    "id": "cc",
@@ -837,7 +837,7 @@
     "revoked": 2,
     "warnings": []
    },
-   "bytes": 82142
+   "bytes": 82132
   },
   {
    "id": "cdc",
@@ -1587,7 +1587,7 @@
     "revoked": 3,
     "warnings": []
    },
-   "bytes": 171177
+   "bytes": 171167
   },
   {
    "id": "l7716",
@@ -2049,7 +2049,7 @@
     "revoked": 13,
     "warnings": []
    },
-   "bytes": 324338
+   "bytes": 324328
   },
   {
    "id": "l9504",
@@ -2245,7 +2245,7 @@
      "Art. 32: a fonte compilada apresenta apenas redação anterior (riscada) — sem redação vigente visível; conferir na fonte oficial."
     ]
    },
-   "bytes": 52746
+   "bytes": 52706
   },
   {
    "id": "ms1511",
@@ -2472,7 +2472,7 @@
      "Art. 245: a fonte compilada apresenta apenas redação anterior (riscada) — sem redação vigente visível; conferir na fonte oficial."
     ]
    },
-   "bytes": 638859
+   "bytes": 638795
   },
   {
    "id": "ms3150",
@@ -2564,8 +2564,26 @@
    "url": "https://www.tjms.jus.br/legislacao/",
    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
    "manualHint": "O portal do TJMS recusa acesso automatizado. Baixe a norma em tjms.jus.br/legislacao (HTML) e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tjmsres252.html)"
+   "status": "ok",
+   "articles": 40,
+   "provenance": {
+    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
+    "sourceUrl": "https://www.tjms.jus.br/legislacao/",
+    "retrievedAt": "2026-11-19T13:27:52.597Z",
+    "sha256": "9bfb4e9e886edfd538dcdc14eb94a0f04c99338ad10754f79b4311fe4d70f1a9",
+    "versionLabel": "Documento oficial do TJMS em PDF, enviado pelo usuário (DJMS n.º 5870, de 21.5.2026.)",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 17315,
+    "outputChars": 17315,
+    "articles": 40,
+    "units": 162,
+    "revoked": 0,
+    "warnings": []
+   },
+   "bytes": 35114
   },
   {
    "id": "tjmsp2100",
@@ -2575,8 +2593,26 @@
    "url": "https://www.tjms.jus.br/legislacao/",
    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
    "manualHint": "O portal do TJMS recusa acesso automatizado. Baixe a norma em tjms.jus.br/legislacao (HTML) e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tjmsp2100.html)"
+   "status": "ok",
+   "articles": 442,
+   "provenance": {
+    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
+    "sourceUrl": "https://www.tjms.jus.br/legislacao/",
+    "retrievedAt": "2026-11-19T13:35:16.043Z",
+    "sha256": "a459e8fbffcdd46f1282c94e4b1303d286c428bc454c89f234e9436f487fa50c",
+    "versionLabel": "Documento oficial do TJMS em PDF, enviado pelo usuário (DJMS n.º 5445, de 18.7.2024.)",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 415060,
+    "outputChars": 415060,
+    "articles": 442,
+    "units": 4296,
+    "revoked": 1,
+    "warnings": []
+   },
+   "bytes": 940743
   },
   {
    "id": "tjmsp2121",
@@ -2586,8 +2622,26 @@
    "url": "https://www.tjms.jus.br/legislacao/",
    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
    "manualHint": "O portal do TJMS recusa acesso automatizado. Baixe a norma em tjms.jus.br/legislacao (HTML) e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tjmsp2121.html)"
+   "status": "ok",
+   "articles": 13,
+   "provenance": {
+    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
+    "sourceUrl": "https://www.tjms.jus.br/legislacao/",
+    "retrievedAt": "2026-11-19T13:27:52.600Z",
+    "sha256": "71d719289d0be6c00aa4fbee1a463987252ede70decbd5ab829546b75cbe173c",
+    "versionLabel": "Documento oficial do TJMS em PDF, enviado pelo usuário (DJMS n.º 4841, de 10.11.2021)",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 4258,
+    "outputChars": 4258,
+    "articles": 13,
+    "units": 24,
+    "revoked": 0,
+    "warnings": []
+   },
+   "bytes": 8612
   },
   {
    "id": "tjmsp2209",
@@ -2597,8 +2651,26 @@
    "url": "https://www.tjms.jus.br/legislacao/",
    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
    "manualHint": "O portal do TJMS recusa acesso automatizado. Baixe a norma em tjms.jus.br/legislacao (HTML) e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tjmsp2209.html)"
+   "status": "ok",
+   "articles": 14,
+   "provenance": {
+    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
+    "sourceUrl": "https://www.tjms.jus.br/legislacao/",
+    "retrievedAt": "2026-11-19T13:27:52.602Z",
+    "sha256": "6ec9f77359c0264a9cb51f41335d5ebbc857b4bf58384728afc0d6dcdb7b5e4f",
+    "versionLabel": "Documento oficial do TJMS em PDF, enviado pelo usuário (DJMS n.º\n4994, de 19.7.2022.)",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 3964,
+    "outputChars": 3964,
+    "articles": 14,
+    "units": 30,
+    "revoked": 1,
+    "warnings": []
+   },
+   "bytes": 8138
   },
   {
    "id": "tjmsp2329",
@@ -2608,8 +2680,26 @@
    "url": "https://www.tjms.jus.br/legislacao/",
    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
    "manualHint": "O portal do TJMS recusa acesso automatizado. Baixe a norma em tjms.jus.br/legislacao (HTML) e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tjmsp2329.html)"
+   "status": "ok",
+   "articles": 7,
+   "provenance": {
+    "sourceName": "Tribunal de Justiça de MS — Portal de Legislação (tjms.jus.br/legislacao)",
+    "sourceUrl": "https://www.tjms.jus.br/legislacao/",
+    "retrievedAt": "2026-11-19T13:27:52.604Z",
+    "sha256": "597fc3072b750587fca3ed18d9dde57912d78b4f110a19d521eed9a783de6843",
+    "versionLabel": "Documento oficial do TJMS em PDF, enviado pelo usuário (DJMS n.º 4994, de 19.7.2022.)",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 2801,
+    "outputChars": 2801,
+    "articles": 7,
+    "units": 18,
+    "revoked": 0,
+    "warnings": []
+   },
+   "bytes": 5913
   },
   {
    "id": "tse23610",
@@ -2619,8 +2709,26 @@
    "url": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-610-de-18-de-dezembro-de-2019",
    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
    "manualHint": "O portal do TSE recusa acesso automatizado. Abra a página compilada, salve como HTML e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tse23610.html)"
+   "status": "ok",
+   "articles": 160,
+   "provenance": {
+    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
+    "sourceUrl": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-610-de-18-de-dezembro-de-2019",
+    "retrievedAt": "2026-11-19T13:27:52.576Z",
+    "sha256": "7a7137147b7cbe80570f51ade214253b80bc8d9db5e4875d60754895f26a9b76",
+    "versionLabel": "Texto compilado do TSE (tse.jus.br), salvo em PDF pelo usuário em 19/11/2026; redações anteriores tachadas na fonte ficam como versões anteriores",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 195973,
+    "outputChars": 195973,
+    "articles": 160,
+    "units": 874,
+    "revoked": 1,
+    "warnings": []
+   },
+   "bytes": 317022
   },
   {
    "id": "tse23607",
@@ -2630,8 +2738,26 @@
    "url": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-607-de-17-de-dezembro-de-2019",
    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
    "manualHint": "O portal do TSE recusa acesso automatizado. Abra a página compilada, salve como HTML e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tse23607.html)"
+   "status": "ok",
+   "articles": 111,
+   "provenance": {
+    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
+    "sourceUrl": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-607-de-17-de-dezembro-de-2019",
+    "retrievedAt": "2026-11-19T13:27:52.580Z",
+    "sha256": "5fcd66e80fb0f2bd5a162569fca7c17cba8171370709f3cad82d2959bd74a5ca",
+    "versionLabel": "Texto compilado do TSE (tse.jus.br), salvo em PDF pelo usuário em 19/11/2026; redações anteriores tachadas na fonte ficam como versões anteriores",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 173921,
+    "outputChars": 173921,
+    "articles": 111,
+    "units": 852,
+    "revoked": 0,
+    "warnings": []
+   },
+   "bytes": 283440
   },
   {
    "id": "tse23609",
@@ -2641,8 +2767,28 @@
    "url": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-609-de-18-de-dezembro-de-2019",
    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
    "manualHint": "O portal do TSE recusa acesso automatizado. Abra a página compilada, salve como HTML e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tse23609.html)"
+   "status": "ok",
+   "articles": 91,
+   "provenance": {
+    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
+    "sourceUrl": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-609-de-18-de-dezembro-de-2019",
+    "retrievedAt": "2026-11-19T13:27:52.585Z",
+    "sha256": "839abc7f6cdd1b31f5757b97de2a3147e83aea8eef3fbadd6d0bde24799c4bc2",
+    "versionLabel": "Texto compilado do TSE (tse.jus.br), salvo em PDF pelo usuário em 19/11/2026; redações anteriores tachadas na fonte ficam como versões anteriores",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 121882,
+    "outputChars": 121882,
+    "articles": 91,
+    "units": 574,
+    "revoked": 0,
+    "warnings": [
+     "Identificador duplicado tse23609.32.p4.i1 (rótulo repetido na fonte) — mantido como tse23609.32.p4.i1_2"
+    ]
+   },
+   "bytes": 200805
   },
   {
    "id": "tse23608",
@@ -2652,8 +2798,26 @@
    "url": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-608-de-18-de-dezembro-de-2019",
    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
    "manualHint": "O portal do TSE recusa acesso automatizado. Abra a página compilada, salve como HTML e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tse23608.html)"
+   "status": "ok",
+   "articles": 76,
+   "provenance": {
+    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
+    "sourceUrl": "https://www.tse.jus.br/legislacao/compilada/res/2019/resolucao-no-23-608-de-18-de-dezembro-de-2019",
+    "retrievedAt": "2026-11-19T13:27:52.589Z",
+    "sha256": "970350982d9b13b39fd2f3daf7bf40451121a11d9c9a983fbd0da1e1853a621f",
+    "versionLabel": "Texto compilado do TSE (tse.jus.br), salvo em PDF pelo usuário em 19/11/2026; redações anteriores tachadas na fonte ficam como versões anteriores",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 65210,
+    "outputChars": 65210,
+    "articles": 76,
+    "units": 323,
+    "revoked": 0,
+    "warnings": []
+   },
+   "bytes": 110464
   },
   {
    "id": "tse23735",
@@ -2663,8 +2827,26 @@
    "url": "https://www.tse.jus.br/legislacao/compilada/res/2024/resolucao-no-23-735-de-27-de-fevereiro-de-2024",
    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
    "manualHint": "O portal do TSE recusa acesso automatizado. Abra a página compilada, salve como HTML e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tse23735.html)"
+   "status": "ok",
+   "articles": 23,
+   "provenance": {
+    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
+    "sourceUrl": "https://www.tse.jus.br/legislacao/compilada/res/2024/resolucao-no-23-735-de-27-de-fevereiro-de-2024",
+    "retrievedAt": "2026-11-19T13:27:52.592Z",
+    "sha256": "913aab92dcb9f03e6bba7769b71be95937fa88ade522a931426aca2ff6b021d5",
+    "versionLabel": "Texto compilado do TSE (tse.jus.br), salvo em PDF pelo usuário em 19/11/2026; redações anteriores tachadas na fonte ficam como versões anteriores",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 24737,
+    "outputChars": 24737,
+    "articles": 23,
+    "units": 135,
+    "revoked": 0,
+    "warnings": []
+   },
+   "bytes": 41361
   },
   {
    "id": "tse23659",
@@ -2674,8 +2856,26 @@
    "url": "https://www.tse.jus.br/legislacao/compilada/res/2021/resolucao-no-23-659-de-26-de-outubro-de-2021",
    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
    "manualHint": "O portal do TSE recusa acesso automatizado. Abra a página compilada, salve como HTML e importe aqui, ou envie o arquivo na conversa.",
-   "status": "pendente",
-   "error": "Importação automática falhou: aguardando arquivo enviado pelo usuário (raw/manual/tse23659.html)"
+   "status": "ok",
+   "articles": 140,
+   "provenance": {
+    "sourceName": "Tribunal Superior Eleitoral — Legislação compilada (tse.jus.br)",
+    "sourceUrl": "https://www.tse.jus.br/legislacao/compilada/res/2021/resolucao-no-23-659-de-26-de-outubro-de-2021",
+    "retrievedAt": "2026-11-19T13:27:52.594Z",
+    "sha256": "77722dab8025d5731f7ab120bcc2fcf294454f35477512967a5fd24a5639f970",
+    "versionLabel": "Texto compilado do TSE (tse.jus.br), salvo em PDF pelo usuário em 19/11/2026; redações anteriores tachadas na fonte ficam como versões anteriores",
+    "method": "manual",
+    "parserVersion": "1.0.0"
+   },
+   "stats": {
+    "sourceChars": 89525,
+    "outputChars": 89525,
+    "articles": 140,
+    "units": 594,
+    "revoked": 0,
+    "warnings": []
+   },
+   "bytes": 158747
   }
  ]
 }
