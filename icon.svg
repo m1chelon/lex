@@ -1,13 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#23252A"/><stop offset="1" stop-color="#101113"/></linearGradient>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E8D6A6"/><stop offset=".55" stop-color="#D6BF85"/><stop offset="1" stop-color="#A88B50"/></linearGradient>
+    <radialGradient id="bg" cx=".3" cy=".22" r="1"><stop offset="0" stop-color="#b8beff"/><stop offset=".45" stop-color="#8e97fd"/><stop offset="1" stop-color="#4d55c9"/></radialGradient>
+    <linearGradient id="beak" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset=".45" stop-color="#ffb347"/><stop offset=".85" stop-color="#f26b3a"/><stop offset="1" stop-color="#c8402a"/></linearGradient>
+    <linearGradient id="toga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#262c78"/><stop offset="1" stop-color="#121543"/></linearGradient>
+    <radialGradient id="head" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#2a2f5e"/><stop offset="1" stop-color="#0d0f2b"/></radialGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2"/>
-  <g fill="none" stroke="url(#g)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M256 128v264"/><path d="M168 392h176"/><path d="M152 176h208"/>
-    <path d="M152 176l-52 112h104z"/><path d="M360 176l-52 112h104z"/>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g fill="#fff"><circle cx="78" cy="86" r="3.2" opacity=".85"/><circle cx="430" cy="72" r="2.4" opacity=".7"/><circle cx="452" cy="150" r="1.8" opacity=".6"/><circle cx="58" cy="190" r="2" opacity=".55"/><circle cx="380" cy="40" r="1.6" opacity=".5"/></g>
+  <g transform="translate(-34 8)">
+  <!-- toga -->
+  <path d="M104 512 C110 404 168 338 252 330 C340 322 404 392 416 512 Z" fill="url(#toga)"/>
+  <path d="M104 512 C110 404 168 338 252 330 C340 322 404 392 416 512" fill="none" stroke="#c3c8ff" stroke-opacity=".35" stroke-width="4"/>
+  <path d="M252 334 L232 512 M252 334 L272 512" stroke="#0b0d2a" stroke-opacity=".5" stroke-width="5"/>
+  <!-- jabô -->
+  <path d="M214 338 L252 392 L290 338 L282 446 L222 446 Z" fill="#fff"/>
+  <path d="M232 404 h40 M228 424 h48" stroke="#d9dcf5" stroke-width="4"/>
+  <!-- cabeça -->
+  <circle cx="226" cy="252" r="92" fill="url(#head)"/>
+  <ellipse cx="200" cy="262" rx="50" ry="46" fill="#fff"/>
+  <circle cx="206" cy="244" r="24" fill="#5b8def"/>
+  <circle cx="206" cy="244" r="15" fill="#0b0d2a"/>
+  <circle cx="212" cy="238" r="5" fill="#fff"/>
+  <!-- bico -->
+  <path d="M266 214 C334 176 436 178 474 226 C486 242 476 262 456 264 C396 272 324 282 274 272 C248 266 242 228 266 214 Z" fill="url(#beak)"/>
+  <path d="M274 250 C340 254 410 252 466 246" fill="none" stroke="#9c3a1f" stroke-opacity=".55" stroke-width="5" stroke-linecap="round"/>
+  <path d="M440 210 C458 218 470 228 474 236" fill="none" stroke="#3a1a10" stroke-opacity=".5" stroke-width="8" stroke-linecap="round"/>
   </g>
-  <circle cx="256" cy="128" r="16" fill="url(#g)"/>
 </svg>
