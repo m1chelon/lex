@@ -1,29 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <radialGradient id="bg" cx=".3" cy=".22" r="1"><stop offset="0" stop-color="#b8beff"/><stop offset=".45" stop-color="#8e97fd"/><stop offset="1" stop-color="#4d55c9"/></radialGradient>
-    <linearGradient id="beak" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset=".45" stop-color="#ffb347"/><stop offset=".85" stop-color="#f26b3a"/><stop offset="1" stop-color="#c8402a"/></linearGradient>
-    <linearGradient id="toga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#262c78"/><stop offset="1" stop-color="#121543"/></linearGradient>
-    <radialGradient id="head" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#2a2f5e"/><stop offset="1" stop-color="#0d0f2b"/></radialGradient>
-  </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
-  <g fill="#fff"><circle cx="78" cy="86" r="3.2" opacity=".85"/><circle cx="430" cy="72" r="2.4" opacity=".7"/><circle cx="452" cy="150" r="1.8" opacity=".6"/><circle cx="58" cy="190" r="2" opacity=".55"/><circle cx="380" cy="40" r="1.6" opacity=".5"/></g>
-  <g transform="translate(-34 8)">
-  <!-- toga -->
-  <path d="M104 512 C110 404 168 338 252 330 C340 322 404 392 416 512 Z" fill="url(#toga)"/>
-  <path d="M104 512 C110 404 168 338 252 330 C340 322 404 392 416 512" fill="none" stroke="#c3c8ff" stroke-opacity=".35" stroke-width="4"/>
-  <path d="M252 334 L232 512 M252 334 L272 512" stroke="#0b0d2a" stroke-opacity=".5" stroke-width="5"/>
-  <!-- jabô -->
-  <path d="M214 338 L252 392 L290 338 L282 446 L222 446 Z" fill="#fff"/>
-  <path d="M232 404 h40 M228 424 h48" stroke="#d9dcf5" stroke-width="4"/>
-  <!-- cabeça -->
-  <circle cx="226" cy="252" r="92" fill="url(#head)"/>
-  <ellipse cx="200" cy="262" rx="50" ry="46" fill="#fff"/>
-  <circle cx="206" cy="244" r="24" fill="#5b8def"/>
-  <circle cx="206" cy="244" r="15" fill="#0b0d2a"/>
-  <circle cx="212" cy="238" r="5" fill="#fff"/>
-  <!-- bico -->
-  <path d="M266 214 C334 176 436 178 474 226 C486 242 476 262 456 264 C396 272 324 282 274 272 C248 266 242 228 266 214 Z" fill="url(#beak)"/>
-  <path d="M274 250 C340 254 410 252 466 246" fill="none" stroke="#9c3a1f" stroke-opacity=".55" stroke-width="5" stroke-linecap="round"/>
-  <path d="M440 210 C458 218 470 228 474 236" fill="none" stroke="#3a1a10" stroke-opacity=".5" stroke-width="8" stroke-linecap="round"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs><radialGradient id="bg" cx=".38" cy=".24" r=".83"><stop stop-color="#8796f8"/><stop offset=".52" stop-color="#4c56b2"/><stop offset="1" stop-color="#21275e"/></radialGradient></defs>
+<rect width="512" height="512" fill="url(#bg)"/>
+<g fill="#e2e7ff" opacity=".7"><circle cx="76" cy="116" r="2.8"/><circle cx="447" cy="84" r="2.1"/><circle cx="427" cy="167" r="2.9"/><circle cx="102" cy="199" r="1.7"/></g>
+<g transform="translate(-1 12) scale(4.033333333333333)"><defs><radialGradient id="capivara-icon-halo"><stop stop-color="#9b8bff" stop-opacity=".38"></stop><stop offset="1" stop-color="#9b8bff" stop-opacity="0"></stop></radialGradient><linearGradient id="capivara-icon-fur" x2=".7" y2="1"><stop stop-color="#d5a07b"></stop><stop offset="1" stop-color="#9d6246"></stop></linearGradient><linearGradient id="capivara-icon-robe" x2=".6" y2="1"><stop stop-color="#454783"></stop><stop offset="1" stop-color="#171b40"></stop></linearGradient></defs><circle cx="60" cy="64" r="54" fill="url(#capivara-icon-halo)"></circle><g fill="#b5a8f7" opacity=".78"><path d="M98 13c-3 7 1 14 8 15-5 3-12 0-13-5-1-4 1-8 5-10Z"></path><circle cx="91" cy="13" r="1"></circle><circle cx="107" cy="18" r="1"></circle></g><ellipse cx="62" cy="108" rx="32" ry="4.5" fill="#10132d" opacity=".35"></ellipse><path d="M32 77c-7 4-12 14-10 21 2 6 9 7 14 3m49-20c7 3 13 10 13 16 0 5-5 7-10 5" fill="#9b6449" stroke="#724633" stroke-width="1.5" stroke-linecap="round"></path><path d="M30 103c0-16 10-29 23-33h19c13 4 22 17 22 33-13 7-50 8-64 0Z" fill="url(#capivara-icon-robe)" stroke="#b5a8f7" stroke-opacity=".6" stroke-width="1.3"></path><path d="m51 77 12 6 13-6-5 18H55Z" fill="#f8ede3"></path><path d="M62 83v11m-5-6h13m-12 3h11" stroke="#d4c3c9" stroke-width="1"></path><ellipse cx="54" cy="32" rx="7" ry="9" transform="rotate(-23 54 32)" fill="#ae7354" stroke="#784b38" stroke-width="1.3"></ellipse><ellipse cx="74" cy="31" rx="6.5" ry="8" transform="rotate(16 74 31)" fill="#ae7354" stroke="#784b38" stroke-width="1.3"></ellipse><ellipse cx="74" cy="31" rx="2.6" ry="4.2" fill="#d89579"></ellipse><path d="M34 60c0-17 11-28 27-28 12 0 18 7 25 12l9 4c6 3 8 8 8 15 0 11-5 16-15 16H58c-15 0-24-7-24-19Z" fill="url(#capivara-icon-fur)" stroke="#794b37" stroke-width="1.5"></path><path d="M78 52c5-4 16-4 22 2 4 5 3 15-1 20-4 5-17 6-21 2-4-4-4-19 0-24Z" fill="#ba8263" opacity=".82"></path><path d="M91 57q4-3 7 1m-11 3 1 .5m2 4 1 .5" stroke="#57382d" stroke-width="2" fill="none" stroke-linecap="round"></path><ellipse cx="53" cy="62" rx="6" ry="3.8" fill="#dd8c79" opacity=".56"></ellipse><g><ellipse cx="56" cy="52" rx="2.9" ry="3.4" fill="#3f2924"></ellipse><circle cx="56.7" cy="50.9" r="1" fill="#fff4e6"></circle></g><path d="M83 69q5 4 11 0" fill="none" stroke="#674139" stroke-width="1.65" stroke-linecap="round"></path><path d="M55 39l2-5m2 4 3-5" stroke="#f5c68f" stroke-width="1.3" stroke-linecap="round" opacity=".75"></path></g>
 </svg>
