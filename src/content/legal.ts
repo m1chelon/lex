@@ -10,7 +10,7 @@ export const PRIVACIDADE: LegalSection[] = [
   { h: 'Quem é o controlador', p: [`${RESPONSAVEL}. Contato: ${CONTATO}.`] },
   { h: 'Quais dados o app trata', p: [
     'Progresso de estudo (respostas, revisões, tempo de estudo, pontos, carreira, folha de ponto e liga): gerado por você e armazenado localmente (IndexedDB do aparelho).',
-    'Preferências (nome ou apelido opcional, metas, aparência, horário de estudo): armazenadas localmente.',
+    'Perfis e preferências (nome ou apelido, objetivo, metas, aparência e horário de estudo): armazenados neste aparelho, com progresso separado por perfil.',
     'Check-in de bem-estar (humor e anotação opcional): dado pessoal sensível de saúde nos termos do art. 5º, II, da LGPD. É opcional, pode ser recusado a cada dia ("Prefiro não responder") ou desligado em Você, e nunca sai do aparelho.',
     'Localização aproximada para o clima e os trajes do Capi. Você pode indicar uma cidade ou usar o GPS. As coordenadas são arredondadas (cerca de 1 km) antes de qualquer envio.',
   ] },
@@ -20,7 +20,7 @@ export const PRIVACIDADE: LegalSection[] = [
   ] },
   { h: 'Bases legais (LGPD, art. 7º e art. 11)', p: ['Execução do serviço que você pediu (estudo e progresso), consentimento para o clima por localização e consentimento específico e destacado para o check-in de bem-estar, revogável a qualquer momento.'] },
   { h: 'Por quanto tempo', p: ['Os dados ficam no aparelho até você apagá-los. O histórico de humor guarda no máximo os últimos 120 registros.'] },
-  { h: 'Seus direitos (LGPD, art. 18)', p: ['Acesso e portabilidade: Você → Dados → Exportar backup. Correção: edite nas próprias telas. Eliminação: Você → Dados → Apagar todos os dados (apaga tudo deste aparelho, sem cópia em servidor). Revogação do consentimento: desligue o clima ou o bem-estar em Você.'] },
+  { h: 'Seus direitos (LGPD, art. 18)', p: ['Você pode exportar o backup, editar as preferências ou apagar os dados do perfil ativo em Você. As opções de clima e bem-estar ficam nas preferências do perfil.'] },
   { h: 'Crianças e adolescentes', p: ['O LEX é destinado a estudantes e concurseiros. Menores de 18 anos devem usá-lo com ciência dos responsáveis.'] },
   { h: 'Segurança', p: ['Como não há servidor, não há base central a ser invadida. Proteja o aparelho com senha ou biometria; quem tiver acesso ao aparelho desbloqueado poderá ver o seu progresso.'] },
   { h: 'Alterações', p: [`Esta política pode mudar quando surgirem recursos online (como ranking e câmaras). Você será avisado no app antes. Última atualização: ${LEGAL_UPDATED}.`] },

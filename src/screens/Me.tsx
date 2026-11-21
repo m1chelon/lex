@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { eraseAll, exportBackup, importBackup } from '../data/backup';
+import { eraseProfileData, exportBackup, importBackup } from '../data/backup';
+import { activeProfile } from '../data/profiles';
 import { Segmented, Sheet, toast, useAsync } from '../ui/primitives';
 import { setSettings, useSettings, haptic } from '../ui/settings';
 import { nav } from '../ui/nav';
@@ -7,7 +8,9 @@ import { db } from '../data/db';
 import { getStats } from '../learn/stats';
 import { getCalibration } from '../learn/scheduler';
 import { LEVELS } from './TermSheet';
-import { IChevR, IExternal, IShield, IUpload, IFull, IInfo, ISettings, IBook, ISparkle, IHeart, IShieldLock, IDoc, IDownload, ITrash, ICart } from '../ui/icons';
+import { IChevR, IExternal, IShield, IUpload, IFull, IInfo, ISettings, IBook, ISparkle, IHeart, IShieldLock, IDoc, IDownload, ITrash, ICart, IPeople } from '../ui/icons';
+import { Mascot } from '../ui/Mascot';
+import { profileDisplayName, profileKindLabel } from './Profiles';
 import { startTour } from '../ui/Tour';
 import { MoodSheet } from '../ui/Wellbeing';
 import { doutrinaMeta, importDoutrina, removeDoutrina, type DoutrinaMeta } from '../learn/doutrinaStore';
@@ -21,6 +24,7 @@ const isStandalone = () => typeof window !== 'undefined' && (matchMedia('(displa
 
 export function Me() {
   const s = useSettings();
+  const profileName = profileDisplayName(s.name, activeProfile.id);
   const stats = useAsync(getStats, []);
   const [install, setInstall] = useState(false);
   const [help, setHelp] = useState(false);
@@ -47,6 +51,11 @@ export function Me() {
       <div className="row between profile-header">
         <h1 className="title-xl">Você</h1>
         <button className="btn btn-quiet" onClick={() => setHelp(true)}><IInfo size={19} /> Ajuda e contato</button>
+      </div>
+      <div className="local-profile-row glass profile-current">
+        <span className="profile-avatar"><Mascot size={42} avatar decorative /></span>
+        <span className="grow profile-name"><strong>{profileName}</strong><small>{profileKindLabel(activeProfile.kind)} · Perfil ativo</small></span>
+        <button className="btn btn-quiet btn-sm" onClick={() => { haptic('soft'); nav.push({ name: 'perfis' }); }}><IPeople size={18} /> Trocar perfil</button>
       </div>
       <div className="list">
         <button className="list-item" onClick={() => { haptic('soft'); nav.push({ name: 'capi-shop' }); }}>
@@ -130,7 +139,7 @@ export function Me() {
         <button className="list-item" onClick={exportData}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#5fd3c4,#2bb5a8)' }}><IDownload size={18} /></span><div className="grow">Exportar backup do progresso</div></button>
         <label className="list-item" style={{ cursor: 'pointer' }}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#8fd16a,#4fae3c)' }}><IUpload size={18} /></span><div className="grow">Restaurar backup</div><input type="file" accept="application/json" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importData(file); }} /></label>
         <button className="list-item" onClick={async () => { const ok = await navigator.storage?.persist?.(); setPersisted(!!ok); toast(ok ? 'Armazenamento protegido' : 'O navegador não concedeu proteção'); }}><IInfo /><div className="grow">Proteger dados contra limpeza automática<div className="xsmall muted">{persisted ? 'Ativo' : 'Recomendado'}</div></div></button>
-        <button className="list-item" style={{ color: 'var(--bad)' }} onClick={() => setConfirmReset(true)}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#fb7185,#e11d48)' }}><ITrash size={18} /></span><div className="grow">Apagar todos os dados</div></button>
+        <button className="list-item" style={{ color: 'var(--bad)' }} onClick={() => setConfirmReset(true)}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#fb7185,#e11d48)' }}><ITrash size={18} /></span><div className="grow">Apagar dados do perfil</div></button>
       </div>
       <p className="xsmall faint" style={{ padding: '0 4px' }}>Seu progresso, destaques e anotações ficam apenas neste aparelho. Use o backup para trocar de aparelho.</p>
 
@@ -164,10 +173,10 @@ export function Me() {
         )}
         <p className="xsmall muted" style={{ marginTop: 12 }}>No iPhone, o Safari não permite vibração para apps web; os demais recursos funcionam normalmente.</p>
       </Sheet>
-      <Sheet open={confirmReset} onClose={() => setConfirmReset(false)} label="Apagar todos os dados">
-        <div className="title-m">Apagar todos os dados?</div>
-        <p className="small muted" style={{ margin: '8px 0 16px' }}>Progresso, revisões, destaques, anotações, folha de ponto, check-ins de bem-estar e preferências serão apagados deste aparelho. Não existe cópia em servidor: exporte um backup antes se quiser guardar. A legislação baixada é mantida.</p>
-        <button className="btn btn-block" style={{ background: 'var(--bad)', color: '#1a0d0b' }} onClick={async () => { try { await eraseAll(); toast('Dados apagados'); setConfirmReset(false); setTimeout(() => location.reload(), 500); } catch { toast('Não foi possível apagar os dados.'); } }}>Apagar tudo</button>
+      <Sheet open={confirmReset} onClose={() => setConfirmReset(false)} label="Apagar dados do perfil">
+        <div className="title-m">Apagar dados do perfil?</div>
+        <p className="small muted" style={{ margin: '8px 0 16px' }}>Esta ação apaga deste aparelho o progresso, as anotações, o acervo pessoal e as preferências de {profileName}. Para guardar o progresso, exporte o backup antes.</p>
+        <button className="btn btn-block" style={{ background: 'var(--bad)', color: '#1a0d0b' }} onClick={async () => { try { await eraseProfileData(); toast('Dados do perfil apagados'); setConfirmReset(false); setTimeout(() => location.reload(), 500); } catch { toast('Não foi possível apagar os dados.'); } }}>Apagar dados do perfil</button>
       </Sheet>
     </div>
   );

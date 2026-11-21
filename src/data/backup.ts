@@ -3,6 +3,7 @@ import { db, type CardRow, type KV, type MarkRow, type ReviewRow } from './db';
 import { getSettings, setSettings, type Settings } from '../ui/settings';
 import { clearPlan, getPlan, isPlan, savePlan } from '../learn/plan';
 import { CAPI_WARDROBE_KEY, mergeWardrobes } from '../learn/capiShop';
+import { PROFILE_SETTINGS_KEY, profileStorageKey } from './profiles';
 
 const backupKey = (key: string) => key !== 'nav' && key !== 'corpus-manifest' && !key.startsWith('doutrina');
 
@@ -97,15 +98,15 @@ export async function importBackup(f: Pick<File, 'text'>) {
     }
     await db.kv.bulkPut(importedKeys);
   });
-  setSettings({ ...data.settings, onboarded: true });
+  setSettings(data.settings);
   if (data.plan) savePlan(data.plan);
 }
 
 /** A legislação pública baixada fica disponível após a limpeza. */
-export async function eraseAll() {
+export async function eraseProfileData() {
   await db.transaction('rw', db.cards, db.reviews, db.marks, db.kv, async () => {
     await db.cards.clear(); await db.reviews.clear(); await db.marks.clear(); await db.kv.filter(({ key }) => key !== 'corpus-manifest').delete();
   });
   clearPlan();
-  try { for (const k of ['lex.settings', 'lex.weather', 'lex.pomodoro']) localStorage.removeItem(k); } catch { /* sem armazenamento */ }
+  try { for (const key of [PROFILE_SETTINGS_KEY, 'lex.weather', 'lex.pomodoro']) localStorage.removeItem(profileStorageKey(key)); } catch { /* sem armazenamento */ }
 }

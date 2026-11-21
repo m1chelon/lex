@@ -7,7 +7,8 @@ import { db } from '../src/data/db';
 import { reviewQueue, setReviewMark } from '../src/learn/reviewQueue';
 import { recordAnswer, regradeAsGuess } from '../src/learn/scheduler';
 import { initCorpus } from '../src/data/corpus';
-import { buildSession, canConsultStudySource, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, resumeSession, saveSession, type SessionConfig } from '../src/learn/session';
+import { buildSession, canConsultStudySource, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, resumeSession, saveSession, scopeArticles, type SessionConfig } from '../src/learn/session';
+import { planToConfig } from '../src/learn/plan';
 
 const config: SessionConfig = { area: 'geral', focus: 'law:cpp', mode: 'memorizar', minutes: 5 };
 
@@ -17,6 +18,17 @@ beforeAll(async () => {
 });
 
 afterAll(() => vi.unstubAllGlobals());
+
+it('abre Legislação Interna do TJSP com o recorte próprio após um treino de Constitucional', async () => {
+  const constitutional = await buildSession({ ...config, area: 'tjsp', focus: 'topico:4. Direito Constitucional' });
+  const internal = planToConfig({ scope: { kind: 'curso', area: 'tjsp', topico: '6. Legislação Interna' }, mode: 'memorizar', minutes: 5 });
+  const articles = await scopeArticles(internal, 1);
+  expect(new Set(articles.map((id) => id.split('.')[0]))).toEqual(new Set(['res850', 'res963', 'lc1111', 'ritjsp', 'nscgj']));
+  const training = await buildSession(internal, false);
+  expect(training.items.length).toBeGreaterThan(0);
+  expect(training.items.every((item) => item.articleId && articles.includes(item.articleId))).toBe(true);
+  expect((await loadSession())?.id).toBe(constitutional.id);
+});
 
 it('faz os blocos contarem apenas questões, inclusive o último bloco curto', () => {
   expect(['read', 'cloze-mc', 'term', 'lesson', 'tf'].filter(

@@ -1,5 +1,5 @@
 // Carregamento do corpus: arquivos validados no build -> IndexedDB (uso offline).
-import { db, kvGet, kvSet, type StoredLaw } from './db';
+import { libraryDb, type StoredLaw } from './db';
 import type { Article, LawDoc, Unit } from '../core/types';
 import { SOURCES } from '../core/sources';
 import { resolveRequirement, type CoverageItem } from '../core/edital';
@@ -46,9 +46,9 @@ function loadManifest(): Promise<Manifest | null> {
       const downloaded = await response.json() as Manifest;
       if (!Array.isArray(downloaded?.laws)) throw new Error('Manifesto inválido');
       manifest = downloaded;
-      await kvSet('corpus-manifest', downloaded);
+      await libraryDb.kv.put({ key: 'corpus-manifest', value: downloaded }).catch(() => {});
     } catch {
-      const cached = await kvGet<Manifest | null>('corpus-manifest', null);
+      const cached = (await libraryDb.kv.get('corpus-manifest').catch(() => undefined))?.value as Manifest | undefined;
       manifest = Array.isArray(cached?.laws) ? cached : null;
     }
     return manifest;
@@ -59,7 +59,7 @@ function loadManifest(): Promise<Manifest | null> {
 /** O índice e as leis já guardadas bastam para abrir o app. */
 export function prepareCorpus(): Promise<void> {
   indexed ??= (async () => {
-    const [, stored] = await Promise.all([loadManifest(), db.laws.toArray().catch(() => [])]);
+    const [, stored] = await Promise.all([loadManifest(), libraryDb.laws.toArray().catch(() => [])]);
     storedRows = new Map(stored.map((s) => [s.id, s]));
     for (const s of stored) indexDoc(s.doc);
     bump();
@@ -97,7 +97,7 @@ export async function ensureLaws(ids: string[], onProgress?: (msg: string) => vo
           if (doc.id !== m.id || doc.provenance?.sha256 !== m.provenance?.sha256 || !Array.isArray(doc.articles)) return false;
           if (storedRows.get(id)?.method === 'manual') return false;
           const row: StoredLaw = { id: doc.id, doc, sha: doc.provenance.sha256, method: 'automatico', storedAt: new Date().toISOString() };
-          try { await db.laws.put(row); } catch { /* sem IndexedDB */ }
+          try { await libraryDb.laws.put(row); } catch { /* sem IndexedDB */ }
           storedRows.set(id, row);
           const old = docs.get(id);
           if (old) for (const a of old.articles) { artIndex.delete(a.id); a.units.forEach((u) => unitIndex.delete(u.id)); }
@@ -117,7 +117,7 @@ export const isLoaded = (id: string) => docs.has(id);
 
 export async function storeManualLaw(doc: LawDoc) {
   const row: StoredLaw = { id: doc.id, doc, sha: doc.provenance.sha256, method: 'manual', storedAt: new Date().toISOString() };
-  await db.laws.put(row);
+  await libraryDb.laws.put(row);
   storedRows.set(doc.id, row);
   // remove índices antigos
   const old = docs.get(doc.id);
@@ -127,7 +127,7 @@ export async function storeManualLaw(doc: LawDoc) {
 }
 
 export async function removeLaw(id: string) {
-  await db.laws.delete(id);
+  await libraryDb.laws.delete(id);
   const old = docs.get(id);
   if (old) for (const a of old.articles) { artIndex.delete(a.id); a.units.forEach((u) => unitIndex.delete(u.id)); }
   docs.delete(id);

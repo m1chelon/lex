@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { RAMOS, getArea, lawsByRamo, type AreaId } from '../core/areas';
 import { SOURCES, type Ramo } from '../core/sources';
+import { profileStorageKey } from '../data/profiles';
 import { getSettings, setSettings } from '../ui/settings';
 import { DEFAULT_ARTICLE_ORDER, type Order, type SessionConfig } from './session';
 
@@ -18,7 +19,7 @@ export const MODE_INFO: Record<PlanMode, { label: string; desc: string }> = {
   casos: { label: 'Casos', desc: 'Situações práticas: identifique o instituto, o crime ou a consequência.' },
   provar: { label: 'Provar', desc: 'Nível de prova: digite as lacunas da lei seca e pratique com casos.' },
   relampago: { label: 'Relâmpago', desc: '20 questões, 10 segundos cada. Treino sob pressão.' },
-  simulado: { label: 'Simulado', desc: 'Uma prova completa no estilo da banca, com tempo e nota.' },
+  simulado: { label: 'Simulado', desc: 'Questões de Direito com tempo e nota, no formato escolhido.' },
 };
 
 export function isPlan(value: unknown): value is Plan {
@@ -32,7 +33,7 @@ export function isPlan(value: unknown): value is Plan {
   return scope.kind === 'curso' && (scope.area === 'tjsp' || scope.area === 'tjms') && (scope.topico === undefined || typeof scope.topico === 'string');
 }
 
-const KEY = 'lex.plan';
+const KEY = profileStorageKey('lex.plan');
 let state: Plan | null = null;
 try { const saved: unknown = JSON.parse(localStorage.getItem(KEY) || 'null'); if (isPlan(saved)) state = saved; } catch { /* sem armazenamento */ }
 const subs = new Set<() => void>();
@@ -55,7 +56,7 @@ export const topicoLabel = (t: string) => t.replace(/^\d+\.\s*/, '');
 /** "O que": rótulo curto do escopo. */
 export function scopeLabel(s: PlanScope): { title: string; sub: string } {
   if (s.kind === 'geral') return { title: s.law ? shortOf(s.law) : `Direito ${s.ramo}`.replace('Direito Direitos sociais', 'Direitos sociais').replace('Direito Interna', 'Normas internas'), sub: s.law ? `Direito em geral · ${s.ramo}` : `Direito em geral · ramo inteiro (${lawsByRamo(s.ramo).length} ${lawsByRamo(s.ramo).length === 1 ? 'norma' : 'normas'})` };
-  return { title: s.law ? shortOf(s.law) : s.topico ? topicoLabel(s.topico) : 'Edital todo', sub: `${COURSE_NAME[s.area]}${s.law && s.topico ? ` · ${topicoLabel(s.topico)}` : ''}` };
+  return { title: s.law ? shortOf(s.law) : s.topico ? topicoLabel(s.topico) : 'Legislação do edital', sub: `${COURSE_NAME[s.area]}${s.law && s.topico ? ` · ${topicoLabel(s.topico)}` : ''}` };
 }
 export function planLabel(p: Plan) {
   const sc = scopeLabel(p.scope);

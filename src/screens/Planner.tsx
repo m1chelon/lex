@@ -237,7 +237,7 @@ function PlannerLawFields({ goal, onChange }: { goal: Extract<StudyGoal, { kind:
     {scope.kind === 'geral' ? <label>Matéria<select value={scope.ramo} onChange={(event) => onChange({ ...goal, scope: { kind: 'geral', ramo: event.target.value as Ramo } })}>
       {RAMOS.filter((ramo) => ramo === scope.ramo || lawsByRamo(ramo).some(normAvailable)).map((ramo) => <option key={ramo}>{ramo}</option>)}
     </select></label> : <label>Disciplina<select value={scope.topico ?? ''} onChange={(event) => onChange({ ...goal, scope: { kind: 'curso', area: scope.area, topico: event.target.value || undefined } })}>
-      <option value="">Edital todo</option>{topics.map(({ topico }) => <option key={topico} value={topico}>{topicoLabel(topico)}</option>)}
+      <option value="">Legislação do edital</option>{topics.map(({ topico }) => <option key={topico} value={topico}>{topicoLabel(topico)}</option>)}
     </select></label>}
     <label>Norma<select value={scope.law ?? ''} onChange={(event) => onChange({ ...goal, scope: { ...scope, law: event.target.value || undefined } })}>
       <option value="">Todas as normas</option>

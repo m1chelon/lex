@@ -6,7 +6,8 @@ import { buildLiteral, unitPath } from './generators';
 import { buildCaseIdentify, buildCasePena } from './cases';
 import { literalMutations, meaningMutations, type Mutation } from './mutations';
 import { scopeArticles, scopeLaws, conceptExercise, conceptInScope, type SessionConfig } from './session';
-import { areaLaws, type AreaId } from '../core/areas';
+import { areaLaws, EDITAL_TJMS, type AreaId } from '../core/areas';
+import { EDITAL } from '../core/sources';
 import { topicoLabel } from './plan';
 import { CONCEPTS } from '../content/concepts';
 import { loadCalibration, recordAnswer } from './scheduler';
@@ -29,13 +30,13 @@ export const EDITAL_SIMULADO = {
   tjsp: {
     title: 'TJSP · Conhecimentos em Direito',
     detail: '30 de Direito. Português, conhecimentos gerais e redação ficam fora deste treino.',
-    url: 'https://www.tjsp.jus.br/atc/dejesp/consultaSimples.do?cdCaderno=10&cdVolume=4542&nuDiario=4542&nuSeqpagina=125',
+    url: EDITAL.url,
     blocks: [{ id: 'II', label: 'Conhecimentos em Direito', n: 30, minimum: 15 }],
   },
   tjms: {
     title: 'TJMS · Blocos jurídicos',
     detail: '5 de Noções de Legislação e 40 de Conhecimentos Específicos. Português e conteúdos sem banco próprio ficam fora.',
-    url: 'https://conhecimento.fgv.br/sites/default/files/concursos/edital-tjms-2025-retificado_0.pdf',
+    url: EDITAL_TJMS.url,
     blocks: [
       { id: 'Conhecimentos Básicos', label: 'Noções de Legislação', n: 5, minimum: null },
       { id: 'Conhecimentos Específicos', label: 'Conhecimentos Específicos', n: 40, minimum: 20 },

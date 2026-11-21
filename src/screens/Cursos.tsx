@@ -1,7 +1,7 @@
 // Treino por edital e acesso à legislação por matéria.
 import { liveQuery } from 'dexie';
 import { motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { areaLaws, getArea } from '../core/areas';
 import { SOURCES } from '../core/sources';
 import { articleTitle, coverage, ensureLaws, getArticle, getLaw, getManifest } from '../data/corpus';
@@ -11,12 +11,12 @@ import { loadSession, recentSequences } from '../learn/session';
 import { CourseCover } from '../ui/CourseCover';
 import { Flag } from '../ui/Flags';
 import { TINT } from '../ui/IconTile';
-import { lawStyle } from '../ui/ramo';
+import { lawStyle, SubjectGlyph } from '../ui/ramo';
 import { useAmbient } from '../ui/ambient';
 import { nav } from '../ui/nav';
 import { PageHeader, SectionHeader, toast, useAsync } from '../ui/primitives';
 import { haptic, setSettings } from '../ui/settings';
-import { IStudy, IBrain, IColumns, IClipboard, IGraduation, IProgressChart, ICheck, IChevR, IHistory, IMap, IPlay, ISearch, ITrophy, IX } from '../ui/icons';
+import { IStudy, IBrain, IColumns, IClipboard, IGraduation, IProgressChart, ICheck, IChevR, IExternal, IHistory, IMap, IPlay, ISearch, ITrophy, IX } from '../ui/icons';
 import { useCorpusVersion } from '../App';
 import { StudyMetrics } from '../ui/StudyMetrics';
 
@@ -51,8 +51,8 @@ export function ConcursosScreen() {
             <span className="row contest-cover-flag"><Flag area={id} width={26} rounded={4} wave />{active && <span className="tag"><ICheck size={12} /> Em estudo</span>}</span>
             <span className="contest-cover-copy">
               <strong>{COURSE_NAME[id]}</strong>
-              <small>{progress?.total ? `${Math.round(progress.seen / progress.total * 100)}% do edital praticado` : `${courseTopics(id).length} disciplinas`}</small>
-              <progress value={progress?.seen ?? 0} max={progress?.total || 1} aria-label="Cobertura do edital" />
+              <small>{progress?.total ? `${Math.round(progress.seen / progress.total * 100)}% da legislação praticada` : `${courseTopics(id).length} disciplinas de legislação`}</small>
+              <progress value={progress?.seen ?? 0} max={progress?.total || 1} aria-label="Progresso na legislação do edital" />
             </span>
           </motion.button>
         );
@@ -75,6 +75,12 @@ const PRACTICE = {
   errors: { title: 'Refazer erros', detail: 'Artigos com erro na última tentativa de algum exercício', Icon: IX },
   memory: { title: 'Memorizar', detail: 'Artigos sem literalidade firme', Icon: IBrain },
 } as const;
+
+const COURSE_BLOCKS: Record<string, string> = {
+  I: 'Bloco I · Língua Portuguesa',
+  II: 'Bloco II · Conhecimentos em Direito',
+  III: 'Bloco III · Conhecimentos Gerais',
+};
 
 export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
   const version = useCorpusVersion();
@@ -139,9 +145,17 @@ export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
   const count = cov.required.size;
   const totalAnswers = (stats?.correct ?? 0) + (stats?.wrong ?? 0);
   const available = areaLaws(id).filter((law) => !getLaw(law)).length;
+  const subjects = [
+    { topico: 'Língua Portuguesa', bloco: id === 'tjsp' ? 'I' : 'Conhecimentos Básicos', laws: [] },
+    ...courseTopics(id),
+    ...(id === 'tjsp' ? [
+      ...['Matemática', 'Informática', 'Raciocínio Lógico'].map((topico) => ({ topico, bloco: 'III', laws: [] })),
+      { topico: 'Redação', bloco: 'Prova discursiva', laws: [] },
+    ] : []),
+  ];
   return (
     <div className="stack contest-detail">
-      <PageHeader title={COURSE_NAME[id]} sub={a.edital?.title ?? a.subtitle} right={<Flag area={id} width={36} rounded={5} wave />} />
+      <PageHeader title={COURSE_NAME[id]} sub={a.subtitle} right={<Flag area={id} width={36} rounded={5} wave />} />
 
       <section className="contest-cover-header" aria-label="Seu próximo treino">
         <CourseCover kind={id} />
@@ -175,11 +189,30 @@ export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
         )}
       </section>
 
-      <button className="pill-cta" onClick={() => train()}>Treinar o edital todo<span className="go"><IPlay size={16} /></span></button>
+      <button className="pill-cta" onClick={() => train()}>Treinar legislação do edital<span className="go"><IPlay size={16} /></span></button>
       <div className="row">
         <button className="btn btn-quiet grow" onClick={() => { haptic('tap'); setSettings({ area: id }); nav.tab('map'); }}><IMap size={17} /> Mapa do edital</button>
         <button className="btn btn-quiet grow" onClick={() => { haptic('tap'); nav.push({ name: 'jogar', scope: { kind: 'curso', area: id }, mode: 'simulado' }); }}><ITrophy size={17} /> Simulado</button>
       </div>
+      {a.edital && (
+        <section className="contest-panel" aria-labelledby="contest-edital">
+          <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
+            <h2 className="title-m heading-with-icon" id="contest-edital"><IClipboard size={19} /> Cobertura do edital</h2>
+            <a className="btn btn-sm btn-quiet" href={a.edital.url} target="_blank" rel="noreferrer"><IExternal size={15} /> Edital oficial</a>
+          </div>
+          {id === 'tjsp' ? <>
+            <p className="small muted">O treino cobre os recortes de Direito e do Estatuto da Pessoa com Deficiência previstos no Anexo VIII.</p>
+            <details>
+              <summary className="small">Data de corte da legislação</summary>
+              <p className="small muted">{a.edital.regra}</p>
+              <p className="small muted">O Regimento Interno do app inclui os Assentos 597/2026 e 598/2026, posteriores ao edital. O Tomo I das Normas da Corregedoria usa a compilação de 22/10/2026.</p>
+            </details>
+          </> : <>
+            <p className="small muted">O treino de lei seca usa os textos integrais das normas associadas às disciplinas do Anexo I, conforme o edital com a 2ª retificação.</p>
+            <p className="small muted">O programa da FGV inclui Língua Portuguesa e tópicos de doutrina e jurisprudência além da lei seca.</p>
+          </>}
+        </section>
+      )}
 
       {!loading && stats && !statsError && (
         <section className="contest-panel" aria-labelledby="contest-practice">
@@ -218,9 +251,11 @@ export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
 
       <section className="stack" aria-labelledby="contest-subjects">
         <h2 className="title-m" id="contest-subjects">Disciplinas</h2>
-        {courseTopics(id).map((d) => {
+        {subjects.map((d, index) => {
+          const title = topicoLabel(d.topico);
           const articles = new Set(cov.items.filter((i) => i.req.topico === d.topico).flatMap((i) => i.articles));
-          const subject = progress && courseStats(progress, articles);
+          const hasPractice = d.laws.length > 0;
+          const subject = hasPractice && progress ? courseStats(progress, articles) : null;
           const pct = articles.size ? (subject?.seen ?? 0) / articles.size : 0;
           const activeChecklist = checklist?.topico === d.topico ? checklist : undefined;
           const pending = subject?.articles.filter((entry) => !entry.seen) ?? [];
@@ -231,15 +266,19 @@ export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
             activeChecklist?.filter === filter ? undefined : { topico: d.topico, filter, limit: 8 },
           );
           return (
-            <section key={d.topico} className="contest-panel contest-subject">
-              <div className="row between">
+            <Fragment key={d.topico}>
+            {subjects[index - 1]?.bloco !== d.bloco && <h3 className="contest-block-title">{COURSE_BLOCKS[d.bloco] ?? d.bloco}</h3>}
+            <section className="contest-panel contest-subject">
+              <div className="row between contest-subject-head">
+                <SubjectGlyph title={title} law={d.laws[0]} />
                 <div className="grow">
-                  <h3 className="title-s">{topicoLabel(d.topico)}</h3>
-                  <p className="xsmall muted">{subject?.seen ?? 0} de {articles.size.toLocaleString('pt-BR')} artigos estudados</p>
+                  <h4 className="title-s">{title}</h4>
+                  <p className="xsmall muted">{hasPractice ? `${subject?.seen ?? 0} de ${articles.size.toLocaleString('pt-BR')} artigos estudados` : 'Ainda sem exercícios no LEX'}</p>
+                  {d.topico === 'Atualidades — item 2' && <p className="xsmall muted">Estatuto da Pessoa com Deficiência. Notícias ainda sem treino.</p>}
                 </div>
-                <button className="btn btn-sm btn-primary" disabled={!articles.size} onClick={() => train(d.topico)}><IPlay size={14} /> Treinar</button>
+                {hasPractice && <button className="btn btn-sm btn-primary" aria-label={`Treinar ${title}`} disabled={!articles.size} onClick={() => train(d.topico)}><IPlay size={14} /> Treinar</button>}
               </div>
-              <progress aria-label={`Cobertura de ${topicoLabel(d.topico)}`} value={pct} />
+              {hasPractice && <progress aria-label={`Cobertura de ${title}`} value={pct} />}
               {subject && <>
                 <StudyMetrics seen={subject.seen} total={articles.size} correct={subject.firstCorrect} attempts={subject.firstTotal} label="Cobertura da disciplina" />
                 <div className="chips" role="group" aria-label={`Checklist de ${topicoLabel(d.topico)}`}>
@@ -265,7 +304,7 @@ export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
                   </> : <p className="small muted" role="status">Nenhum artigo neste filtro.</p>}
                 </div>}
               </>}
-              <details>
+              {hasPractice && <details>
                 <summary>Normas do edital ({d.laws.length})</summary>
                 <div className="list">
                   {d.laws.map((law) => {
@@ -284,8 +323,9 @@ export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
                     );
                   })}
                 </div>
-              </details>
+              </details>}
             </section>
+            </Fragment>
           );
         })}
       </section>

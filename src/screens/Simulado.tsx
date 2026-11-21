@@ -63,7 +63,7 @@ export function SimuladoFields({ setup }: { setup: ReturnType<typeof useSimulado
   const { estilo, setEstilo, n, setN, tempo, setTempo, available, edital, setOfficial, count, defaultTime } = setup;
   const e = ESTILOS.find((x) => x.id === estilo)!;
   return (<>
-    {available && <Segmented label="Formato" value={edital ? 'edital' : 'livre'} options={[{ id: 'livre', label: 'Treino livre' }, { id: 'edital', label: 'Formato do edital' }]} onChange={(choice) => setOfficial(choice === 'edital')} />}
+    {available && <Segmented label="Formato" value={edital ? 'edital' : 'livre'} options={[{ id: 'livre', label: 'Treino livre' }, { id: 'edital', label: 'Blocos jurídicos' }]} onChange={(choice) => setOfficial(choice === 'edital')} />}
     {edital ? (
       <div className="edital-note">
         <strong>{count} questões · {EDITAL_SIMULADO[edital].title}</strong>

@@ -5,6 +5,7 @@ import { haptic, setSettings, useSettings } from '../ui/settings';
 import { ISliders, IPunch, ICheck, IChevR, IClock, IFlame, IPlay, ITarget, IHistory, IInfo, ILayers, IBell, IStudy, IBrain, IPuzzle, ITrophy, ICompare, IMap, IBolt, ITomato, ISearch, IClipboard, IBook, ICalendar, ICart } from '../ui/icons';
 import { TILE } from '../ui/IconTile';
 import { CourseCover, type CoverKind } from '../ui/CourseCover';
+import { SubjectGlyph } from '../ui/ramo';
 import { Flag } from '../ui/Flags';
 import { WeatherChip, Clock } from '../ui/Weather';
 import { getPending, updateAppBadge, type Pending } from '../learn/pending';
@@ -41,7 +42,7 @@ export const MODES: { id: Mode; label: string; desc: string }[] = [
 const MINUTES = [5, 10, 15, 20, 30];
 
 export function focusLabel(id: string, area: AreaId) {
-  if (id === 'auto') return area === 'geral' ? 'Escolha um ramo ou uma lei' : 'Todo o edital';
+  if (id === 'auto') return area === 'geral' ? 'Escolha um ramo ou uma lei' : 'Legislação do edital';
   if (id.startsWith('ramo:')) return `Ramo: ${id.slice(5)}`;
   if (id.startsWith('topic-law:')) {
     const [, law, ...topic] = id.split(':');
@@ -394,7 +395,7 @@ export function FocusList({ area, value, onPick }: { area: AreaId; value: string
       <div className="stack" style={{ gap: 14 }}>
         {RAMOS.map((r) => (
           <section key={r}>
-            <div className="caps" style={{ margin: '0 4px 6px' }}>{r}</div>
+            <h3 className="caps heading-with-icon" style={{ margin: '0 4px 6px' }}><SubjectGlyph title={r} small />{r}</h3>
             <div className="list">
               <button className="list-item" onClick={() => onPick(`ramo:${r}`)} style={{ background: value === `ramo:${r}` ? 'var(--gold-soft)' : undefined }}><div className="grow small" style={{ fontWeight: 650 }}>Todo o ramo ({lawsByRamo(r).length} normas)</div></button>
               {lawsByRamo(r).map((id) => { const s = SOURCES.find((x) => x.id === id)!; const ok = getManifest()?.laws.find((m) => m.id === id)?.status === 'ok'; return (
@@ -411,11 +412,14 @@ export function FocusList({ area, value, onPick }: { area: AreaId; value: string
   const topics = [...new Set(reqs.map((r) => r.topico))];
   return (
     <div className="stack" style={{ gap: 14 }}>
-      <div className="list"><button className="list-item" onClick={() => onPick('auto')} style={{ background: value === 'auto' ? 'var(--gold-soft)' : undefined }}><div className="grow small" style={{ fontWeight: 650 }}>Todo o edital</div></button></div>
+      <div className="list"><button className="list-item" onClick={() => onPick('auto')} style={{ background: value === 'auto' ? 'var(--gold-soft)' : undefined }}><div className="grow small" style={{ fontWeight: 650 }}>Legislação do edital</div></button></div>
       {topics.map((t) => (
         <section key={t}>
-          <div className="caps" style={{ margin: '0 4px 6px' }}>{t}</div>
+          <h3 className="caps heading-with-icon" style={{ margin: '0 4px 6px' }}><SubjectGlyph title={t} small />{t.replace(/^\d+\.\s*/, '')}</h3>
           <div className="list">
+            <button className="list-item" onClick={() => onPick(`topico:${t}`)} style={{ background: value === `topico:${t}` ? 'var(--gold-soft)' : undefined }}>
+              <div className="grow small" style={{ fontWeight: 650 }}>Toda a disciplina</div>
+            </button>
             {reqs.filter((r) => r.topico === t).map((r) => {
               const it = cov.items.find((x) => x.req.id === r.id);
               return (

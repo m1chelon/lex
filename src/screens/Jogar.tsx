@@ -9,6 +9,7 @@ import { TINT } from '../ui/IconTile';
 import { PomodoroSheet } from '../ui/Pomodoro';
 import { nav } from '../ui/nav';
 import { Segmented, useAsync } from '../ui/primitives';
+import { SubjectGlyph } from '../ui/ramo';
 import { haptic, useSettings } from '../ui/settings';
 import { IBolt, IBrain, ICheck, IColumns, IClose, IHistory, IPlay, IPuzzle, ISliders, IStudy, ITarget, ITomato, ITrophy } from '../ui/icons';
 import { SimuladoFields, SimuladoHistory, useSimuladoSetup } from './Simulado';
@@ -55,6 +56,7 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
     : scope.topico ? topics.find((topic) => topic.topico === scope.topico)?.laws ?? [] : areaLaws(scope.area)
   ).filter(isReady);
   const canStart = !!(scope.law ? laws.includes(scope.law) : laws.length);
+  const subject = scope.kind === 'geral' ? scope.ramo : scope.topico;
   const timed = mode !== 'relampago' && mode !== 'simulado';
   const changeScope = (next: PlanScope) => { haptic('soft'); setScope(next); };
   const chooseArea = (next: AreaId) => {
@@ -69,7 +71,7 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
     }
     haptic('ok');
     savePlan(plan);
-    nav.replace({ name: 'session', config: planToConfig(plan) });
+    nav.replace({ name: 'session', config: planToConfig(plan, scope.kind === 'curso' && scope.topico ? { title: label.title } : {}) });
   };
 
   return (
@@ -89,7 +91,10 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
           ) : (
             <>
               <h2 id="jg-brief">Seu treino</h2>
-              <p className="jg-brief-title">{label.title}</p>
+              <p className="jg-brief-title heading-with-icon">
+                {subject && <SubjectGlyph title={subject} law={scope.law ?? laws[0]} small />}
+                {label.title}
+              </p>
               <p className="small muted">{label.sub}</p>
               <p className="small">{label.how}{timed && ` · ${order === 'linear' ? 'Sequencial' : 'Aleatório'}`}</p>
               {unfinished && !adjusting && <button className="btn btn-quiet" onClick={resume}><IHistory size={17} /> Continuar sessão em andamento</button>}
@@ -119,7 +124,7 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
                   </select></label>
                 ) : (
                   <label>Disciplina<select value={scope.topico ?? ''} onChange={(e) => changeScope({ kind: 'curso', area: scope.area, topico: e.target.value || undefined })}>
-                    <option value="">Edital todo</option>
+                    <option value="">Legislação do edital</option>
                     {topics.filter((topic) => topic.topico === scope.topico || topic.laws.some(isReady)).map((topic) => <option key={topic.topico} value={topic.topico}>{topicoLabel(topic.topico)}</option>)}
                   </select></label>
                 )}

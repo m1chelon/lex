@@ -1,12 +1,10 @@
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { corpusVersion, onCorpus, prepareCorpus } from './data/corpus';
-import { kvGet } from './data/db';
 import { loadCalibration } from './learn/scheduler';
 import { nav, useNav, type Route, type Tab } from './ui/nav';
 import { Toaster, spring, useAsync } from './ui/primitives';
 import { haptic, reducedMotion, useSettings } from './ui/settings';
-import { Onboarding } from './screens/Onboarding';
 import { Mascot } from './ui/Mascot';
 import { Constellation } from './ui/Constellation';
 import { startAmbient } from './ui/ambient';
@@ -35,6 +33,7 @@ import { ConcursosScreen, CursoScreen } from './screens/Cursos';
 import { DoctrineCatalog, DoctrineCourseScreen } from './screens/DoctrineCourses';
 import { PlannerScreen } from './screens/Planner';
 import { CapiShop } from './screens/CapiShop';
+import { ProfilesScreen } from './screens/Profiles';
 
 export function useCorpusVersion() { return useSyncExternalStore(onCorpus, corpusVersion); }
 
@@ -76,6 +75,7 @@ function RouteScreen({ r, active }: { r: Route; active: boolean }) {
     case 'doutrina-curso': return <DoctrineCourseScreen id={r.id} moduleId={r.moduleId} />;
     case 'planner': return <PlannerRoute active={active} />;
     case 'capi-shop': return <CapiShop />;
+    case 'perfis': return <ProfilesScreen />;
     case 'curso': return <CursoScreen id={r.id} />;
     case 'simulado-run': return <SimuladoRun id={r.id} />;
     case 'forest': return <ForestScreen />;
@@ -139,13 +139,11 @@ export function App() {
     let active = true;
     startAmbient();
     void (async () => {
-      const [saved] = await Promise.all([
-        kvGet<{ tab: Tab; stack: Route[] } | null>('nav', null).catch(() => null),
+      await Promise.all([
         loadCalibration().catch(() => {}),
         prepareCorpus().catch((error: unknown) => console.error(error)),
       ]);
       if (!active) return;
-      if (saved) nav.restore(saved);
       setReady(true);
     })();
     return () => { active = false; };
@@ -185,16 +183,6 @@ export function App() {
 
   if (!ready) return <Splash msg="Preparando seu estudo…" />;
 
-  if (!settings.onboarded) {
-    return (
-      <div className="app app-intro">
-        <AmbientBackdrop />
-        <main className="screen"><div className="wrap" style={{ height: '100%' }}><Onboarding /></div></main>
-        <Toaster />
-      </div>
-    );
-  }
-
   return (
     <div className={`app${inSession ? '' : ' has-tabbar'}${studying ? ' study-ambient' : ''}${studying && settings.studyFocus ? ' focus-study' : ''}`} onScrollCapture={onScroll}>
       <AmbientBackdrop />
@@ -202,7 +190,7 @@ export function App() {
         event.preventDefault();
         document.getElementById(mainId)?.focus({ preventScroll: true });
       }}>Pular para o conteúdo</a>
-      <AnimatePresence initial={false} mode="popLayout" custom={dir}>
+      <AnimatePresence initial={false} custom={dir}>
         {(!top || keepCatalog) && (
           <motion.main key={`tab-${tab}`} id={`lex-tab-${tab}`} tabIndex={-1} className="screen" data-section={tab} aria-hidden={!!top || undefined} style={{ display: top ? 'none' : undefined }} custom={dir} variants={tabV} initial="initial" animate="animate" exit="exit">
             <div className="wrap"><TabScreen tab={tab} /></div>
@@ -214,7 +202,7 @@ export function App() {
           const isModal = modal(route);
           return (
             <motion.main
-              key={`r-${index + 1}-${route.name}-${'id' in route ? route.id : ''}-${route.name === 'session' ? route.reenter ?? '' : ''}`}
+              key={`r-${index + 1}-${route.name}-${'id' in route ? route.id : ''}-${route.name === 'session' ? route.reenter ?? '' : ''}${route.name === 'jogar' ? JSON.stringify([route.scope, route.mode, route.adjust]) : ''}`}
               id={`lex-route-${index}-${route.name}`}
               tabIndex={-1}
               data-route={route.name}

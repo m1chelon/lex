@@ -267,6 +267,25 @@
 .tab-content .contest-cover-copy { background: var(--bg-2); }
 .profile-settings .card > label.row { min-height: 44px; gap: 12px; }
 .profile-settings input[type='checkbox'] { flex: none; width: 20px; height: 20px; accent-color: var(--gold); }
+.local-profiles { gap: 18px; }
+.profile-list { list-style: none; margin: 0; padding: 0; gap: 8px; }
+.local-profile-row { display: flex; align-items: center; gap: 10px; min-height: 68px; width: 100%; padding: 10px 12px; border-radius: 18px; text-align: left; }
+.profile-avatar { display: grid; place-items: center; flex: none; width: 44px; height: 44px; overflow: hidden; border-radius: 50%; background: var(--glass-bg); color: var(--gold); }
+.profile-name { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.profile-name small, .profile-active { font-size: .8125rem; color: var(--text-2); }
+.profile-active { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--gold); }
+.profile-current .btn { flex: none; min-height: 44px; }
+.profile-form { gap: 16px; }
+.profile-form label, .profile-form fieldset { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.profile-form legend { padding: 0 0 6px; }
+.profile-form :is(label, legend) { font-size: .875rem; font-weight: 620; }
+.profile-form .input { width: 100%; min-height: 44px; font-size: 1rem; }
+.profile-form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.profile-form-error { color: var(--bad); }
+.contest-subject-head { gap: 9px; }
+.contest-subject-head .btn { flex: none; min-height: 44px; }
+.contest-subject-head h4 { overflow-wrap: anywhere; }
+.contest-block-title { color: var(--text-2); font-size: .875rem; font-weight: 650; margin: 3px 0 0; }
 .planner-today h2 { font: 580 clamp(1.6rem, 5.6vw, 2.35rem)/1.12 var(--font-serif); color: var(--editorial); text-wrap: balance; }
 .planner-days li { background: var(--bg-2); border-color: var(--hair-2); }
 .study-layout .question-progress .progress-track { background: var(--surface-3); }

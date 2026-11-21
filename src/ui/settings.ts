@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Level } from '../content/types';
 import type { AreaId } from '../core/areas';
+import { PROFILE_SETTINGS_KEY, profileStorageKey } from '../data/profiles';
 import { ufOf, type WeatherLocation } from './locations';
 
 export interface Settings {
@@ -13,14 +14,13 @@ export interface Settings {
   perf: 'auto' | 'low';
   haptics: boolean;
   underlineAll: boolean;
-  onboarded: boolean;
   area: AreaId;
   provarMix: 'literal' | 'casos' | 'ambos';
   /** Temperatura de cor: Aura (fria, azul-noite), Clássico (quente, grafite e ouro) ou automático (quente à noite). */
   theme: 'aura' | 'estudio' | 'classico' | 'auto'; // legado: o app usa só o tema Aura
   /** Como a Capi chama o jogador. */
   name: string;
-  /** Horário preferido de estudo (onboarding). */
+  /** Horário preferido de estudo. */
   when: 'manha' | 'tarde' | 'noite';
   /** Localidade usada pelo clima e pelas variações regionais do Capi. */
   weather: WeatherLocation;
@@ -28,7 +28,7 @@ export interface Settings {
   wellbeing: boolean;
   studyFocus: boolean;
 }
-const DEFAULTS: Settings = { level: 'simples', dailyMinutes: 15, lawFont: 'sans', textSize: 'm', transparency: 'auto', motion: 'auto', perf: 'auto', haptics: true, underlineAll: false, onboarded: false, area: 'geral', provarMix: 'ambos', theme: 'aura', name: '', when: 'noite', weather: { on: true }, wellbeing: true, studyFocus: false };
+const DEFAULTS: Settings = { level: 'simples', dailyMinutes: 15, lawFont: 'sans', textSize: 'm', transparency: 'auto', motion: 'auto', perf: 'auto', haptics: true, underlineAll: false, area: 'geral', provarMix: 'ambos', theme: 'aura', name: '', when: 'noite', weather: { on: true }, wellbeing: true, studyFocus: false };
 function normalizedSettings(value: Partial<Settings>): Settings {
   return {
     level: ['simples', 'tecnico', 'concurso'].includes(value.level ?? '') ? value.level! : DEFAULTS.level,
@@ -40,7 +40,6 @@ function normalizedSettings(value: Partial<Settings>): Settings {
     perf: value.perf === 'low' ? 'low' : DEFAULTS.perf,
     haptics: typeof value.haptics === 'boolean' ? value.haptics : DEFAULTS.haptics,
     underlineAll: value.underlineAll === true,
-    onboarded: value.onboarded === true,
     area: value.area === 'tjsp' || value.area === 'tjms' ? value.area : DEFAULTS.area,
     provarMix: value.provarMix === 'literal' || value.provarMix === 'casos' ? value.provarMix : DEFAULTS.provarMix,
     theme: 'aura',
@@ -58,9 +57,13 @@ function normalizedSettings(value: Partial<Settings>): Settings {
   };
 }
 
-const KEY = 'lex.settings';
-let state: Settings = DEFAULTS;
-try { state = normalizedSettings(JSON.parse(localStorage.getItem(KEY) || '{}') ?? {}); } catch { /* armazenamento indisponível */ }
+export function readProfileSettings(id?: string): Settings {
+  try { return normalizedSettings(JSON.parse(localStorage.getItem(profileStorageKey(PROFILE_SETTINGS_KEY, id)) || '{}') ?? {}); }
+  catch { return DEFAULTS; }
+}
+
+const KEY = profileStorageKey(PROFILE_SETTINGS_KEY);
+let state = readProfileSettings();
 const subs = new Set<() => void>();
 export function subscribeSettings(fn: () => void) { subs.add(fn); return () => subs.delete(fn); }
 

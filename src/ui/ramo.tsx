@@ -2,8 +2,8 @@
 import type { ReactNode } from 'react';
 import type { Ramo } from '../core/sources';
 import { SOURCES } from '../core/sources';
-import { IBriefcase, IBuilding, ICane, ICar, ICart, IChild, ICity, ICoin, IColumns, ICopyright, IDoc, IFamily, IGavel, IHandcuffs, IHandshake, IHardhat, IHeart, IHouse, IPeople, IPhone, IPill, IScale, IShield, IShieldLock, ITree, IUrna } from './icons';
-import { TILE } from './IconTile';
+import { IBook, IBriefcase, IBuilding, ICane, ICar, ICart, IChild, ICity, ICoin, IColumns, ICopyright, IDoc, IFamily, IGavel, IGlobe, IHandcuffs, IHandshake, IHardhat, IHeart, IHouse, INote, IPeople, IPhone, IPill, IProgressChart, IPuzzle, IScale, IShield, IShieldLock, IText, ITree, IUrna } from './icons';
+import { TINT, TILE } from './IconTile';
 
 export const RAMO_STYLE: Record<Ramo, { color: keyof typeof TILE; icon: (size?: number) => ReactNode }> = {
   Constitucional: { color: 'peri', icon: (s) => <IColumns size={s} /> },
@@ -36,3 +36,31 @@ export const lawStyle = (lawId: string) => {
   const base = RAMO_STYLE[SOURCES.find((s) => s.id === lawId)?.ramo ?? 'Constitucional'] ?? RAMO_STYLE.Constitucional;
   return LAW_ICON[lawId] ? { ...base, icon: LAW_ICON[lawId] } : base;
 };
+
+const SUBJECT_STYLE: Record<string, (typeof RAMO_STYLE)[Ramo]> = {
+  'Direito Constitucional': RAMO_STYLE.Constitucional,
+  'Direito Administrativo': RAMO_STYLE.Administrativo,
+  'Direito Civil': RAMO_STYLE.Civil,
+  'Direito Processual Civil': RAMO_STYLE['Processual Civil'],
+  'Direito Penal': RAMO_STYLE.Penal,
+  'Direito Processual Penal': RAMO_STYLE['Processual Penal'],
+  'Direito Eleitoral': RAMO_STYLE.Eleitoral,
+  'Direito do Consumidor': lawStyle('cdc'),
+  'Hermenêutica Constitucional': { color: 'violet', icon: (size) => <IBook size={size} /> },
+  'Legislação Interna': RAMO_STYLE['Interna TJSP'],
+  'Noções de Legislação': RAMO_STYLE['Interna TJMS'],
+  'Atualidades — item 2': { color: 'gold', icon: (size) => <IGlobe size={size} /> },
+  'Língua Portuguesa': { color: 'teal', icon: (size) => <IText size={size} /> },
+  Matemática: { color: 'green', icon: (size) => <IProgressChart size={size} /> },
+  Informática: { color: 'blue', icon: (size) => <IPhone size={size} /> },
+  'Raciocínio Lógico': { color: 'violet', icon: (size) => <IPuzzle size={size} /> },
+  Redação: { color: 'rose', icon: (size) => <INote size={size} /> },
+};
+
+export function SubjectGlyph({ title, law, small }: { title: string; law?: string; small?: boolean }) {
+  const subject = title.replace(/^\d+\.\s*/, '');
+  const style = SUBJECT_STYLE[subject] ?? RAMO_STYLE[subject as Ramo]
+    ?? (law ? lawStyle(law) : { color: 'peri' as const, icon: (size: number) => <IBook size={size} /> });
+  return <span aria-hidden="true" className={`law-glyph subject-glyph${small ? ' sm' : ''}`}
+    style={{ '--tint': TINT[style.color] } as React.CSSProperties}>{style.icon(small ? 16 : 21)}</span>;
+}

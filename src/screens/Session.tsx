@@ -660,9 +660,9 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
   if (previous) return (
     <div className="stack" style={{ paddingTop: 40 }}>
       <h1 className="title-m">Você tem uma sessão em andamento</h1>
-      <p className="small muted">Você pode retomá-la ou encerrá-la para abrir o novo treino. Suas respostas registradas ficam no histórico.</p>
-      <button className="btn btn-primary" onClick={() => void chooseSession(true)}>Retomar sessão</button>
-      <button className="btn btn-quiet" onClick={() => void chooseSession(false)}>Encerrar a anterior e começar</button>
+      <p className="small muted">Começar um novo treino encerra a sessão anterior. Suas respostas registradas ficam no histórico.</p>
+      <button className="btn btn-primary" onClick={() => void chooseSession(false)}>{config?.title ? `Começar ${config.title}` : 'Encerrar a anterior e começar'}</button>
+      <button className="btn btn-quiet" onClick={() => void chooseSession(true)}>Retomar treino anterior</button>
       <button className="btn btn-quiet" onClick={close}>Voltar</button>
     </div>
   );

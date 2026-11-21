@@ -10,6 +10,7 @@ import { IBook, IHistory, IPlay, ISearch } from '../ui/icons';
 import { nav } from '../ui/nav';
 import { PageHeader, SectionHeader } from '../ui/primitives';
 import { haptic } from '../ui/settings';
+import { SubjectGlyph } from '../ui/ramo';
 import { StudyMetrics } from '../ui/StudyMetrics';
 
 const countFor = (chapters: readonly DoctrineChapter[]) =>
@@ -41,7 +42,7 @@ export function DoctrineCatalog() {
           <button key={course.id} className="course" onClick={() => { haptic('tap'); nav.push({ name: 'doutrina-curso', id: course.id }); }}>
             <CourseCover kind={course.cover} />
             <span className="contest-cover-copy">
-              <strong>{course.title}</strong><small>{course.total.toLocaleString('pt-BR')} questões</small>
+              <strong className="heading-with-icon"><SubjectGlyph title={course.title} small />{course.title}</strong><small>{course.total.toLocaleString('pt-BR')} questões</small>
               <progress value={progress.get(course.id) ?? 0} max={course.total} aria-label={`${progress.get(course.id) ?? 0} questões praticadas`} />
             </span>
           </button>

@@ -2,6 +2,7 @@
 // em qualquer tela; ao fim do foco, a Capi chama para a pausa (com respiração guiada opcional).
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { profileStorageKey } from '../data/profiles';
 import { Mascot } from './Mascot';
 import { Breathing } from './Wellbeing';
 import { ITomato, IClose, IPlay } from './icons';
@@ -12,7 +13,7 @@ export type Plan = '50/10' | '25/5';
 type Phase = 'focus' | 'break';
 interface Pomo { plan: Plan; phase: Phase; endsAt: number; paused?: number; cycles: number }
 
-const KEY = 'lex.pomodoro';
+const KEY = profileStorageKey('lex.pomodoro');
 const mins = (p: Plan, ph: Phase) => (p === '50/10' ? (ph === 'focus' ? 50 : 10) : ph === 'focus' ? 25 : 5);
 let state: Pomo | null = null;
 try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { /* sem armazenamento */ }

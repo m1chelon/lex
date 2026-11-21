@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { profileStorageKey } from '../data/profiles';
 import { stateFromGps, type WeatherLocation } from './locations';
 import { getSettings, setSettings, subscribeSettings } from './settings';
 
@@ -26,7 +27,7 @@ export interface Ambient {
   rain?: Rain;
 }
 
-const CACHE = 'lex.weather';
+const CACHE = profileStorageKey('lex.weather');
 const TTL = 20 * 60 * 1000;
 
 function hourOf(d: Date, timezone?: string) {

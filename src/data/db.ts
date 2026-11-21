@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { LawDoc } from '../core/types';
 import type { Card as FsrsCard } from 'ts-fsrs';
+import { activeProfile, PRIMARY_PROFILE_ID, profileDatabaseName } from './profiles';
 
 export type Dim = 'literal' | 'conceitual' | 'prazos' | 'penas' | 'excecoes' | 'aplicacao';
 export const DIMS: { id: Dim; label: string; desc: string }[] = [
@@ -63,8 +64,8 @@ class LexDB extends Dexie {
   reviews!: Table<ReviewRow, number>;
   marks!: Table<MarkRow, string>;
   kv!: Table<KV, string>;
-  constructor() {
-    super('lex');
+  constructor(name: string) {
+    super(name);
     this.version(1).stores({
       laws: 'id',
       cards: 'id, articleId, unitId, conceptId, dim, type, fsrs.due',
@@ -75,7 +76,9 @@ class LexDB extends Dexie {
   }
 }
 
-export const db = new LexDB();
+// A base original conserva o primeiro perfil e a legislação do aparelho.
+export const libraryDb = new LexDB(profileDatabaseName(PRIMARY_PROFILE_ID));
+export const db = activeProfile.id === PRIMARY_PROFILE_ID ? libraryDb : new LexDB(profileDatabaseName());
 
 export async function kvGet<T>(key: string, fallback: T): Promise<T> {
   try {
