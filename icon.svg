@@ -1,6 +1,107 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs><radialGradient id="bg" cx=".38" cy=".24" r=".83"><stop stop-color="#8796f8"/><stop offset=".52" stop-color="#4c56b2"/><stop offset="1" stop-color="#21275e"/></radialGradient></defs>
+  <defs>
+    <radialGradient id="bg" cx=".38" cy=".24" r=".83"><stop stop-color="#8796f8"/><stop offset=".52" stop-color="#4c56b2"/><stop offset="1" stop-color="#21275e"/></radialGradient>
+  </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
   <g fill="#e2e7ff" opacity=".66"><circle cx="76" cy="116" r="2.8"/><circle cx="447" cy="84" r="2.1"/><circle cx="427" cy="167" r="2.9"/><circle cx="102" cy="199" r="1.7"/></g>
-  <g transform="translate(-6 4) scale(4.04)"><defs><radialGradient id="capivara-icon-halo"><stop stop-color="#9b8bff" stop-opacity=".32"></stop><stop offset="1" stop-color="#9b8bff" stop-opacity="0"></stop></radialGradient><radialGradient id="capivara-icon-fur" cx=".31" cy=".21" r=".82"><stop stop-color="#f7cdb0"></stop><stop offset=".53" stop-color="#d5a07b"></stop><stop offset=".83" stop-color="#bc805c"></stop><stop offset="1" stop-color="#8d5945"></stop></radialGradient><radialGradient id="capivara-icon-ear" cx=".29" cy=".21" r=".9"><stop stop-color="#d5a07b"></stop><stop offset=".55" stop-color="#b67d5e"></stop><stop offset="1" stop-color="#794f42"></stop></radialGradient><radialGradient id="capivara-icon-muzzle" cx=".42" cy=".27" r=".79"><stop stop-color="#f0c39a"></stop><stop offset=".54" stop-color="#dca67e"></stop><stop offset="1" stop-color="#b57959"></stop></radialGradient><radialGradient id="capivara-icon-blush"><stop stop-color="#e68077" stop-opacity=".65"></stop><stop offset="1" stop-color="#e68077" stop-opacity="0"></stop></radialGradient><linearGradient id="capivara-icon-nose" x2=".42" y2="1"><stop stop-color="#81574a"></stop><stop offset="1" stop-color="#382525"></stop></linearGradient><linearGradient id="capivara-icon-robe" x1=".14" x2=".72" y2="1"><stop stop-color="#7278ba"></stop><stop offset=".42" stop-color="#3c427c"></stop><stop offset="1" stop-color="#1b1e48"></stop></linearGradient></defs><circle cx="60" cy="64" r="54" fill="url(#capivara-icon-halo)"></circle><g fill="#b5a8f7" opacity=".78"><path d="M98 13c-3 7 1 14 8 15-5 3-12 0-13-5-1-4 1-8 5-10Z"></path><circle cx="91" cy="13" r="1"></circle><circle cx="107" cy="18" r="1"></circle></g><ellipse cx="62" cy="108" rx="33" ry="5.5" fill="#10132d" opacity=".32"></ellipse><path d="M38 79c-10 0-19 11-18 18 1 6 7 9 14 6 6-2 9-17 4-24Zm48 2c7 1 15 8 15 15 0 6-5 9-12 7-6-2-9-18-3-22Z" fill="url(#capivara-icon-ear)"></path><path d="M30 99c0-15 9-24 23-28h19c13 4 23 13 23 28 0 7-10 10-33 10s-32-3-32-10Z" fill="url(#capivara-icon-robe)" stroke="#b5a8f7" stroke-opacity=".3"></path><path d="M44 84q2 12-4 18m41-19q-1 11 4 18" stroke="#abb3f1" stroke-opacity=".27" stroke-width="1.3" fill="none" stroke-linecap="round"></path><path d="m50 79 12 5 14-6-4 15c-1 4-14 5-17 1Z" fill="#f8ede3"></path><path d="M62 84v11m-4-6h10m-9 3h9" stroke="#d4c3c9" stroke-width="1"></path><g><g transform="rotate(-24 47 34)"><ellipse cx="47" cy="34" rx="8.8" ry="10" fill="url(#capivara-icon-ear)"></ellipse><ellipse cx="47.5" cy="32.8" rx="4.3" ry="5.6" fill="#a96560"></ellipse><ellipse cx="47.2" cy="32.7" rx="2.8" ry="4" fill="#d08c78"></ellipse></g><g transform="rotate(18 75 30)"><ellipse cx="75" cy="30" rx="7.9" ry="9.2" fill="url(#capivara-icon-ear)"></ellipse><ellipse cx="75.4" cy="29" rx="3.7" ry="5" fill="#ae7165"></ellipse><ellipse cx="75.2" cy="28.8" rx="2.45" ry="3.65" fill="#dc9a80"></ellipse></g></g><path d="M29 58c0-17 11-30 28-31 15-1 24 5 32 13 5 4 12 3 17 11 5 7 5 16 2 23-5 11-20 12-37 12-27 0-42-8-42-28Z" fill="url(#capivara-icon-fur)"></path><path d="M34 48q5-15 20-17" stroke="#ffead7" stroke-opacity=".56" stroke-width="1.5" stroke-linecap="round" fill="none"></path><path d="M77 57c1-8 8-12 17-12 10-1 15 5 16 14 2 8-2 17-9 20-8 4-19 2-24-4-4-5-2-13 0-18Z" fill="url(#capivara-icon-muzzle)"></path><ellipse cx="51" cy="64" rx="11" ry="7" fill="url(#capivara-icon-blush)"></ellipse><path d="M92 53c1-2 8-3 12-1 3 2 2 5-1 7-4 2-12-1-11-6Z" fill="url(#capivara-icon-nose)"></path><ellipse cx="99" cy="53.2" rx="3.4" ry=".95" fill="#dcb2a0" opacity=".56"></ellipse><circle cx="88" cy="63" r="1" fill="#8a5746" opacity=".72"></circle><circle cx="91.5" cy="65.5" r=".85" fill="#8a5746" opacity=".64"></circle><path d="M47 44q4-3 10-2m10-1q4-2 8 0" stroke="#895a47" stroke-width="1.7" fill="none" stroke-linecap="round"></path><g><ellipse cx="52" cy="52" rx="4.4" ry="5.2" fill="#472c26"></ellipse><ellipse cx="71" cy="50.8" rx="3.5" ry="4.5" fill="#472c26"></ellipse><circle cx="50.9" cy="50" r="1.65" fill="#fff8ef"></circle><circle cx="70.1" cy="49.1" r="1.25" fill="#fff8ef"></circle></g><path d="M84 70q6 5 14-1" fill="none" stroke="#744638" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"></path></g>
+  <g transform="translate(12 12) scale(4.066666666666666)">
+<svg viewBox="0 0 120 120" width="120" height="120">
+<defs>
+<radialGradient id="capi-brand-halo">
+<stop stop-color="#9b8bff" stop-opacity=".28">
+</stop>
+<stop offset="1" stop-color="#9b8bff" stop-opacity="0">
+</stop>
+</radialGradient>
+<linearGradient id="capi-brand-jacket" x2=".78" y2="1">
+<stop stop-color="#47516a">
+</stop>
+<stop offset=".62" stop-color="#30374d">
+</stop>
+<stop offset="1" stop-color="#242a3d">
+</stop>
+</linearGradient>
+</defs>
+<circle cx="60" cy="63" r="55" fill="url(#capi-brand-halo)">
+</circle>
+<g fill="#b5a8f7" opacity=".78">
+<path d="M105 12c-3 7 1 14 8 15-5 3-12 0-13-5-1-4 1-8 5-10Z">
+</path>
+<circle cx="97" cy="14" r="1">
+</circle>
+<circle cx="114" cy="16" r="1">
+</circle>
+</g>
+<ellipse cx="61" cy="111" rx="38" ry="5" fill="#11152d" opacity=".35">
+</ellipse>
+<g stroke="#582f21" stroke-width="1.55" stroke-linejoin="round">
+<path d="M33 101q-5 5-4 8 1 3 7 3h15q6 0 6-5m27-6q6 5 5 8-1 3-7 3H68q-6 0-6-5" fill="#9c7060">
+</path>
+<path d="M39 65q-11 7-11 23c0 16 10 22 32 22s33-7 33-22q0-15-13-23Z" fill="#c98f69">
+</path>
+<path d="M25 78q-11 10-10 17c1 6 9 8 16 1l8-11Zm64 .5q14 9 15 16c0 6-8 9-15 3l-8-12Z" fill="#a97a67">
+</path>
+</g>
+<path d="M39 88q2 18 21 18t20-18Z" fill="#edc5a6">
+</path>
+<path d="M44 68h34L64 93h-6Z" fill="#f0f8ff">
+</path>
+<g stroke-linejoin="round">
+<path d="m60.5 76 5.8 16.5-6.2 4.7-5.8-4.7L60 76Z" fill="#ff4048" stroke="#a61b22" stroke-width="1.4">
+</path>
+<path d="m60.1 70.5 4 4-2.3 4.4h-3.6l-2.4-4.4Z" fill="#ff444b" stroke="#a61b22" stroke-width="1.4">
+</path>
+<path d="M42 68h12l6.1 3-5.9 6.1q-1.2 1.2-3 .1L44 73m34-5H66l-5.9 3 5.8 6.1q1.2 1.2 3 .1L76 73" fill="#f5faff" stroke="#68778b" stroke-width="1.25">
+</path>
+<path d="M43 66q-9 1-12 12l-4 16q-1.2 4.9 1.4 5.9l17.4 3.1q7.6 1.3 9.5-5.8l1.7-5.1Zm34 0q10 .7 13 12l4 16q1.2 4.9-1.4 5.9l-17.4 3.1q-7.6 1.3-9.5-5.8l-1.7-5.1Z" fill="url(#capi-brand-jacket)" stroke="#10162e" stroke-width="1.7">
+</path>
+<path d="M35 68q-9 4-18 18l7 5.4 6.5-10m50-13.4q10 4 21 18.3l-10.5 6L85 81" fill="url(#capi-brand-jacket)" stroke="#10162e" stroke-width="1.7" stroke-linecap="round">
+</path>
+<path d="m17.9 87 6.4 4.9m77-4.6-10 5.7" fill="none" stroke="#e7f1ff" stroke-width="1.65" stroke-linecap="round">
+</path>
+<path d="M41 68 39.2 77q-.4 1.8 1.4 2.2l4.9 1.35-2.2 3.7L56 93m22.8-25 1 9q.4 1.8-1.3 2.2l-5 1.35 2.2 3.7L64 93" fill="none" stroke="#10162e" stroke-width="1.45" stroke-linecap="round">
+</path>
+</g>
+<g stroke="#582f21" stroke-width="1.45" stroke-linejoin="round">
+<path d="M50.6 17.4C47.2 11.9 50.5 6.5 54.4 5.7c3.6-.7 6.2 3.4 7.8 9.4Z" fill="#b57b5d">
+</path>
+</g>
+<path d="M78 16.8c2.1-4.7 6.3-8.9 10.4-8.5 4.9.5 7.8 5.2 7.1 9.2-.5 3.4-3 5.5-6.9 7.6
+      3.6 4.9 4.1 12.7 4.8 19.8 1 8.7 2.5 15.9-3.8 21.1-8.1 6.8-28.5 7.6-47.4 5.7
+      C27.9 70.2 19 66.4 17.9 56.3c-.8-7.1-.6-16.2.5-23.1 1-6.5 5.6-11.3 12.7-14.2
+      C43.5 13.7 66.2 10.9 78 16.8Z" fill="#ac7253" stroke="#582f21" stroke-width="1.65" stroke-linejoin="round">
+</path>
+<path d="M79.3 18.7c8.4 1.5 9.1 10.6 10.2 19.6 1.3 10.3 2.1 18-4.2 22.6
+      -8.7 6.5-26.8 7.5-42 6.7-13.8-.8-22.5-3.6-23.5-14.4-.7-8.1.2-15.3 1.5-21.1
+      1.5-5.9 5.6-9.5 12.4-12.1 13.9-5.2 35.9-6.7 45.6-1.3Z" fill="#c98f69">
+</path>
+<path d="M20.4 34.2c2.3-6.9 7.4-10.4 15-13.4 12.8-5 33.3-6.7 43.9-2" fill="none" stroke="#f3c8a2" stroke-width="1.45" stroke-opacity=".82" stroke-linecap="round">
+</path>
+<path d="M78 16.8c2.1-4.7 6.3-8.9 10.4-8.5 4.9.5 7.8 5.2 7.1 9.2-.5 3.4-3 5.5-6.9 7.6l-3-3.35Z" fill="#bc896f">
+</path>
+<path d="M78.1 17.5q5.2-10 10.6-8.1m-4.95 12.5q.9-4.4 4.25-7.4m.7 10.6q3.55-1.8 5.3-4.4" fill="none" stroke="#582f21" stroke-width="1.45" stroke-linecap="round">
+</path>
+<path d="M20.1 35.4c1-6.1 4.8-7.8 11-7.7 10.2.2 16.5 4.5 16.5 14.9v9.7c-.1 7.8-4.8 12.1-13.3 11.7
+      -9.2-.4-14.2-4.5-14.8-11.2-.5-5.8-.2-11.9.6-17.4Z" fill="#a97e6d">
+</path>
+<path d="M23 34.2c-2.3 1-1.6 4.3 1.2 4.9 1.2.3 1.9 1 2.1 1.6.3.6 1.45.5 1.6-.4.35-2.7-2.1-7.4-4.9-6.1Zm14.4.6c2.35.2 2.55 3.1.3 4.15-1.1.55-2.6.4-3.05 1.45-.4 1.1-1.6.9-1.6-.35 0-2.4 2.2-5.47 4.35-5.25Z" fill="#582f21">
+</path>
+<path d="M30.7 41.6q-1.25 7.2 1.25 12.95" fill="none" stroke="#582f21" stroke-width="1.4" stroke-linecap="round">
+</path>
+<path d="M25 54q2.8 5.2 7 1.3 5.7 4.2 8.4-.9" fill="none" stroke="#582f21" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">
+</path>
+<ellipse cx="77.3" cy="45" rx="4.35" ry="2.45" fill="#ff9398" opacity=".9">
+</ellipse>
+<g>
+<circle cx="70" cy="34" r="7.8" fill="#fffdf9" stroke="#582f21" stroke-width="1.55">
+</circle>
+<circle cx="70" cy="34" r="5.15" fill="#11172e">
+</circle>
+<circle cx="67.45" cy="31.2" r="2.03" fill="#fff">
+</circle>
+<circle cx="72.4" cy="36.2" r="1.05" fill="#fff">
+</circle>
+</g>
+</svg>
+  </g>
 </svg>
