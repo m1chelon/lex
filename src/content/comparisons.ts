@@ -1,0 +1,137 @@
+import type { Comparison } from './types';
+
+export const COMPARISONS: Comparison[] = [
+  {
+    id: 'cmp-reclusao-detencao', titulo: 'Reclusão × Detenção', topico: 'penal-cp',
+    colunas: [{ nome: 'Reclusão', termo: 'reclusao' }, { nome: 'Detenção', termo: 'detencao' }],
+    linhas: [
+      { criterio: 'Natureza', celulas: ['Pena privativa de liberdade mais grave', 'Pena privativa de liberdade menos grave'] },
+      { criterio: 'Regime inicial', celulas: ['Fechado, semiaberto ou aberto', 'Semiaberto ou aberto'] },
+      { criterio: 'Regime fechado', celulas: ['Possível desde o início', 'Só por necessidade de transferência (regressão)'] },
+      { criterio: 'Base legal', celulas: ['CP, art. 33, caput, 1ª parte', 'CP, art. 33, caput, 2ª parte'] },
+      { criterio: 'Exemplos do edital', celulas: ['Peculato doloso, concussão, corrupção passiva e ativa', 'Prevaricação, peculato culposo, desobediência, desacato'] },
+    ],
+    refs: [{ law: 'cp', art: '33' }],
+  },
+  {
+    id: 'cmp-concussao-corrupcao', titulo: 'Concussão × Corrupção passiva', topico: 'penal-cp',
+    colunas: [{ nome: 'Concussão', termo: 'concussao' }, { nome: 'Corrupção passiva', termo: 'corrupcao-passiva' }],
+    linhas: [
+      { criterio: 'Verbo', celulas: ['Exigir', 'Solicitar, receber ou aceitar promessa'] },
+      { criterio: 'Postura do servidor', celulas: ['Impõe a vantagem (constrangimento implícito)', 'Pede ou aceita, sem imposição'] },
+      { criterio: 'Consumação', celulas: ['Com a exigência (crime formal)', 'Com a solicitação ou aceitação da promessa; ou com o recebimento'] },
+      { criterio: 'Particular', celulas: ['Vítima: não comete corrupção ativa ao ceder', 'Pode responder por corrupção ativa se ofereceu/prometeu'] },
+      { criterio: 'Pena', celulas: ['Reclusão, de 2 a 12 anos, e multa', 'Reclusão, de 2 a 12 anos, e multa'] },
+      { criterio: 'Base legal', celulas: ['CP, art. 316', 'CP, art. 317'] },
+    ],
+    refs: [{ law: 'cp', art: '316' }, { law: 'cp', art: '317' }],
+  },
+  {
+    id: 'cmp-peculato-apropriacao', titulo: 'Peculato × Apropriação indébita', topico: 'penal-cp',
+    colunas: [{ nome: 'Peculato', termo: 'peculato' }, { nome: 'Apropriação indébita' }],
+    linhas: [
+      { criterio: 'Sujeito ativo', celulas: ['Funcionário público (conceito do art. 327)', 'Qualquer pessoa'] },
+      { criterio: 'Posse', celulas: ['Em razão do cargo', 'Posse ou detenção a qualquer título lícito'] },
+      { criterio: 'Objeto', celulas: ['Dinheiro, valor ou bem móvel, público ou particular', 'Coisa alheia móvel'] },
+      { criterio: 'Bem jurídico', celulas: ['Administração Pública', 'Patrimônio'] },
+      { criterio: 'Modalidade culposa', celulas: ['Sim (art. 312, § 2º)', 'Não'] },
+      { criterio: 'Base legal', celulas: ['CP, art. 312', 'CP, art. 168 (fora do edital)'] },
+    ],
+    refs: [{ law: 'cp', art: '312' }, { law: 'cp', art: '168' }],
+  },
+  {
+    id: 'cmp-citacao-intimacao', titulo: 'Citação × Intimação', topico: 'pc-cpc',
+    colunas: [{ nome: 'Citação', termo: 'citacao' }, { nome: 'Intimação', termo: 'intimacao' }],
+    linhas: [
+      { criterio: 'Conceito (CPC)', celulas: ['Convoca réu, executado ou interessado para integrar a relação processual (art. 238)', 'Dá ciência a alguém dos atos e dos termos do processo (art. 269)'] },
+      { criterio: 'Momento', celulas: ['Início da relação com o réu', 'Ao longo de todo o processo'] },
+      { criterio: 'Destinatário', celulas: ['Réu, executado ou interessado', 'Partes, advogados, testemunhas, auxiliares etc.'] },
+      { criterio: 'Meio preferencial', celulas: ['Eletrônico (art. 246)', 'Eletrônico (art. 270)'] },
+      { criterio: 'Falta suprida', celulas: ['Pelo comparecimento espontâneo (art. 239, § 1º)', 'Pelo comparecimento ou ciência inequívoca'] },
+    ],
+    refs: [{ law: 'cpc', art: '238' }, { law: 'cpc', art: '269' }],
+  },
+  {
+    id: 'cmp-prescricao-decadencia', titulo: 'Prescrição × Decadência', topico: 'pc-cpc',
+    colunas: [{ nome: 'Prescrição', termo: 'prescricao' }, { nome: 'Decadência', termo: 'decadencia' }],
+    linhas: [
+      { criterio: 'O que se perde', celulas: ['A pretensão', 'O próprio direito (potestativo)'] },
+      { criterio: 'Suspensão/interrupção', celulas: ['Admite', 'Em regra, não admite'] },
+      { criterio: 'Reconhecimento de ofício', celulas: ['Sim (CPC, art. 487, II)', 'Sim, a decadência legal'] },
+      { criterio: 'No processo penal', celulas: ['Extingue a punibilidade (CP, art. 107, IV)', 'Prazo de 6 meses para queixa/representação (CPP, art. 38)'] },
+      { criterio: 'Exemplo do edital', celulas: ['Prescrição disciplinar de 2 ou 5 anos (EFP, art. 261)', 'Representação em lesões leves (Lei 9.099/95, art. 88)'] },
+    ],
+    refs: [{ law: 'cpc', art: '487' }, { law: 'efp', art: '261' }, { law: 'cpp', art: '38' }],
+  },
+  {
+    id: 'cmp-impedimento-suspeicao', titulo: 'Impedimento × Suspeição', topico: 'pc-cpc',
+    colunas: [{ nome: 'Impedimento', termo: 'impedimento' }, { nome: 'Suspeição', termo: 'suspeicao' }],
+    linhas: [
+      { criterio: 'Natureza', celulas: ['Objetiva', 'Subjetiva'] },
+      { criterio: 'Presunção de parcialidade', celulas: ['Absoluta', 'Relativa'] },
+      { criterio: 'Exemplo', celulas: ['Cônjuge atua como advogado da parte', 'Juiz amigo íntimo de uma das partes'] },
+      { criterio: 'CPC', celulas: ['Art. 144', 'Art. 145'] },
+      { criterio: 'CPP', celulas: ['Art. 252', 'Art. 254'] },
+      { criterio: 'Rescisória (CPC)', celulas: ['Cabível (art. 966, II)', 'Não prevista'] },
+    ],
+    refs: [{ law: 'cpc', art: '144' }, { law: 'cpc', art: '145' }, { law: 'cpp', art: '252' }, { law: 'cpp', art: '254' }],
+  },
+  {
+    id: 'cmp-posse-exercicio', titulo: 'Posse × Exercício', topico: 'adm-efp',
+    colunas: [{ nome: 'Posse', termo: 'posse' }, { nome: 'Exercício', termo: 'exercicio' }],
+    linhas: [
+      { criterio: 'Conceito', celulas: ['Ato que investe o cidadão em cargo público (art. 46)', 'Ato pelo qual o funcionário assume as atribuições e responsabilidades do cargo (art. 57)'] },
+      { criterio: 'Prazo', celulas: ['30 dias da publicação do ato de provimento (art. 52)', '30 dias da posse (art. 60, I)'] },
+      { criterio: 'Prorrogação', celulas: ['Por mais 30 dias, a requerimento (art. 52, § 1º)', 'Por 30 dias, a requerimento e a juízo da autoridade (art. 60, § 1º)'] },
+      { criterio: 'Quem dá', celulas: ['Autoridades do art. 48', 'Chefe da repartição de lotação (art. 59)'] },
+      { criterio: 'Forma', celulas: ['Assinatura de termo (art. 49)', 'Registro no assentamento individual (art. 57, § 1º)'] },
+    ],
+    refs: [{ law: 'efp', art: '46' }, { law: 'efp', art: '52' }, { law: 'efp', art: '57' }, { law: 'efp', art: '60' }],
+  },
+  {
+    id: 'cmp-demissao-exoneracao', titulo: 'Demissão × Exoneração', topico: 'adm-efp',
+    colunas: [{ nome: 'Demissão', termo: 'demissao' }, { nome: 'Exoneração', termo: 'exoneracao' }],
+    linhas: [
+      { criterio: 'Natureza', celulas: ['Pena disciplinar', 'Desligamento sem caráter punitivo'] },
+      { criterio: 'Iniciativa', celulas: ['Imposta pela Administração', 'A pedido do funcionário ou a critério do Governo'] },
+      { criterio: 'Procedimento', celulas: ['Processo administrativo obrigatório (art. 270)', 'Ato administrativo, sem processo disciplinar'] },
+      { criterio: 'Base legal', celulas: ['Arts. 251, IV e V, 256 e 257', 'Art. 86, I e § 1º'] },
+      { criterio: 'Prescrição da falta', celulas: ['5 anos (art. 261, II)', 'Não se aplica'] },
+    ],
+    refs: [{ law: 'efp', art: '251' }, { law: 'efp', art: '256' }, { law: 'efp', art: '86' }],
+  },
+  {
+    id: 'cmp-formas-provimento', titulo: 'Reintegração × Readmissão × Reversão × Aproveitamento', topico: 'adm-efp',
+    colunas: [{ nome: 'Reintegração' }, { nome: 'Readmissão' }, { nome: 'Reversão' }, { nome: 'Aproveitamento' }],
+    linhas: [
+      { criterio: 'Quem volta', celulas: ['Demitido, por decisão judicial', 'Ex-funcionário demitido ou exonerado', 'Aposentado', 'Funcionário em disponibilidade'] },
+      { criterio: 'Causa', celulas: ['Decisão judicial transitada em julgado', 'Ato da Administração', 'A pedido ou ex officio', 'Obrigatório, havendo vaga'] },
+      { criterio: 'Ressarcimento', celulas: ['Sim, dos prejuízos', 'Não', '—', '—'] },
+      { criterio: 'Base (EFP)', celulas: ['Art. 30', 'Art. 39', 'Art. 35', 'Art. 37'] },
+    ],
+    refs: [{ law: 'efp', art: '30' }, { law: 'efp', art: '35' }, { law: 'efp', art: '37' }, { law: 'efp', art: '39' }],
+  },
+  {
+    id: 'cmp-sindicancia-pa', titulo: 'Sindicância × Processo administrativo', topico: 'adm-efp',
+    colunas: [{ nome: 'Sindicância', termo: 'sindicancia' }, { nome: 'Processo administrativo', termo: 'processo-administrativo' }],
+    linhas: [
+      { criterio: 'Penas possíveis', celulas: ['Repreensão, suspensão ou multa (art. 269)', 'Demissão, demissão a bem do serviço público, cassação (art. 270)'] },
+      { criterio: 'Testemunhas', celulas: ['Até 3 por parte (art. 273, I)', 'Até 5 pelo presidente e por acusado (art. 283, § 1º)'] },
+      { criterio: 'Suspensão condicional', celulas: ['Admitida (art. 267-N)', 'Não prevista'] },
+      { criterio: 'Prescrição da falta', celulas: ['2 anos (art. 261, I)', '5 anos (art. 261, II)'] },
+    ],
+    refs: [{ law: 'efp', art: '269' }, { law: 'efp', art: '270' }, { law: 'efp', art: '273' }, { law: 'efp', art: '283' }],
+  },
+  {
+    id: 'cmp-transacao-sursis', titulo: 'Transação penal × Suspensão condicional do processo', topico: 'pp-9099',
+    colunas: [{ nome: 'Transação penal', termo: 'transacao-penal' }, { nome: 'Suspensão condicional', termo: 'suspensao-condicional-processo' }],
+    linhas: [
+      { criterio: 'Critério', celulas: ['Infração de menor potencial ofensivo: pena máxima não superior a 2 anos (art. 61)', 'Pena mínima igual ou inferior a 1 ano (art. 89)'] },
+      { criterio: 'Momento', celulas: ['Antes da denúncia', 'Com o oferecimento da denúncia'] },
+      { criterio: 'Conteúdo', celulas: ['Aplicação imediata de pena restritiva de direitos ou multa', 'Período de prova de 2 a 4 anos com condições'] },
+      { criterio: 'Efeito', celulas: ['Não gera reincidência; impede novo benefício por 5 anos', 'Extinção da punibilidade ao fim do período'] },
+      { criterio: 'Base legal', celulas: ['Lei 9.099/95, art. 76', 'Lei 9.099/95, art. 89'] },
+    ],
+    refs: [{ law: 'l9099', art: '76' }, { law: 'l9099', art: '89' }],
+  },
+];

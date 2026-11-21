@@ -1,0 +1,44 @@
+{
+  "name": "lex",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && tsx scripts/validate.ts && tsx scripts/check-traps.ts && VITE_WITH_DOUTRINA=1 vite build",
+    "preview": "vite preview",
+    "import": "tsx scripts/import.ts",
+    "test": "vitest run",
+    "validate": "tsx scripts/validate.ts",
+    "import:refresh": "tsx scripts/import.ts --refresh",
+    "build:public": "tsc --noEmit && tsx scripts/validate.ts && tsx scripts/check-traps.ts && vite build --outDir dist-public && node -e \"require('fs').rmSync('dist-public/data/doutrina',{recursive:true,force:true})\"",
+    "doutrina": "python3 -I scripts/doutrina.py acervo public/data/doutrina && python3 -I scripts/doutrina-bundle.py public/data/doutrina lex-doutrina.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/open-sans": "^5.2.7",
+    "@fontsource-variable/source-serif-4": "^5.3.1",
+    "dexie": "^4.4.7",
+    "motion": "^11.18.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ts-fsrs": "^4.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "cheerio": "^1.2.0",
+    "fake-indexeddb": "^6.2.8",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vite-plugin-pwa": "^0.21.2",
+    "vitest": "^2.1.9"
+  },
+  "type": "module"
+}

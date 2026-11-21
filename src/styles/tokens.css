@@ -1,0 +1,144 @@
+/* LEX — Design tokens. Linguagem inspirada no Liquid Glass (Apple, WWDC25):
+   vidro só em navegação, controles, menus e janelas contextuais; conteúdo
+   legislativo em superfícies estáveis e opacas, com alto contraste. */
+:root {
+  color-scheme: dark;
+  --bg: #101113;
+  --bg-2: #191b1f;
+  --surface: #23252a;
+  --surface-2: #2b2e34;
+  --surface-3: #33363d;
+  --gold: #d6bf85;
+  --gold-2: #a88b50;
+  --accent-rgb: 214, 191, 133;
+  --on-accent: #17140d;
+  --btn-primary-bg: linear-gradient(180deg, #e3cf9c 0%, #d6bf85 48%, #c4aa6c 100%);
+  --trophy: #d6bf85;
+  --gold-soft: rgba(214, 191, 133, 0.14);
+  --gold-line: rgba(214, 191, 133, 0.45);
+  --text: #f5f5f7;
+  --text-2: #98989f;
+  --text-3: #6e6e75;
+  --hair: rgba(255, 255, 255, 0.08);
+  --hair-2: rgba(255, 255, 255, 0.14);
+  --ok: #7fbf8e;
+  --ok-soft: rgba(127, 191, 142, 0.14);
+  --bad: #e07a6f;
+  --bad-soft: rgba(224, 122, 111, 0.14);
+  --warn: #d9a45b;
+  --info: #8fa7c9;
+
+  /* Domínio (mapa): do frio ao champanhe */
+  --m0: #26282d;
+  --m1: #3a3a36;
+  --m2: #5b5340;
+  --m3: #86744a;
+  --m4: #b39b62;
+  --m5: #d6bf85;
+
+  /* Vidro */
+  --glass-bg: rgba(35, 37, 42, 0.52);
+  --glass-bg-strong: rgba(30, 32, 36, 0.72);
+  --glass-blur: 22px;
+  --glass-sat: 170%;
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-rim: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
+
+  --r-xs: 10px;
+  --r-sm: 14px;
+  --r-md: 20px;
+  --r-lg: 28px;
+  --r-pill: 999px;
+
+  --font: -apple-system, BlinkMacSystemFont, 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-law: 'Open Sans Variable', var(--font);
+  --font-serif: 'Source Serif 4 Variable', 'New York', Georgia, serif;
+  --law-size: 1.0625rem;
+  --law-leading: 1.68;
+  --editorial: #f5f1e9;
+  --page-inset: clamp(16px, 4vw, 32px);
+  --rail-width: 196px;
+  --rail-gap: 20px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 68px;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur: 380ms;
+}
+
+/* ---------- Tema Aura (temperatura fria): azul-noite + pervinca ----------
+   Fundos de leitura em azul-noite, acento pervinca e detalhes em âmbar. */
+:root[data-theme='aura'] {
+  color-scheme: dark;
+  --bg: #0e1324;
+  --bg-2: #151c30;
+  --surface: #1b243b;
+  --surface-2: #222d46;
+  --surface-3: #303b57;
+  --gold: #b7bdff;
+  --gold-2: #929fe6;
+  --accent-rgb: 183, 189, 255;
+  --on-accent: #171a36;
+  --btn-primary-bg: linear-gradient(180deg, #ced1ff, #afb7f6);
+  --gold-soft: rgba(183, 189, 255, 0.14);
+  --navy: #1c2054;
+  --violet: #8b5cf6;
+  --blue: #5b8def;
+  --rose: #f43f5e;
+  --gold-line: rgba(183, 189, 255, 0.46);
+  --text: #f3f3fa;
+  --text-2: #c2cadf;
+  --text-3: #a0aec9;
+  --hair: rgba(163, 171, 255, 0.10);
+  --hair-2: rgba(163, 171, 255, 0.18);
+  --ok: #7fd1a8;
+  --ok-soft: rgba(127, 209, 168, 0.14);
+  --bad: #f28b9b;
+  --bad-soft: rgba(242, 139, 155, 0.14);
+  --warn: #f2c27b;
+  --info: #9fb4ff;
+  --m0: #141838;
+  --m1: #232857;
+  --m2: #343b7c;
+  --m3: #4b55a8;
+  --m4: #6d78dc;
+  --m5: #a3abff;
+  --glass-bg: rgba(24, 28, 66, 0.50);
+  --glass-bg-strong: rgba(14, 17, 44, 0.78);
+  --glass-border: rgba(163, 171, 255, 0.16);
+  --glass-rim: inset 0 1px 0 rgba(200, 205, 255, 0.18), inset 0 -1px 0 rgba(137, 146, 246, 0.06);
+  --glass-shadow: 0 12px 34px rgba(0, 0, 8, 0.55), 0 2px 8px rgba(0, 0, 8, 0.4);
+}
+:root[data-theme='aura'][data-transparency='reduced'] { --glass-bg: #151938; --glass-bg-strong: #151938; }
+@media (prefers-reduced-transparency: reduce) { :root[data-theme='aura']:not([data-transparency='full']) { --glass-bg: #151938; --glass-bg-strong: #151938; } }
+:root[data-theme='aura'][data-perf='low'] { --glass-bg: rgba(21, 25, 56, 0.95); --glass-bg-strong: rgba(14, 17, 44, 0.97); }
+
+:root[data-lawfont='serif'] { --font-law: var(--font-serif); }
+:root[data-textsize='l'] { --law-size: 1.1875rem; }
+:root[data-textsize='xl'] { --law-size: 1.3125rem; }
+
+/* Redução de transparência: vidro vira superfície opaca */
+:root[data-transparency='reduced'] {
+  --glass-bg: #23252a;
+  --glass-bg-strong: #23252a;
+  --glass-blur: 0px;
+  --glass-sat: 100%;
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-transparency='full']) {
+    --glass-bg: #23252a;
+    --glass-bg-strong: #23252a;
+    --glass-blur: 0px;
+    --glass-sat: 100%;
+  }
+}
+/* Modo desempenho: sem desfoque (aparelhos modestos) */
+:root[data-perf='low'] { --glass-blur: 0px; --glass-bg: rgba(35, 37, 42, 0.94); --glass-bg-strong: rgba(30, 32, 36, 0.97); }
+
+/* Redução de movimento */
+:root[data-motion='reduced'] { --dur: 1ms; }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) { --dur: 1ms; }
+}
