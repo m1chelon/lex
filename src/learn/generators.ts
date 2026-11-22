@@ -289,11 +289,12 @@ export function buildLiteral(law: LawDoc, art: Article, u: Unit, dim: Dim, stage
 }
 
 /** Ordenação de incisos de um mesmo dispositivo. */
-export function buildOrder(law: LawDoc, art: Article, stage: number): Exercise | null {
+export function buildOrder(law: LawDoc, art: Article, stage: number, requestedParent?: string): Exercise | null {
   if (!canTrainArticle(art)) return null;
   const groups = new Map<string, Unit[]>();
   for (const u of art.units) if (u.k === 'inc' && !u.rev && u.t) groups.set(u.parent || 'caput', [...(groups.get(u.parent || 'caput') || []), u]);
-  const g = [...groups.entries()].find(([, us]) => us.length >= 3 && us.length <= 7
+  const g = [...groups.entries()].find(([parent, us]) => (requestedParent === undefined || parent === requestedParent)
+    && us.length >= 3 && us.length <= 7
     && new Set(us.map((unit) => normAnswer(unit.t))).size === us.length);
   if (!g) return null;
   const [parentKey, us] = g;

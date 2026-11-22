@@ -67,6 +67,28 @@ it('organiza as metas por dia e remaneja o saldo para a próxima meta da mesma m
   expect(plannerGoalOn(edited, '2026-11-18')).toEqual(wednesdayGoal);
 });
 
+it('troca uma questão retirada sem zerar o que já foi feito na meta', async () => {
+  const day = '2026-11-22';
+  const goal: StudyGoal = { ...civilLaw, target: 2 };
+  const taskId = plannerTaskKey(day, goal);
+  const finished = { id: 'cf.1', keys: ['L:cf.1.cpt:literal'] };
+  const retired = 'L:cf.2.revogado:literal';
+  await db.kv.put({ key: taskId, value: {
+    day, goal, groups: [finished, { id: 'cf.2', keys: [retired] }], done: finished.keys,
+  } satisfies PlannerTask });
+  const session = await buildSession(plannerConfig(day, goal), false);
+  const task = (await getPlannerTask(taskId))!;
+  expect(task.groups[0]).toEqual(finished);
+  expect(task.groups.some(({ keys }) => keys.includes(retired))).toBe(false);
+  expect(session.items.length).toBeGreaterThan(0);
+  expect(plannerProgress(task).completed).toBe(1);
+});
+
+it('mantém a área e a disciplina do edital nas sessões do Planner', () => {
+  const goal: StudyGoal = { kind: 'law', target: 10, scope: { kind: 'curso', area: 'tjsp', topico: '6. Legislação Interna' } };
+  expect(plannerConfig('2026-11-22', goal)).toMatchObject({ area: 'tjsp', focus: 'topico:6. Legislação Interna' });
+});
+
 it('acompanha todos os itens do módulo de doutrina escolhido para a meta', async () => {
   const day = '2026-11-18';
   const goal: StudyGoal = { kind: 'doctrine', courseId: 'consumidor', unit: 'modules', target: 1 };

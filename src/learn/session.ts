@@ -143,7 +143,7 @@ export async function scopeArticles(cfg: SessionConfig, seed: number): Promise<s
   return order === 'linear' ? ids : shuffle(ids, rng(seed));
 }
 
-function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed: string, linear: boolean): Exercise[] {
+function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed: string, linear: boolean, repeat = false): Exercise[] {
   const hit = getArticle(artId);
   if (!hit) return [];
   const { law, art } = hit;
@@ -153,7 +153,7 @@ function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed:
     const dims = [...new Set(findTargets(u).map((t) => t.dim))] as Dim[];
     for (const d of dims) {
       const card = byKey.get(`L:${u.id}:${d}`);
-      if (!linear && card && card.fsrs.reps > 0 && !isDue(card.fsrs)) continue; // misturado: já em revisão e não devido
+      if (!linear && !repeat && card && card.fsrs.reps > 0 && !isDue(card.fsrs)) continue;
       const stage = mode === 'provar' ? Math.max(3, card?.stage ?? 0) : Math.max(1, card?.stage ?? 1);
       const ex = buildLiteral(law, art, u, d, stage, mode === 'provar' ? 'provar' : 'memorizar', seed + (card?.fsrs.reps ?? 0));
       if (ex) out.push(ex);
@@ -172,7 +172,7 @@ function caseItems(artId: string, seed: string): Exercise[] {
 }
 
 /** Gera o próximo lote a partir do cursor (usado no início, no modo infinito e no linear). */
-async function nextBatch(state: SessionState, budgetSec: number): Promise<{ items: Exercise[]; cursor: number }> {
+async function nextBatch(state: SessionState, budgetSec: number, repeat = false): Promise<{ items: Exercise[]; cursor: number }> {
   const cfg = state.config;
   const articles = await scopeArticles(cfg, state.seed!);
   const linear = (cfg.order ?? DEFAULT_ARTICLE_ORDER) === 'linear';
@@ -183,10 +183,12 @@ async function nextBatch(state: SessionState, budgetSec: number): Promise<{ item
   const seed = `${state.seed}:${state.cursor}`;
   const items: Exercise[] = [];
   const practiced = new Set(cfg.sequenceSkip);
+  const excluded = new Set(state.items.slice(Math.max(0, state.index - (repeat ? 0 : 2))).map((item) => item.key));
   let spent = 0, cursor = state.cursor ?? 0;
   const push = (e: Exercise) => {
     if (e.articleId === cfg.startArticleId && practiced.has(e.key)) return;
-    if (items.some((x) => x.key === e.key) || state.items.some((x, index) => x.key === e.key && index >= state.index - 2)) return;
+    if (excluded.has(e.key)) return;
+    excluded.add(e.key);
     items.push(e);
     spent += COST[e.kind] ?? 25;
   };
@@ -219,7 +221,7 @@ async function nextBatch(state: SessionState, budgetSec: number): Promise<{ item
   // No modo sequencial, cada caso aparece junto ao primeiro artigo que fundamenta a questão.
   const conceptsByArticle = new Map<string, Concept[]>();
   if (mix === 'casos' || mix === 'ambos') {
-    const pool = conceptsInScope.filter((c) => !byKey.get(`C:${c.id}`)?.fsrs.reps);
+    const pool = conceptsInScope.filter((c) => repeat || !byKey.get(`C:${c.id}`)?.fsrs.reps);
     if (linear) {
       const orderById = new Map(articles.map((id, index) => [id, index]));
       for (const concept of pool) {
@@ -249,7 +251,7 @@ async function nextBatch(state: SessionState, budgetSec: number): Promise<{ item
       }
       continue;
     }
-    if (mix === 'literal' || mix === 'ambos') for (const e of unitItems(artId, cfg.mode, byKey, seed, linear)) push(e);
+    if (mix === 'literal' || mix === 'ambos') for (const e of unitItems(artId, cfg.mode, byKey, seed, linear, repeat)) push(e);
     if (mix === 'casos' || mix === 'ambos') {
       for (const concept of conceptsByArticle.get(artId) ?? []) push({ ...conceptExercise(concept, seed), articleId: artId });
       for (const exercise of caseItems(artId, seed)) push(exercise);
@@ -262,13 +264,13 @@ export async function exerciseForCard(card: CardRow, mode: Mode, seed: string): 
   if (card.id.startsWith('D:')) return doctrineExercise(card.id, seed);
   if (card.id.startsWith('P:')) return (await buildPairDrill(seed)).find((item) => item.key === card.id) ?? null;
   if (card.conceptId) { const c = CONCEPTS.find((x) => x.id === card.conceptId); return c ? conceptExercise(c, seed) : null; }
-  const [kind] = card.id.split(':');
+  const [kind, , parent] = card.id.split(':');
   const artId = card.articleId || card.unitId?.split('.').slice(0, 2).join('.');
   if (artId) await ensureLaws([artId.split('.')[0]]);
   const a = artId ? getArticle(artId) : null;
   if (!a) return null;
   if (kind === 'L') { const u = a.art.units.find((x) => x.id === card.unitId); return u ? buildLiteral(a.law, a.art, u, card.dim, Math.max(1, card.stage), mode === 'provar' ? 'provar' : 'memorizar', seed) : null; }
-  if (kind === 'O') return buildOrder(a.law, a.art, card.stage);
+  if (kind === 'O') return parent ? buildOrder(a.law, a.art, card.stage, parent) : null;
   if (kind === 'W') return buildWhich(a.law, a.art, card.stage);
   if (kind === 'R') return buildRubric(a.law, a.art, card.stage);
   if (kind === 'S') {
@@ -379,6 +381,7 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
   const { day, goal, quick } = planner;
   const taskId = plannerTaskKey(day, goal);
   const saved = await getPlannerTask(taskId);
+  const completed = new Set(saved?.done);
   const seed = String(state.seed);
   const cards = new Map((await db.cards.toArray()).map((card) => [card.id, card]));
   const getArticleItems = (id: string) => {
@@ -388,6 +391,13 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
     return exercises.length ? exercises : [buildRead(hit.law, hit.art)];
   };
   let groups: PlannerTask['groups'] = saved?.groups ?? [];
+  const refreshGroups = (available: (id: string) => Set<string> | undefined) => groups.flatMap((group) => {
+    if (group.keys.every((key) => completed.has(key))) return [group];
+    const current = available(group.id);
+    if (!current) return [group];
+    const keys = group.keys.filter((key) => current.has(key));
+    return keys.some((key) => !completed.has(key)) ? [{ ...group, keys }] : [];
+  });
   if (goal.kind === 'law') {
     const scope = scopeToFocus(goal.scope);
     const scopeConfig: SessionConfig = { ...scope, minutes: 15, mode: 'memorizar', order: 'linear' };
@@ -396,8 +406,8 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
     const articleIndex = ids.indexOf(sequence?.articleId ?? '');
     const articles = articleIndex > 0 ? ids.slice(articleIndex) : ids;
     const read = new Set(await kvGet<string[]>('readArticles', []));
+    groups = refreshGroups((id) => getLaw(lawIdOf(id)) ? new Set(getArticleItems(id).map(({ key }) => key)) : undefined);
     const selected = new Set(groups.map(({ id }) => id));
-    groups = [...groups];
     for (const id of articles) {
       if (groups.length >= goal.target) break;
       if (selected.has(id)) continue;
@@ -409,6 +419,10 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
     const review = goal.kind === 'review';
     const pool = review ? (await reviewQueue()).map(({ card }) => ({ id: card.id, keys: [card.id] }))
       : doctrinePlannerGroups(goal.courseId, goal.unit);
+    if (!review) {
+      const current = new Map(pool.map(({ id, keys }) => [id, new Set(keys)]));
+      groups = refreshGroups((id) => current.get(id) ?? new Set());
+    }
     const selected = new Set(groups.map(({ id }) => id));
     groups = [...groups];
     for (const group of pool) {
@@ -502,9 +516,18 @@ export async function buildSession(cfg: SessionConfig, persist = true): Promise<
 
 /** Modo infinito: acrescenta mais itens quando faltam poucos. Recomeça o escopo ao terminar. */
 export async function extendSession(state: SessionState): Promise<SessionState> {
-  let b = await nextBatch(state, 6 * 60);
-  if (!b.items.length) { b = await nextBatch({ ...state, cursor: 0, seed: (state.seed ?? 1) + 1 }, 6 * 60); }
-  return { ...state, items: [...state.items, ...b.items], cursor: b.cursor };
+  const batch = await nextBatch(state, 6 * 60);
+  if (batch.items.length) return { ...state, items: [...state.items, ...batch.items], cursor: batch.cursor };
+  // Enquanto ainda houver perguntas na fila, preserva a ordem e tenta recomeçar ao chegar ao fim.
+  if (state.index < state.items.length) return state;
+  const restarted = {
+    ...state, cursor: 0, seed: (state.seed ?? 1) + 1,
+    config: { ...state.config, sequenceSkip: undefined },
+  };
+  const repeated = await nextBatch(restarted, 6 * 60, true);
+  return repeated.items.length
+    ? { ...restarted, items: [...state.items, ...repeated.items], cursor: repeated.cursor }
+    : state;
 }
 
 interface SequencePosition { articleId: string; practiced: string[]; config?: SessionConfig; updatedAt?: number }

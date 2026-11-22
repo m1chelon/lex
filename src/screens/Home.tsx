@@ -151,7 +151,7 @@ export function Home() {
     haptic('tap'); setNotif(false);
     if (p.id === 'session') nav.push({ name: 'session', resume: true });
     else if (p.id === 'streak') play({ minutes: 5, infinite: false, blitz: false, mode: 'memorizar' });
-    else if (p.id === 'due') play({ minutes: 10, infinite: false, blitz: false, mode: 'memorizar' });
+    else if (p.id === 'due') showShelf('review');
     else if (p.id === 'goal') play({ minutes: Math.min(30, Math.max(5, settings.dailyMinutes - Math.round((stats?.todayMs ?? 0) / 60000))), infinite: false, blitz: false, mode: 'memorizar' });
     else if (p.id === 'mood') setMoodOpen(true);
     else if (p.id === 'ponto') nav.push({ name: 'ponto' });

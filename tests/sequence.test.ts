@@ -8,7 +8,7 @@ import { db } from '../src/data/db';
 import { reviewQueue, setReviewMark } from '../src/learn/reviewQueue';
 import { recordAnswer, regradeAsGuess } from '../src/learn/scheduler';
 import { getArticle, initCorpus } from '../src/data/corpus';
-import { buildSession, canConsultStudySource, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
+import { buildSession, canConsultStudySource, exerciseForCard, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
 import { planToConfig } from '../src/learn/plan';
 import { buildOrder, buildRubric, buildWhich, shuffledOrderItems } from '../src/learn/generators';
 import { normAnswer } from '../src/learn/text';
@@ -43,6 +43,35 @@ it('faz os blocos contarem apenas questões, inclusive o último bloco curto', (
   expect(questionCheckpoint(51, 52, false)).toEqual({ block: 11, remaining: 2 });
   expect(questionCheckpoint(52, 52, true)).toEqual({ block: 11, remaining: 0 });
   expect(questionCheckpoint(21, undefined, false)).toEqual({ block: 5, remaining: 5 });
+});
+
+it('recomeça um treino infinito de um único exercício, mesmo com a revisão agendada', async () => {
+  const active = await buildSession({ ...config, articleIds: ['cpp.3'], infinite: true, order: 'misturado' }, false);
+  const literal = active.items.find(({ key }) => key.startsWith('L:'))!;
+  expect(literal).toBeDefined();
+  for (const ex of active.items) {
+    await recordAnswer({ cardId: ex.key, base: { articleId: ex.articleId, unitId: ex.unitId, dim: ex.dim, type: ex.kind },
+      correct: true, ms: 1000, expectedMs: ex.expectedMs, mode: config.mode, type: ex.kind });
+    const card = (await db.cards.get(ex.key))!;
+    await db.cards.update(ex.key, { fsrs: { ...card.fsrs, due: new Date(Date.now() + 86_400_000) } });
+  }
+  const extended = await extendSession({ ...active, index: active.items.length });
+  expect(extended.items.slice(active.items.length).map(({ key }) => key)).toContain(literal.key);
+  expect(extended.seed).not.toBe(active.seed);
+  await db.cards.bulkDelete(active.items.map(({ key }) => key));
+  await db.reviews.where('cardId').anyOf(active.items.map(({ key }) => key)).delete();
+});
+
+it('revisa o mesmo parágrafo do exercício de ordenar incisos', async () => {
+  const key = 'O:cf.14:cf.14.p3';
+  const { updated } = await recordAnswer({ cardId: key, base: { articleId: 'cf.14', dim: 'literal', type: 'order' },
+    correct: true, ms: 1000, expectedMs: 30_000, mode: config.mode, type: 'order' });
+  const ex = await exerciseForCard(updated, 'memorizar', 'teste');
+  expect(ex).toMatchObject({ key, kind: 'order' });
+  expect(ex?.orderItems?.every(({ id }) => id.startsWith('cf.14.p3.'))).toBe(true);
+  await expect(exerciseForCard({ ...updated, id: 'O:cf.14:cf.14.desconhecido' }, 'memorizar', 'teste')).resolves.toBeNull();
+  await db.cards.delete(key);
+  await db.reviews.where('cardId').equals(key).delete();
 });
 
 describe('retomada da sequência de artigos', () => {

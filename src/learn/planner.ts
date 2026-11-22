@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { PUBLISHED_DOCTRINE_COURSES } from '../content/doctrineCatalog';
 import { db, kvGet } from '../data/db';
 import { dayKey } from './mood';
-import { scopeLabel, type PlanScope } from './plan';
+import { scopeLabel, scopeToFocus, type PlanScope } from './plan';
 import type { SessionConfig } from './session';
 
 export type StudyGoal =
@@ -102,8 +102,9 @@ export async function recordPlannerExercise(taskId: string, key: string) {
 }
 
 export function plannerConfig(day: string, goal: StudyGoal, quick = false): SessionConfig {
+  const scope = goal.kind === 'law' ? scopeToFocus(goal.scope) : { area: 'geral' as const, focus: 'auto' };
   return {
-    minutes: quick ? 5 : 15, mode: 'memorizar', area: 'geral', focus: 'auto', order: 'linear',
+    ...scope, minutes: quick ? 5 : 15, mode: 'memorizar', order: 'linear',
     activity: 'planner', planner: { day, goal, quick }, title: plannerSubject(goal),
   };
 }
