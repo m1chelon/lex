@@ -67,3 +67,31 @@ it.each([
   expect(special[0]).toBe(`${id}.${firstSpecial}`);
   expect(new Set([...general, ...special]).size).toBe(general.length + special.length);
 });
+
+it('preserva a importação manual salva enquanto outra aba baixa a versão automática', async () => {
+  const read = async (path: string) => JSON.parse(await readFile(new URL(`../public/${path}`, import.meta.url), 'utf8'));
+  const manifest = await read('data/manifest.json');
+  const law: LawDoc = await read('data/laws/cf.json');
+  const manual: LawDoc = { ...law, provenance: { ...law.provenance, method: 'manual', sha256: 'cf-importada' } };
+  await libraryDb.laws.delete('cf');
+  let notifyDownload!: () => void;
+  let releaseDownload!: () => void;
+  const requested = new Promise<void>((resolve) => { notifyDownload = resolve; });
+  const waitForImport = new Promise<void>((resolve) => { releaseDownload = resolve; });
+  vi.stubGlobal('fetch', async (url: string) => {
+    if (url.endsWith('/manifest.json')) return Response.json(manifest);
+    notifyDownload();
+    await waitForImport;
+    return Response.json(law);
+  });
+  vi.resetModules();
+  const fresh = await import('../src/data/corpus');
+  const downloading = fresh.ensureLaws(['cf']);
+  await requested;
+  try {
+    await libraryDb.laws.put({ id: manual.id, doc: manual, sha: manual.provenance.sha256, method: 'manual', storedAt: new Date().toISOString() });
+  } finally { releaseDownload(); }
+  await downloading;
+  expect(fresh.getLaw('cf')?.provenance.sha256).toBe('cf-importada');
+  expect(await libraryDb.laws.get('cf')).toMatchObject({ method: 'manual', sha: 'cf-importada' });
+});

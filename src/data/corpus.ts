@@ -27,11 +27,22 @@ export function onCorpus(fn: () => void) { listeners.add(fn); return () => liste
 function bump() { version++; listeners.forEach((f) => f()); }
 
 function indexDoc(doc: LawDoc) {
+  clearLawIndex(doc.id);
   docs.set(doc.id, doc);
   for (const art of doc.articles) {
     artIndex.set(art.id, { law: doc, art });
     for (const unit of art.units) unitIndex.set(unit.id, { law: doc, art, unit });
   }
+}
+
+function clearLawIndex(id: string) {
+  const old = docs.get(id);
+  if (!old) return;
+  for (const art of old.articles) {
+    artIndex.delete(art.id);
+    art.units.forEach((unit) => unitIndex.delete(unit.id));
+  }
+  docs.delete(id);
 }
 
 let storedRows = new Map<string, StoredLaw>();
@@ -114,12 +125,18 @@ export async function ensureLaws(ids: string[], onProgress?: (msg: string) => vo
           const doc = await fetchCorpusJson<LawDoc>(`./data/laws/${m.id}.json`, 'Norma indisponível');
           if (doc.id !== m.id || doc.provenance?.sha256 !== m.provenance?.sha256 || !Array.isArray(doc.articles)) return false;
           if (storedRows.get(id)?.method === 'manual') return false;
-          const row: StoredLaw = { id: doc.id, doc, sha: doc.provenance.sha256, method: 'automatico', storedAt: new Date().toISOString() };
-          try { await libraryDb.laws.put(row); } catch { /* sem IndexedDB */ }
+          let row: StoredLaw = { id: doc.id, doc, sha: doc.provenance.sha256, method: 'automatico', storedAt: new Date().toISOString() };
+          try {
+            row = await libraryDb.transaction('rw', libraryDb.laws, async () => {
+              const previous = await libraryDb.laws.get(id);
+              if (previous?.method === 'manual') return previous;
+              await libraryDb.laws.put(row);
+              return row;
+            });
+          } catch { /* sem IndexedDB */ }
+          if (storedRows.get(id)?.method === 'manual') return false;
           storedRows.set(id, row);
-          const old = docs.get(id);
-          if (old) for (const a of old.articles) { artIndex.delete(a.id); a.units.forEach((u) => unitIndex.delete(u.id)); }
-          indexDoc(doc);
+          indexDoc(row.doc);
           return true;
         } catch { return false; }
       })().finally(() => loading.delete(id));
@@ -137,18 +154,13 @@ export async function storeManualLaw(doc: LawDoc) {
   const row: StoredLaw = { id: doc.id, doc, sha: doc.provenance.sha256, method: 'manual', storedAt: new Date().toISOString() };
   await libraryDb.laws.put(row);
   storedRows.set(doc.id, row);
-  // remove índices antigos
-  const old = docs.get(doc.id);
-  if (old) for (const a of old.articles) { artIndex.delete(a.id); a.units.forEach((u) => unitIndex.delete(u.id)); }
   indexDoc(doc);
   bump();
 }
 
 export async function removeLaw(id: string) {
   await libraryDb.laws.delete(id);
-  const old = docs.get(id);
-  if (old) for (const a of old.articles) { artIndex.delete(a.id); a.units.forEach((u) => unitIndex.delete(u.id)); }
-  docs.delete(id);
+  clearLawIndex(id);
   storedRows.delete(id);
   await ensureLaws([id]);
   bump();

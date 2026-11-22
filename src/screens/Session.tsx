@@ -6,7 +6,7 @@ import { isDue, regradeAsGuess } from '../learn/scheduler';
 import { getCareer, careerFor, xpFor } from '../learn/career';
 import { motion } from 'motion/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BLITZ_SECONDS, blitzDeadline, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, sessionDeadline, sessionInProgress, type SessionConfig, type SessionState } from '../learn/session';
+import { BLITZ_SECONDS, blitzDeadline, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, pendingSessionErrors, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, sessionDeadline, sessionInProgress, type SessionConfig, type SessionState } from '../learn/session';
 import { findTargets, shuffledOrderItems, type Exercise, type Seg } from '../learn/generators';
 import { savePlan, type Plan } from '../learn/plan';
 import { recordAnswer, markSeen } from '../learn/scheduler';
@@ -301,12 +301,13 @@ function ConceptRefs({ id }: { id: string }) {
 function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: () => void; onNext: (cfg: SessionConfig) => void; startXp?: number }) {
   const graded = s.results.filter((r) => r.correct !== null);
   const ok = graded.filter((r) => r.correct).length;
-  const missed = graded.length - ok;
+  const wrong = pendingSessionErrors(s);
+  const missed = wrong.length;
   const resultTitle = missed ? `${missed} ${missed === 1 ? 'ponto' : 'pontos'} para revisar`
     : graded.length ? `${ok} ${ok === 1 ? 'acerto' : 'acertos'} no treino`
       : s.results.length ? 'Estudo concluído' : 'Sessão encerrada';
-  const mins = Math.max(1, Math.round(s.results.reduce((a, r) => a + Math.min(r.ms, 120000), 0) / 60000));
-  const wrong = s.items.filter((it) => s.results.find((r) => r.key === it.key && r.correct === false));
+  const ms = s.results.reduce((a, r) => a + Math.max(0, Math.min(r.ms, 120000)), 0);
+  const duration = ms < 60_000 ? `${Math.floor(ms / 1000)} s` : `${Math.round(ms / 60_000)} min`;
   const followup = useAsync(async () => {
     const { config } = s;
     if (config.planner) {
@@ -353,7 +354,7 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
             <strong>A Capi agora é {after.name}</strong>
           </motion.div>
         )}
-        <p className="muted" style={{ marginTop: 6 }}>{blitz ? `${avg} s por resposta` : `${mins} min`} · {s.results.length} {s.results.length === 1 ? 'atividade' : 'atividades'}{best >= 3 ? ` · melhor sequência: ${best}` : ''}</p>
+        <p className="muted" style={{ marginTop: 6 }}>{blitz ? `${avg} s por resposta` : duration} · {s.results.length} {s.results.length === 1 ? 'atividade' : 'atividades'}{best >= 3 ? ` · melhor sequência: ${best}` : ''}</p>
         {wrong[0] && <p className="bubble summary-tip">Capi sugere revisar {wrong[0].where || (wrong[0].articleId && getArticle(wrong[0].articleId)?.art.lab) || 'as questões em que você errou'}.</p>}
       </div>
       <div className="row" style={{ gap: 10 }}>
@@ -383,7 +384,7 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
       <div className="answer-dock summary-dock">
         {!!wrong.length && <button className="btn btn-primary btn-block" onClick={() => onNext({
           area: s.config.area, focus: s.config.focus, mode: 'memorizar', minutes: 10, title: 'Refazer erros', activity: 'review',
-          practiceCardIds: [...new Set(wrong.map(({ key }) => key))],
+          practiceCardIds: wrong.map(({ key }) => key),
         })}>Refazer {wrong.length} {wrong.length === 1 ? 'erro' : 'erros'}</button>}
         {followup && <button className={`btn btn-block ${wrong.length ? 'btn-quiet' : 'btn-primary'}`} onClick={() => onNext(followup.config)}>{followup.label}</button>}
         <button className={`btn btn-block ${wrong.length || followup ? 'btn-quiet' : 'btn-primary'}`} onClick={onClose}>Concluir</button>

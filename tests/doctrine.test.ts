@@ -210,10 +210,16 @@ it('atualiza enunciados doutrinários pendentes ao retomar uma sessão anterior'
     doctrine: { courseId: 'constitucional', moduleId: 't01', filter: 'study' } }, false);
   const [answered, pending, ...rest] = session.items;
   const results = [{ key: answered.key, correct: true, ms: 1000 }];
-  await saveSession({ ...session, index: 1, results, items: [answered, { ...pending, prompt: 'Qual hipótese foi examinada na obra?' }, ...rest] });
+  const draft = [pending.doctrineParts![0].options[0].id];
+  await saveSession({ ...session, index: 1, results, draft,
+    items: [answered, { ...pending, prompt: 'Qual hipótese foi examinada na obra?' }, ...rest] });
   const resumed = await resumeSession();
   expect(resumed?.items[1]).toMatchObject({ key: pending.key, prompt: pending.prompt });
   expect(resumed?.results).toEqual(results);
+  expect(resumed?.draft).toBeUndefined();
+
+  await saveSession({ ...session, index: 1, results, draft, pausedAt: Date.now() });
+  expect((await resumeSession())?.draft).toEqual(draft);
 });
 
 it('registra o progresso da doutrina e refaz erros sem misturar questões de lei seca', async () => {

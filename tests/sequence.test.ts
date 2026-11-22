@@ -9,7 +9,7 @@ import { db } from '../src/data/db';
 import { reviewQueue, setReviewMark } from '../src/learn/reviewQueue';
 import { recordAnswer, regradeAsGuess } from '../src/learn/scheduler';
 import { getArticle, initCorpus } from '../src/data/corpus';
-import { buildSession, canConsultStudySource, exerciseForCard, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
+import { buildSession, canConsultStudySource, exerciseForCard, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, pendingSessionErrors, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
 import { planToConfig } from '../src/learn/plan';
 import { buildOrder, buildRubric, buildWhich, shuffledOrderItems } from '../src/learn/generators';
 import { normAnswer } from '../src/learn/text';
@@ -73,6 +73,14 @@ it('revisa o mesmo parágrafo do exercício de ordenar incisos', async () => {
   await expect(exerciseForCard({ ...updated, id: 'O:cf.14:cf.14.desconhecido' }, 'memorizar', 'teste')).resolves.toBeNull();
   await db.cards.delete(key);
   await db.reviews.where('cardId').equals(key).delete();
+});
+
+it('sugere cada erro uma vez e retira da revisão os acertos na repetição', async () => {
+  const active = await buildSession(config, false);
+  const [corrected, missed] = active.items;
+  const items = [corrected, missed, corrected, missed, missed];
+  const results = items.slice(0, -1).map(({ key }, index) => ({ key, ms: 1000, correct: index === 2 }));
+  expect(pendingSessionErrors({ items, results })).toEqual([missed]);
 });
 
 describe('retomada da sequência de artigos', () => {
@@ -230,6 +238,17 @@ describe('minha revisão', () => {
 });
 
 describe('persistência do simulado e backup', () => {
+  it('recusa um treino com atividade inválida e permite recuperar uma sessão válida', async () => {
+    const session = await buildSession(config, false);
+    const broken = { ...session, items: [null] };
+    const restore = (value: unknown) => importBackup({ text: async () => JSON.stringify({ app: 'LEX', version: 3, kv: [{ key: 'session', value }] }) });
+    await expect(restore(broken)).rejects.toThrow('Treino inválido');
+    await db.kv.put({ key: 'session', value: broken });
+    expect(await loadSession()).toBeNull();
+    await restore(session);
+    expect(await loadSession()).toMatchObject({ id: session.id, index: 0 });
+  });
+
   it('junta respostas de um backup e mantém o simulado encerrado ao restaurar uma cópia antiga', async () => {
     const sim: Simulado = {
       id: 'sim-restore-overlap', estilo: 'cebraspe', n: 3, tempoMin: null, createdAt: 1, startedAt: 1, title: '',

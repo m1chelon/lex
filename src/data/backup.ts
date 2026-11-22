@@ -2,7 +2,7 @@
 import { db, type CardRow, type KV, type MarkRow, type ReviewRow } from './db';
 import { setSettings, type Settings } from '../ui/settings';
 import { clearPlan, isPlan, savePlan } from '../learn/plan';
-import { sessionInProgress, type SessionState } from '../learn/session';
+import { readSavedSession, sessionInProgress } from '../learn/session';
 import { CAPI_WARDROBE_KEY, mergeWardrobes } from '../learn/capiShop';
 import { PROFILE_SETTINGS_KEY, profileStorageKey } from './profiles';
 import { backupKey } from './profileBackup';
@@ -37,6 +37,7 @@ function parseBackup(value: unknown) {
   });
   const kv = rows(value.kv).map((row) => {
     if (typeof row.key !== 'string' || !('value' in row)) throw new Error('Preferência inválida');
+    if (row.key === 'session' && row.value != null && !readSavedSession(row.value)) throw new Error('Treino inválido');
     if (row.key.startsWith('sim:') && row.value != null && !readSavedSimulado(row.value, row.key.slice(4))) throw new Error('Simulado inválido');
     return row as unknown as KV;
   });
@@ -80,8 +81,8 @@ export async function importBackup(f: Pick<File, 'text'>) {
       if (key === CAPI_WARDROBE_KEY || key === 'pontos' || key.startsWith('sim:')) return false;
       const current = currentKeys[i];
       if (!current) return true;
-      if (key === 'session') return !sessionInProgress(current.value as SessionState | null)
-        && sessionInProgress(value as SessionState | null);
+      if (key === 'session') return !sessionInProgress(readSavedSession(current.value))
+        && sessionInProgress(readSavedSession(value));
       return false;
     });
     data.kv.forEach(({ key, value }, i) => {

@@ -47,6 +47,16 @@ export function sessionInProgress(state: SessionState | null | undefined): state
   return !!state && !state.finishedAt && Array.isArray(state.items) && state.index < state.items.length;
 }
 
+export function pendingSessionErrors({ items, results }: Pick<SessionState, 'items' | 'results'>): Exercise[] {
+  const pending = new Map<string, Exercise>();
+  results.forEach((result, index) => {
+    const item = items[index];
+    if (result.correct === false && item?.key === result.key) pending.set(result.key, item);
+    else if (result.correct === true) pending.delete(result.key);
+  });
+  return [...pending.values()];
+}
+
 export function sessionDeadline(state: SessionState) {
   return state.config.timed && !state.config.infinite && state.config.minutes > 0
     ? state.startedAt + state.config.minutes * 60_000 : null;
@@ -654,7 +664,8 @@ export async function resumeSession(): Promise<SessionState | null> {
   // Backups anteriores não guardavam o tempo de uma sessão fechada sem usar a pausa.
   const elapsed = saved.pausedAt !== undefined ? saved.pausedAt - saved.startedAt
     : saved.keepsClockOnReload ? now - saved.startedAt : saved.results.reduce((sum, result) => sum + result.ms, 0);
-  const active = { ...saved, items, startedAt: now - Math.max(0, elapsed), pausedAt: undefined, keepsClockOnReload: true } satisfies SessionState;
+  const draft = items[saved.index] === saved.items[saved.index] ? saved.draft : undefined;
+  const active = { ...saved, items, draft, startedAt: now - Math.max(0, elapsed), pausedAt: undefined, keepsClockOnReload: true } satisfies SessionState;
   if (firstPending >= items.length && saved.index === firstPending) return finishSession(active, false, { expected: saved });
   const deadline = sessionDeadline(active);
   if (firstPending < items.length && deadline !== null && now >= deadline) return finishSession(active, true, { expected: saved });
@@ -662,10 +673,22 @@ export async function resumeSession(): Promise<SessionState | null> {
   return active;
 }
 
-export async function loadSession(): Promise<SessionState | null> {
-  const saved = (await db.kv.get('session'))?.value as SessionState | null;
-  if (!saved?.config || !Array.isArray(saved.items) || !Array.isArray(saved.results) || !Number.isInteger(saved.index) || saved.index < 0 || saved.index > saved.items.length) return null;
+export function readSavedSession(value: unknown): SessionState | null {
+  const saved = value as SessionState | null;
+  if (!saved?.config || typeof saved.id !== 'string' || !Number.isFinite(saved.startedAt)
+    || typeof saved.config.focus !== 'string' || !['aprender', 'memorizar', 'casos', 'provar'].includes(saved.config.mode)
+    || !Array.isArray(saved.items) || !Array.isArray(saved.results)
+    || !Number.isInteger(saved.index) || saved.index < 0 || saved.index > saved.items.length
+    || (saved.draft != null && (!Array.isArray(saved.draft) || !saved.draft.every((id) => typeof id === 'string')))
+    || saved.results.length > saved.items.length) return null;
+  if (!saved.items.every((item) => item && typeof item.key === 'string' && typeof item.kind === 'string' && Array.isArray(item.stem))
+    || !saved.results.every((result) => result && typeof result.key === 'string' && Number.isFinite(result.ms)
+      && (result.correct === null || typeof result.correct === 'boolean'))) return null;
   if (saved.config.order) return saved;
   return { ...saved, config: { ...saved.config, order: 'misturado' } };
+}
+
+export async function loadSession(): Promise<SessionState | null> {
+  return readSavedSession((await db.kv.get('session'))?.value);
 }
 export function lawShort(id: string) { return getLaw(id)?.short ?? id; }
