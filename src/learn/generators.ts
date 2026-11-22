@@ -36,7 +36,6 @@ export interface Exercise {
   stage: number;
   practice?: 'revisao' | 'revanche' | 'nova';
   priority?: number;
-  memoryPoint?: string;
   where?: string; // localização do dispositivo: "EFP-SP · Artigo 241, inciso II"
   /** 'cloze-multi': lacunas na ordem do texto, cada uma com suas alternativas. */
   blanks?: { answer: string; options: string[] }[];
@@ -289,30 +288,6 @@ function clozeStem(art: Article, unit: Unit, targets: Target[]) {
   return stem;
 }
 
-function literalBase(law: LawDoc, art: Article, unit: Unit, dim: Dim, stage: number, priority?: number) {
-  return {
-    key: `L:${unit.id}:${dim}`, dim, lawId: law.id, articleId: art.id, unitId: unit.id, context: unitContext(art, unit),
-    stage, where: whereOf(law, art, unit), priority, family: 'literal' as const,
-  };
-}
-
-export function buildTargetChoices(law: LawDoc, art: Article, unit: Unit, target: Target, choices: string[], stage: number, r: () => number): Exercise {
-  const measurement = target.amount;
-  const otherValues = measurement && new Map(art.units.filter((part) => part !== unit).flatMap((part) =>
-    findTargets(part).flatMap(({ amount }) => amount?.group === measurement.group
-      ? [[measurement.format(amount.value), unitPath(art, part)] as const] : [])));
-  const options = shuffle([
-    { id: 'ok', text: target.text, correct: true },
-    ...choices.map((text, index) => {
-      const other = otherValues?.get(text);
-      return { id: `d${index}`, text, correct: false, why: other ? `Esse valor aparece em outra hipótese do mesmo artigo (${other}).` : undefined };
-    }),
-  ], r);
-  return { ...literalBase(law, art, unit, target.dim, stage, target.priority),
-    stem: clozeStem(art, unit, [target]), answer: target.text,
-    kind: 'cloze-mc', prompt: literalPrompt(target), options, expectedMs: 15000 };
-}
-
 export function buildLiteral(law: LawDoc, art: Article, u: Unit, dim: Dim, stage: number, mode: 'aprender' | 'memorizar' | 'provar', seedExtra = '', choiceCount?: number, preferredTarget?: string): Exercise | null {
   if (!canTrainArticle(art)) return null;
   const targets = findTargets(u).filter((target) => target.dim === dim
@@ -327,7 +302,10 @@ export function buildLiteral(law: LawDoc, art: Article, u: Unit, dim: Dim, stage
   const r = rng(seed);
   const { target, choices } = eligible[Math.floor(r() * eligible.length)];
   const prompt = literalPrompt(target);
-  const base = literalBase(law, art, u, dim, stage, priority);
+  const base = {
+    key: `L:${u.id}:${dim}`, dim, lawId: law.id, articleId: art.id, unitId: u.id, context: unitContext(art, u),
+    stage, where: whereOf(law, art, u), priority, family: 'literal' as const,
+  };
   const single = { ...base, stem: clozeStem(art, u, [target]), answer: target.text };
   if (typed) return { ...single, kind: 'cloze-type', prompt, expectedMs: 25000 };
   // A lacuna dupla só reúne quantidades distintas, ambas com alternativas plausíveis.
@@ -340,7 +318,17 @@ export function buildLiteral(law: LawDoc, art: Article, u: Unit, dim: Dim, stage
         stem: clozeStem(art, u, pair.map((entry) => entry.target)), blanks, answer: blanks.map((entry) => entry.answer).join(' | '), expectedMs: 32000 };
     }
   }
-  return buildTargetChoices(law, art, u, target, choices.slice(0, (choiceCount ?? 5) - 1), stage, r);
+  const otherValues = target.amount && new Map(art.units.filter((part) => part !== u).flatMap((part) =>
+    findTargets(part).flatMap(({ amount }) => amount?.group === target.amount!.group
+      ? [[target.amount!.format(amount.value), unitPath(art, part)] as const] : [])));
+  const options = shuffle([
+    { id: 'ok', text: target.text, correct: true },
+    ...choices.slice(0, (choiceCount ?? 5) - 1).map((text, index) => {
+      const other = otherValues?.get(text);
+      return { id: `d${index}`, text, correct: false, why: other ? `Esse valor aparece em outra hipótese do mesmo artigo (${other}).` : undefined };
+    }),
+  ], r);
+  return { ...single, kind: 'cloze-mc', prompt, options, expectedMs: 15000 };
 }
 
 /** Ordenação de incisos de um mesmo dispositivo. */

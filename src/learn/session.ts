@@ -2,7 +2,6 @@
 import { db, kvGet, type CardRow, type Dim, type ReviewRow } from '../data/db';
 import { coverage, ensureLaws, getArticle, getLaw, getUnit, lawIdOf } from '../data/corpus';
 import { buildLiteral, buildOrder, buildRead, buildRubric, buildWhich, canTrainArticle, findTargets, type Exercise } from './generators';
-import { buildMemoryExercise, memoryPoints } from './memorization';
 import { buildCaseIdentify, buildCasePena } from './cases';
 import { CONCEPTS } from '../content/concepts';
 import { LESSONS } from '../content/lessons';
@@ -178,14 +177,6 @@ function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed:
   const out: Exercise[] = [];
   for (const u of art.units) {
     if (!u.t || u.rev) continue;
-    if (mode === 'memorizar') {
-      for (const point of memoryPoints(law, art, u)) {
-        const card = byKey.get(point.key);
-        if (!linear && !repeat && card?.fsrs.reps && !isDue(card.fsrs)) continue;
-        out.push(buildMemoryExercise(law, art, u, point, Math.max(1, card?.stage ?? 1), seed));
-      }
-      continue;
-    }
     const dims = [...new Set(findTargets(u).map((t) => t.dim))] as Dim[];
     for (const d of dims) {
       const card = byKey.get(`L:${u.id}:${d}`);
@@ -195,7 +186,7 @@ function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed:
       if (ex) out.push(ex);
     }
   }
-  const rubric = mode !== 'memorizar' && !out.length && buildRubric(law, art, 1);
+  const rubric = !out.length && buildRubric(law, art, 1);
   if (rubric) out.push(rubric);
   return out.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 }
@@ -252,11 +243,7 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
     const due = all.filter((c) => isDue(c.fsrs) && ((c.articleId && articlesInScope.has(c.articleId)) || (c.conceptId && conceptIds.has(c.conceptId))))
       .filter((c) => (mix === 'literal' ? c.id.startsWith('L:') || c.id.startsWith('R:') : mix === 'casos' ? c.id.startsWith('C:') || c.id.startsWith('CI:') || c.id.startsWith('CP:') : !/^[OW]:/.test(c.id)))
       .sort((a, b) => retrievability(a.fsrs) - retrievability(b.fsrs));
-    for (const c of due.slice(0, 40)) {
-      const ex = await exerciseForCard(c, cfg.mode, seed);
-      if (ex && (cfg.mode !== 'memorizar' || ex.memoryPoint)) push(ex);
-      if (spent > budgetSec * 0.6) break;
-    }
+    for (const c of due.slice(0, 40)) { const ex = await exerciseForCard(c, cfg.mode, seed); if (ex) push(ex); if (spent > budgetSec * 0.6) break; }
   }
 
   // No modo sequencial, cada caso aparece junto ao primeiro artigo que fundamenta a questão.
@@ -310,18 +297,7 @@ export async function exerciseForCard(card: CardRow, mode: Mode, seed: string): 
   if (artId) await ensureLaws([artId.split('.')[0]]);
   const a = artId ? getArticle(artId) : null;
   if (!a) return null;
-  if (kind === 'L') {
-    const unit = a.art.units.find((item) => item.id === (card.unitId ?? card.id.split(':')[1]));
-    if (!unit) return null;
-    const stage = Math.max(1, card.stage);
-    const point = memoryPoints(a.law, a.art, unit).find((entry) => entry.key === card.id);
-    if (point && (mode !== 'provar' || card.id.split(':').length > 3)) {
-      const current = buildMemoryExercise(a.law, a.art, unit, point, stage, seed);
-      return mode === 'provar' ? { ...current, kind: 'cloze-type', options: undefined, expectedMs: 25_000 } : current;
-    }
-    if (card.id.split(':').length > 3) return null;
-    return buildLiteral(a.law, a.art, unit, card.dim, stage, mode === 'provar' ? 'provar' : 'memorizar', seed);
-  }
+  if (kind === 'L') { const u = a.art.units.find((x) => x.id === card.unitId); return u ? buildLiteral(a.law, a.art, u, card.dim, Math.max(1, card.stage), mode === 'provar' ? 'provar' : 'memorizar', seed) : null; }
   if (kind === 'O') return parent ? buildOrder(a.law, a.art, card.stage, parent) : null;
   if (kind === 'W') return buildWhich(a.law, a.art, card.stage);
   if (kind === 'R') return buildRubric(a.law, a.art, card.stage);
@@ -332,10 +308,6 @@ export async function exerciseForCard(card: CardRow, mode: Mode, seed: string): 
       return exercise && { ...exercise, key: card.id };
     }
     const unit = a.art.units.find((item) => item.id === card.unitId);
-    const point = unit && memoryPoints(a.law, a.art, unit).find((entry) => entry.target.dim === card.dim);
-    if (unit && point && mode === 'memorizar') {
-      return { ...buildMemoryExercise(a.law, a.art, unit, point, Math.max(1, card.stage), seed), key: card.id };
-    }
     const exercise = unit && buildLiteral(a.law, a.art, unit, card.dim, Math.max(1, card.stage), 'memorizar', seed);
     return exercise ? { ...exercise, key: card.id } : null;
   }
@@ -348,12 +320,8 @@ async function revengeExercise(card: CardRow, last: ReviewRow, seed: string): Pr
   const hit = card.articleId && getArticle(card.articleId);
   const unit = hit && hit.art.units.find((item) => item.id === card.unitId);
   if (hit && unit && ['L', 'S'].includes(card.id.split(':')[0])) {
-    const remembered = (last.target ?? last.expected)?.split(' | ') ?? [];
-    const points = memoryPoints(hit.law, hit.art, unit);
-    const point = points.find((entry) => remembered.some((text) => fold(text) === fold(entry.target.text))) ??
-      points.find((entry) => entry.key === card.id);
-    if (point) return { ...buildMemoryExercise(hit.law, hit.art, unit, point, 1, seed), key: card.id, practice: 'revanche' };
     const targets = findTargets(unit);
+    const remembered = (last.target ?? last.expected)?.split(' | ') ?? [];
     const target = targets.find((item) => remembered.some((word) => fold(word) === fold(item.text))) ?? targets.find((item) => item.dim === card.dim);
     if (target) {
       const choices = buildLiteral(hit.law, hit.art, unit, target.dim, 1, 'memorizar', seed, undefined, target.text);
@@ -384,13 +352,11 @@ export async function buildDaily(cfg: SessionConfig, now = new Date()): Promise<
   };
   let revisions = 0;
   for (const card of due) {
-    const exercise = await exerciseForCard(card, 'memorizar', seed);
-    if ((exercise?.memoryPoint || exercise?.key.startsWith('P:')) && add(exercise, 'revisao') && ++revisions >= 3) break;
+    if (add(await exerciseForCard(card, 'memorizar', seed), 'revisao') && ++revisions >= 3) break;
   }
   let errors = 0;
   for (const card of wrong) {
-    const exercise = await revengeExercise(card, reviews.get(card.id)!, seed);
-    if ((exercise?.memoryPoint || exercise?.key.startsWith('P:')) && add(exercise, 'revanche') && ++errors >= 2) break;
+    if (add(await revengeExercise(card, reviews.get(card.id)!, seed), 'revanche') && ++errors >= 2) break;
   }
   const seen = new Set(eligible.filter((card) => card.fsrs.reps).map((card) => card.id));
   const newLimit = result.length ? Math.min(result.length + 2, 7) : 7;
@@ -605,24 +571,13 @@ function sequenceKey(cfg: SessionConfig) {
   return JSON.stringify(['sequencia', cfg.area ?? getSettings().area, cfg.focus, cfg.mode, mix]);
 }
 
-function nextSequenceArticle(articles: string[], index: number, mode: Mode) {
-  if (mode !== 'memorizar') return articles[index];
-  return articles.slice(index).find((id) => {
-    const hit = getArticle(id);
-    return hit && hit.art.units.some((unit) => memoryPoints(hit.law, hit.art, unit).length > 0);
-  });
-}
-
 export async function loadSequence(cfg: SessionConfig): Promise<SequencePosition | null> {
   const key = sequenceKey(cfg);
   if (!key) return null;
   const saved = await kvGet<SequencePosition | null>(key, null);
   if (!saved) return null;
   const articles = await scopeArticles(cfg, 0);
-  const index = articles.indexOf(saved.articleId);
-  if (index < 0) return null;
-  const articleId = nextSequenceArticle(articles, index, cfg.mode);
-  return articleId === saved.articleId ? saved : articleId ? { ...saved, articleId, practiced: [] } : null;
+  return articles.includes(saved.articleId) ? saved : null;
 }
 
 export async function finishSession(s: SessionState, timedOut = false, options?: { expected: SessionState; replacement?: SessionState }): Promise<SessionState> {
@@ -631,7 +586,7 @@ export async function finishSession(s: SessionState, timedOut = false, options?:
   let position: SequencePosition | null = null;
   if (key && s.results.length) {
     const pendingArticle = s.items.slice(Math.max(s.index, s.results.length)).find((item) => item.articleId)?.articleId;
-    const articleId = pendingArticle ?? nextSequenceArticle(await scopeArticles(s.config, s.seed ?? 0), s.cursor ?? 0, s.config.mode);
+    const articleId = pendingArticle ?? (await scopeArticles(s.config, s.seed ?? 0))[s.cursor ?? 0];
     const practiced = articleId === s.config.startArticleId ? [...s.config.sequenceSkip ?? []] : [];
     if (pendingArticle) {
       for (const item of s.items.slice(0, s.results.length)) {
@@ -684,18 +639,6 @@ export async function resumeSession(): Promise<SessionState | null> {
         const fixed = hit && buildWhich(hit.law, hit.art, exercise.stage);
         return fixed ? [{ ...fixed, practice: exercise.practice }] : [];
       }
-    }
-    if (saved.config.mode === 'memorizar' && saved.config.activity !== 'retry' && exercise.key.startsWith('L:') && exercise.kind.startsWith('cloze')) {
-      const hit = getUnit(exercise.unitId ?? exercise.key.split(':')[1]);
-      if (!hit) return [exercise];
-      const point = memoryPoints(hit.law, hit.art, hit.unit).find((entry) => entry.key === exercise.key);
-      if (!point) return [];
-      if (exercise.kind === 'cloze-mc' && exercise.memoryPoint === point.fingerprint
-        && exercise.options?.length === point.choices.length + 1
-        && point.choices.every((choice) => exercise.options!.some((option) => !option.correct && option.text === choice))
-        && (!point.prompt || exercise.prompt === point.prompt)) return [exercise];
-      return [{ ...buildMemoryExercise(hit.law, hit.art, hit.unit, point, exercise.stage, saved.id), practice: exercise.practice,
-        expectedMs: saved.config.blitz ? BLITZ_SECONDS * 1000 : 15_000 }];
     }
     // Sessões já respondidas mantêm seu histórico. As lacunas antigas ainda pendentes usam a seleção atual.
     if (saved.config.activity !== 'retry' && exercise.key.startsWith('L:') && exercise.kind.startsWith('cloze') && exercise.priority === undefined) {
