@@ -1,10 +1,11 @@
 // Montagem de sessões: escopo (área/edital/lei/ramo), ordem, modo e modo infinito.
 import { db, kvGet, type CardRow, type Dim, type ReviewRow } from '../data/db';
 import { coverage, ensureLaws, getArticle, getLaw, getUnit, lawIdOf } from '../data/corpus';
-import { buildLiteral, buildOrder, buildRead, buildRubric, buildWhich, canTrainArticle, findTargets, type Exercise } from './generators';
+import { buildLiteral, buildOrder, buildRubric, buildWhich, canTrainArticle, findTargets, type Exercise } from './generators';
 import { buildCaseIdentify, buildCasePena } from './cases';
+import { buildGuidedRead, buildMemory, buildPenaltyQuestion } from './lawQuestions';
 import { CONCEPTS } from '../content/concepts';
-import { LESSONS } from '../content/lessons';
+import { CASE_BANK, findLawConcept } from '../content/lawCases';
 import { getArea, lawsByRamo, areaLaws, type AreaId } from '../core/areas';
 import { isDue, retrievability } from './scheduler';
 import { fold, hashStr, normAnswer, rng, shuffle } from './text';
@@ -19,7 +20,8 @@ import { dayKey } from './mood';
 import { getPlannerTask, isPlannedSession, plannerProgress, plannerTaskKey, type PlannerTask, type StudyGoal } from './planner';
 import { scopeToFocus } from './plan';
 
-export type Mode = 'aprender' | 'memorizar' | 'casos' | 'provar';
+export type Mode = 'aprender' | 'memorizar' | 'memorizar-guiada' | 'casos' | 'provar';
+export const isMemoryMode = (mode: Mode) => mode === 'memorizar' || mode === 'memorizar-guiada';
 export type Order = 'misturado' | 'linear';
 export const DEFAULT_ARTICLE_ORDER: Order = 'linear';
 export interface SessionConfig {
@@ -47,11 +49,12 @@ export function sessionInProgress(state: SessionState | null | undefined): state
   return !!state && !state.finishedAt && Array.isArray(state.items) && state.index < state.items.length;
 }
 
-export function pendingSessionErrors({ items, results }: Pick<SessionState, 'items' | 'results'>): Exercise[] {
+export function pendingSessionErrors({ items, results, config }: Pick<SessionState, 'items' | 'results'> & { config?: SessionConfig }): Exercise[] {
   const pending = new Map<string, Exercise>();
   results.forEach((result, index) => {
     const item = items[index];
     if (item?.key !== result.key) return;
+    if (config && isMemoryMode(config.mode) && !config.blitz && !config.activity && item.kind !== 'cloze-multi') return;
     const key = item.kind.startsWith('cloze') ? JSON.stringify([item.key, item.answer]) : item.key;
     if (result.correct === false) pending.set(key, item);
     else if (result.correct === true) pending.delete(key);
@@ -174,6 +177,22 @@ function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed:
   const hit = getArticle(artId);
   if (!hit) return [];
   const { law, art } = hit;
+  if (isMemoryMode(mode)) {
+    const primary = art.units.flatMap((unit) => {
+      const exercise = buildMemory(law, art, unit, 1, seed);
+      if (!exercise) return [];
+      const card = byKey.get(exercise.key);
+      if (!linear && !repeat && card?.fsrs.reps && !isDue(card.fsrs)) return [];
+      return [{ ...exercise, stage: Math.max(1, card?.stage ?? 1) }];
+    });
+    const sanction = art.units.find((unit) => unit.k === 'pena' && !unit.rev);
+    if (primary.length && sanction) {
+      const exercise = buildPenaltyQuestion(law, art, sanction, seed);
+      const card = exercise && byKey.get(exercise.key);
+      if (exercise && (linear || repeat || !card?.fsrs.reps || isDue(card.fsrs))) primary.push(exercise);
+    }
+    return primary;
+  }
   const out: Exercise[] = [];
   for (const u of art.units) {
     if (!u.t || u.rev) continue;
@@ -213,16 +232,22 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
   const practiced = new Set(cfg.sequenceSkip);
   const excluded = new Set(state.items.slice(Math.max(0, state.index - (repeat ? 0 : 2))).map((item) => item.key));
   let spent = 0, cursor = state.cursor ?? 0;
+  let sinceSanction = 0;
   const push = (e: Exercise) => {
     if (e.articleId === cfg.startArticleId && practiced.has(e.key)) return;
+    if (isMemoryMode(cfg.mode) && e.kind !== 'cloze-multi') return;
     if (excluded.has(e.key)) return;
+    if (isMemoryMode(cfg.mode) || cfg.mode === 'casos') {
+      if (e.dim === 'penas' && sinceSanction < 4 && articles.length > 1) return;
+      sinceSanction = e.dim === 'penas' ? 0 : sinceSanction + 1;
+    }
     excluded.add(e.key);
     items.push(e);
-    spent += COST[e.kind] ?? 25;
+    spent += e.kind === 'read' ? e.expectedMs / 1000 : COST[e.kind] ?? 25;
   };
   const lawsInScope = new Set(scopeLaws(cfg));
   const articlesInScope = new Set(articles);
-  const conceptsInScope = cfg.mode === 'aprender' ? [] : CONCEPTS.filter((c) => conceptInScope(c, cfg, lawsInScope, articlesInScope));
+  const conceptsInScope = cfg.mode === 'aprender' ? [] : (cfg.mode === 'casos' ? CASE_BANK : CONCEPTS).filter((c) => conceptInScope(c, cfg, lawsInScope, articlesInScope));
   const conceptIds = new Set(conceptsInScope.map((c) => c.id));
   const readArts = new Set(await kvGet<string[]>('readArticles', []));
   const termsSeen = new Set(await kvGet<string[]>('termsIntroduced', []));
@@ -232,16 +257,16 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
     for (const id of cfg.practiceCardIds) {
       const card = byKey.get(id);
       const review = latest?.get(id);
-      const exercise = card && (review && !review.correct ? await revengeExercise(card, review, seed) : await exerciseForCard(card, cfg.mode, seed));
+      const exercise = card && (review && !review.correct ? await revengeExercise(card, review, seed, isMemoryMode(cfg.mode)) : await exerciseForCard(card, cfg.mode, seed));
       if (exercise) push(exercise);
       if (spent >= budgetSec) break;
     }
   }
 
-  // revisões devidas primeiro (misturado), dentro do escopo
+  // Revisões devidas no misturado. Memorização leva sanções junto do dispositivo principal.
   if (!linear && cursor === 0 && cfg.mode !== 'aprender') {
     const due = all.filter((c) => isDue(c.fsrs) && ((c.articleId && articlesInScope.has(c.articleId)) || (c.conceptId && conceptIds.has(c.conceptId))))
-      .filter((c) => (mix === 'literal' ? c.id.startsWith('L:') || c.id.startsWith('R:') : mix === 'casos' ? c.id.startsWith('C:') || c.id.startsWith('CI:') || c.id.startsWith('CP:') : !/^[OW]:/.test(c.id)))
+      .filter((c) => (mix === 'literal' ? c.id.startsWith('L:') && (!isMemoryMode(cfg.mode) || c.dim !== 'penas') || !isMemoryMode(cfg.mode) && c.id.startsWith('R:') : mix === 'casos' ? c.id.startsWith('C:') || c.id.startsWith('CI:') || c.id.startsWith('CP:') : !/^[OW]:/.test(c.id)))
       .sort((a, b) => retrievability(a.fsrs) - retrievability(b.fsrs));
     for (const c of due.slice(0, 40)) { const ex = await exerciseForCard(c, cfg.mode, seed); if (ex) push(ex); if (spent > budgetSec * 0.6) break; }
   }
@@ -272,7 +297,7 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
     if (cfg.mode === 'aprender') {
       const hit = getArticle(artId);
       if (!hit || !canTrainArticle(hit.art)) continue;
-      if (!readArts.has(artId)) push(buildRead(hit.law, hit.art));
+      if (!readArts.has(artId)) push(buildGuidedRead(hit.law, hit.art));
       for (const u of hit.art.units.filter((unit) => !unit.rev)) for (const h of findTerms(u.t, hit.law.id)) {
         const term = getTerm(h.id);
         if (term && !termsSeen.has(term.id)) { termsSeen.add(term.id); push({ key: `T:${term.id}`, kind: 'term', dim: 'conceitual', family: 'glossario', termId: term.id, articleId: artId, prompt: 'Conheça o termo', stem: [], expectedMs: 30000, stage: 0 }); }
@@ -282,7 +307,12 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
     if (mix === 'literal' || mix === 'ambos') for (const e of unitItems(artId, cfg.mode, byKey, seed, linear, repeat)) push(e);
     if (mix === 'casos' || mix === 'ambos') {
       for (const concept of conceptsByArticle.get(artId) ?? []) push({ ...conceptExercise(concept, seed), articleId: artId });
-      for (const exercise of caseItems(artId, seed)) push(exercise);
+      if (cfg.mode === 'provar') for (const exercise of caseItems(artId, seed)) push(exercise);
+      else if (conceptsByArticle.has(artId) && sinceSanction >= 4) {
+        const hit = getArticle(artId);
+        const penalty = hit && buildCasePena(hit.law, hit.art, seed);
+        if (penalty) push(penalty);
+      }
     }
   }
   return { items: cfg.mode === 'provar' && !linear ? shuffle(items, rng(seed)) : items, cursor };
@@ -291,12 +321,17 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
 export async function exerciseForCard(card: CardRow, mode: Mode, seed: string): Promise<Exercise | null> {
   if (card.id.startsWith('D:')) return doctrineExercise(card.id, seed);
   if (card.id.startsWith('P:')) return (await buildPairDrill(seed)).find((item) => item.key === card.id) ?? null;
-  if (card.conceptId) { const c = CONCEPTS.find((x) => x.id === card.conceptId); return c ? conceptExercise(c, seed) : null; }
+  if (card.conceptId) { const c = findLawConcept(card.conceptId); return c ? conceptExercise(c, seed) : null; }
   const [kind, , parent] = card.id.split(':');
   const artId = card.articleId || card.unitId?.split('.').slice(0, 2).join('.');
   if (artId) await ensureLaws([artId.split('.')[0]]);
   const a = artId ? getArticle(artId) : null;
   if (!a) return null;
+  if (isMemoryMode(mode) && (kind === 'L' || kind === 'S' || kind === 'R')) {
+    const unit = a.art.units.find((item) => item.id === (card.unitId ?? (kind === 'L' ? card.id.split(':')[1] : undefined)));
+    const ex = unit && (unit.k === 'pena' ? buildPenaltyQuestion(a.law, a.art, unit, seed) : buildMemory(a.law, a.art, unit, Math.max(1, card.stage), seed));
+    return ex ? { ...ex, key: card.id } : null;
+  }
   if (kind === 'L') { const u = a.art.units.find((x) => x.id === card.unitId); return u ? buildLiteral(a.law, a.art, u, card.dim, Math.max(1, card.stage), mode === 'provar' ? 'provar' : 'memorizar', seed) : null; }
   if (kind === 'O') return parent ? buildOrder(a.law, a.art, card.stage, parent) : null;
   if (kind === 'W') return buildWhich(a.law, a.art, card.stage);
@@ -316,7 +351,11 @@ export async function exerciseForCard(card: CardRow, mode: Mode, seed: string): 
   return null;
 }
 
-async function revengeExercise(card: CardRow, last: ReviewRow, seed: string): Promise<Exercise | null> {
+async function revengeExercise(card: CardRow, last: ReviewRow, seed: string, memory = false): Promise<Exercise | null> {
+  if (memory) {
+    const exercise = await exerciseForCard(card, 'memorizar', seed);
+    return exercise && { ...exercise, practice: 'revanche' };
+  }
   const hit = card.articleId && getArticle(card.articleId);
   const unit = hit && hit.art.units.find((item) => item.id === card.unitId);
   if (hit && unit && ['L', 'S'].includes(card.id.split(':')[0])) {
@@ -356,7 +395,7 @@ export async function buildDaily(cfg: SessionConfig, now = new Date()): Promise<
   }
   let errors = 0;
   for (const card of wrong) {
-    if (add(await revengeExercise(card, reviews.get(card.id)!, seed), 'revanche') && ++errors >= 2) break;
+    if (add(await revengeExercise(card, reviews.get(card.id)!, seed, true), 'revanche') && ++errors >= 2) break;
   }
   const seen = new Set(eligible.filter((card) => card.fsrs.reps).map((card) => card.id));
   const newLimit = result.length ? Math.min(result.length + 2, 7) : 7;
@@ -386,8 +425,12 @@ async function buildBlitz(config: SessionConfig, state: SessionState) {
   const ids = shuffle(await scopeArticles(config, state.seed ?? 1), r);
   for (const id of ids) {
     if (state.items.length >= BLITZ_COUNT) break;
-    const candidates = unitItems(id, 'memorizar', new Map(), String(state.seed), true)
-      .filter((ex) => ex.kind === 'cloze-mc' && words(ex) <= 42);
+    const hit = getArticle(id);
+    if (!hit) continue;
+    const candidates = shuffle(hit.art.units, r).flatMap((unit) => {
+      const exercise = buildMemory(hit.law, hit.art, unit, 1, String(state.seed), true);
+      return exercise && words(exercise) <= 38 ? [exercise] : [];
+    });
     const units = new Set<string>();
     for (const exercise of candidates) {
       if (!exercise.unitId || units.has(exercise.unitId)) continue;
@@ -410,7 +453,7 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
     const hit = getArticle(id);
     if (!hit || !canTrainArticle(hit.art) || !hit.art.units.some((unit) => unit.t && !unit.rev)) return [];
     const exercises = unitItems(id, 'memorizar', cards, day + ':' + id, true);
-    return exercises.length ? exercises : [buildRead(hit.law, hit.art)];
+    return exercises.length ? exercises : [buildGuidedRead(hit.law, hit.art)];
   };
   let groups: PlannerTask['groups'] = saved?.groups ?? [];
   const refreshGroups = (available: (id: string) => Set<string> | undefined) => groups.flatMap((group) => {
@@ -505,9 +548,9 @@ export async function buildSession(cfg: SessionConfig, persist = true, retryItem
         if (!card) continue;
         const last = latest.get(card.id);
         const exercise = last && !last.correct
-          ? await revengeExercise(card, last, String(state.seed))
+          ? await revengeExercise(card, last, String(state.seed), isMemoryMode(cfg.mode))
           : await exerciseForCard(card, cfg.mode, String(state.seed));
-        if (exercise) state.items.push({ ...exercise, practice: exercise.practice ?? 'revisao' });
+        if (exercise?.kind === 'cloze-multi' || (exercise && !isMemoryMode(cfg.mode))) state.items.push({ ...exercise, practice: exercise.practice ?? 'revisao' });
       }
     } else {
       state.items = cfg.activity === 'daily' ? await buildDaily(config) : await buildPairDrill(String(state.seed));
@@ -522,13 +565,6 @@ export async function buildSession(cfg: SessionConfig, persist = true, retryItem
     state.startedAt = Date.now();
     if (persist && state.items.length) await saveSession(state);
     return state;
-  }
-  // microaula no início do Aprender
-  if (cfg.mode === 'aprender' && !cfg.articleIds) {
-    const done = await kvGet<string[]>('lessonsDone', []);
-    const laws = new Set(scopeLaws(config));
-    const lesson = LESSONS.find((l) => !done.includes(l.id) && l.refs.some((r) => laws.has(r.law)));
-    if (lesson) state.items.push({ key: `M:${lesson.id}`, kind: 'lesson', dim: 'conceitual', family: 'microaula', lessonId: lesson.id, prompt: lesson.titulo, stem: [], expectedMs: lesson.minutos * 60000, stage: 0 });
   }
   const budget = cfg.infinite ? 6 * 60 : cfg.minutes * 60;
   const b = await nextBatch(state, budget);
@@ -630,7 +666,37 @@ export async function resumeSession(): Promise<SessionState | null> {
     if (!getLaw(law)) pendingLaws.add(law);
   }
   if (pendingLaws.size) await ensureLaws([...pendingLaws]);
+  const refreshMemory = isMemoryMode(saved.config.mode) && !saved.config.activity;
   const remaining = saved.items.slice(firstPending).flatMap((exercise) => {
+    if (saved.config.mode === 'casos' && !saved.config.activity && exercise.kind === 'case'
+      && exercise.key.startsWith('CI:')) {
+      const replacement = CASE_BANK.find((entry) => entry.refs.some((ref) => `${ref.law}.${ref.art}` === exercise.articleId));
+      return replacement ? [{ ...conceptExercise(replacement, saved.id), articleId: exercise.articleId }] : [];
+    }
+    if (saved.config.mode === 'aprender' && !saved.config.activity) {
+      if (exercise.kind === 'lesson') return [];
+      if (exercise.kind === 'read' && !exercise.readingFocus && exercise.articleId) {
+        const hit = getArticle(exercise.articleId);
+        if (hit) return [buildGuidedRead(hit.law, hit.art)];
+      }
+    }
+    if (refreshMemory) {
+      if (exercise.kind === 'rubric' && exercise.articleId && !saved.config.blitz) {
+        const hit = getArticle(exercise.articleId);
+        if (!hit) return [];
+        return hit.art.units.flatMap((unit) => buildMemory(hit.law, hit.art, unit, 1, saved.id) ?? []).slice(0, 1);
+      }
+      if (exercise.kind === 'cloze-multi' && !saved.config.blitz && exercise.blanks && [2, 3].includes(exercise.blanks.length)
+        && exercise.stem.filter(({ blank }) => blank).length === exercise.blanks.length) return [exercise];
+      if (exercise.kind === 'cloze-mc' && saved.config.blitz && exercise.expectedMs === 10_000 && !exercise.context?.length && exercise.dim !== 'penas') return [exercise];
+      const unitId = exercise.unitId ?? (/^L:([^:]+):/.exec(exercise.key)?.[1]);
+      const hit = unitId && getUnit(unitId);
+      if (!hit) return [];
+      const rebuilt = hit.unit.k === 'pena'
+        ? !saved.config.blitz && buildPenaltyQuestion(hit.law, hit.art, hit.unit, saved.id)
+        : buildMemory(hit.law, hit.art, hit.unit, exercise.stage, saved.id, saved.config.blitz);
+      return rebuilt ? [{ ...rebuilt, practice: exercise.practice }] : [];
+    }
     if (exercise.articleId && ['literal', 'leitura'].includes(exercise.family)) {
       const hit = getArticle(exercise.articleId);
       if (hit && !canTrainArticle(hit.art)) return [];
@@ -661,6 +727,14 @@ export async function resumeSession(): Promise<SessionState | null> {
     const sameParts = JSON.stringify(current.doctrineParts) === JSON.stringify(exercise.doctrineParts);
     return [current.prompt === exercise.prompt && sameOptions && sameParts ? exercise : { ...current, practice: exercise.practice }];
   });
+  const used = new Set(saved.items.slice(0, firstPending).map((item) => item.key));
+  if (refreshMemory) {
+    for (let i = 0; i < remaining.length;) {
+      const key = remaining[i].key;
+      if (used.has(key)) remaining.splice(i, 1);
+      else { used.add(key); i++; }
+    }
+  }
   const legacyTyped = saved.config.mode !== 'provar' && saved.config.activity !== 'retry' && remaining.some((exercise) => exercise.kind === 'cloze-type');
   const revised = remaining.length !== saved.items.length - firstPending
     || remaining.some((exercise, index) => exercise !== saved.items[firstPending + index]);
@@ -700,7 +774,7 @@ export async function resumeSession(): Promise<SessionState | null> {
 export function readSavedSession(value: unknown): SessionState | null {
   const saved = value as SessionState | null;
   if (!saved?.config || typeof saved.id !== 'string' || !Number.isFinite(saved.startedAt)
-    || typeof saved.config.focus !== 'string' || !['aprender', 'memorizar', 'casos', 'provar'].includes(saved.config.mode)
+    || typeof saved.config.focus !== 'string' || !['aprender', 'memorizar', 'memorizar-guiada', 'casos', 'provar'].includes(saved.config.mode)
     || (saved.config.activity === 'planner' && !isPlannedSession(saved.config.planner))
     || !Array.isArray(saved.items) || !Array.isArray(saved.results)
     || !Number.isInteger(saved.index) || saved.index < 0 || saved.index > saved.items.length

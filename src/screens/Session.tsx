@@ -13,7 +13,7 @@ import { recordAnswer, markSeen } from '../learn/scheduler';
 import { checkTyped, shuffle, rng, fold } from '../learn/text';
 import { db, kvGet, kvSet, type CardRow } from '../data/db';
 import { getArticle, articleTitle } from '../data/corpus';
-import { CONCEPTS } from '../content/concepts';
+import { findLawConcept } from '../content/lawCases';
 import { TIPO_LABEL } from '../content/types';
 import { nav } from '../ui/nav';
 import { CType, Progress, Segmented, Sheet, spring, toast, useAsync } from '../ui/primitives';
@@ -75,7 +75,7 @@ function Official({ ex, highlight }: { ex: Exercise; highlight?: string }) {
 
 function KindBadge({ ex }: { ex: Exercise }) {
   const fam = ex.doctrine ? 'Doutrina' : { literal: 'Literalidade', interpretacao: 'Interpretação', leitura: 'Leitura guiada', microaula: 'Microaula', glossario: 'Dicionário' }[ex.family];
-  const c = ex.conceptId ? CONCEPTS.find((x) => x.id === ex.conceptId) : null;
+  const c = ex.conceptId ? findLawConcept(ex.conceptId) : null;
   return (
     <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
       <span className={`badge ${ex.family === 'interpretacao' ? 'badge-muted' : 'badge-gold'}`}>{fam}</span>
@@ -83,7 +83,7 @@ function KindBadge({ ex }: { ex: Exercise }) {
       {c && <span className="badge badge-muted">{TIPO_LABEL[c.tipo]}</span>}
       {ex.kind === 'case' && <span className="badge badge-muted">Caso prático</span>}
       {ex.kind === 'spot' && <span className="badge badge-muted">Encontre o erro</span>}
-      {ex.kind === 'cloze-multi' && <span className="badge badge-muted">Várias lacunas</span>}
+      {ex.kind === 'cloze-multi' && <span className="badge badge-muted">{ex.dim === 'penas' ? 'Pena' : `${ex.blanks?.length ?? 0} lacunas`}</span>}
       {ex.family === 'literal' && ex.kind !== 'spot' && ex.kind !== 'cloze-multi' && <span className="badge badge-muted">{{ literal: 'texto exato', prazos: 'prazos', penas: 'penas', excecoes: 'exceções', conceitual: 'conceitos', aplicacao: 'aplicação' }[ex.dim]}</span>}
     </div>
   );
@@ -133,7 +133,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         <p className="small muted">{ex.prompt}</p>
         <div className="law-art">
           <div className="row between" style={{ marginBottom: 10 }}><CType k="oficial" /><span className="xsmall gold">{articleTitle(hit.law.id, hit.art)}</span></div>
-          <ArticleView art={hit.art} onTerm={openTerm} showNotes={false} />
+          <ArticleView art={hit.art} onTerm={openTerm} showNotes={false} focus={ex.readingFocus} />
           <div className="xsmall faint" style={{ marginTop: 8 }}>{hit.law.provenance.sourceName} · {hit.law.provenance.versionLabel}</div>
         </div>
       </div>
@@ -181,7 +181,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
     );
   }
   if (ex.kind === 'concept') {
-    const c = CONCEPTS.find((x) => x.id === ex.conceptId)!;
+    const c = findLawConcept(ex.conceptId!)!;
     return (
       <div className="stack" style={{ gap: 14 }}>
         {c.situacao && (
@@ -292,7 +292,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
 
 function ConceptRefs({ id }: { id: string }) {
   const ver = useVerification();
-  const c = CONCEPTS.find((x) => x.id === id)!;
+  const c = findLawConcept(id)!;
   const vi = verItem(ver, 'exercicio', id);
   if (!c.refs.length) return null;
   return <div className="card" style={{ padding: '6px 14px' }}><div className="caps" style={{ margin: '6px 0 2px' }}>Fundamentação</div>{c.refs.map((r, i) => <RefLine key={i} r={r} status={vi?.refs[i]?.status} />)}</div>;
@@ -368,7 +368,7 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
           {wrong.filter((w, i, arr) => arr.findIndex((x) => (x.where ?? x.key) === (w.where ?? w.key)) === i).slice(0, 8).map((w) => {
             const a = w.articleId ? getArticle(w.articleId) : null;
             const doctrine = doctrineQuestion(w.key);
-            const c = w.conceptId ? CONCEPTS.find((x) => x.id === w.conceptId) : null;
+            const c = w.conceptId ? findLawConcept(w.conceptId) : null;
             return (
               <button key={w.key} className="list-item" disabled={!a && !doctrine} onClick={() => {
                 if (a) nav.push({ name: 'article', id: a.art.id, unitId: w.unitId });
@@ -509,6 +509,19 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
   };
 
   const ex = s && s.index < s.items.length ? s.items[s.index] : null;
+  const previewKey = s?.config.mode === 'memorizar-guiada' && ex?.kind === 'cloze-multi' && !answer ? `${s.id}:${s.index}` : null;
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const previewArticle = previewKey && ex?.articleId ? getArticle(ex.articleId)?.art : undefined;
+  const readingPreview = !!previewArticle && previewKey !== revealed;
+  useEffect(() => {
+    if (!active || !readingPreview || !previewKey) return;
+    const timer = window.setTimeout(() => {
+      shownAt.current = Date.now();
+      questionBody.current?.scrollTo({ top: 0 });
+      setRevealed(previewKey);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [active, previewKey, readingPreview]);
   const taskId = s?.config.planner && plannerTaskKey(s.config.planner.day, s.config.planner.goal);
   useLayoutEffect(() => { questionBody.current?.scrollTo({ top: 0 }); }, [ex?.key, s?.index]);
   useEffect(() => {
@@ -760,13 +773,18 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
               setAutoPaused(true);
               setLawSheet(true);
             } : undefined} />
-            {article && !canConsult && <span className="reference-lock"><ILock size={14} /> Texto após responder</span>}
+            {article && !canConsult && !readingPreview && <span className="reference-lock"><ILock size={14} /> Texto após responder</span>}
           </div>)}
       </header>
       <div className="question-body" ref={questionBody}>
         <motion.div key={ex.key + s.index} initial={settings.studyFocus || reducedMotion() ? false : { opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }}
           transition={spring} className="stack question-content">
-          {ex.kind === 'lesson' ? (
+          {readingPreview && previewArticle ? (
+            <section className="law-art stack" aria-label="Leitura antes das lacunas">
+              <p className="small" role="status">Leia o artigo. As lacunas aparecem em três segundos.</p>
+              <ArticleView art={previewArticle} showNotes={false} selectedUnit={ex.unitId} />
+            </section>
+          ) : ex.kind === 'lesson' ? (
             <LessonPlayer id={ex.lessonId!} onDone={advance} embedded />
           ) : ex.doctrineParts ? (
             <>
@@ -907,7 +925,7 @@ function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answere
           if (!sg.blank) return <span key={i}>{sg.t}</span>;
           bi++;
           const v = filled[bi]; const ok = answered && v !== undefined && fold(v) === fold(blanks[bi].answer);
-          return <span key={i} className={`mblank${bi === cur && !answered ? ' current' : ''}${answered ? (ok ? ' ok' : ' bad') : ''}`}><sup>{bi + 1}</sup>{v ?? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'}{answered && !ok && <span className="mfix"> {blanks[bi].answer}</span>}</span>;
+          return <span key={i} aria-label={`Lacuna ${bi + 1}${v ? `: ${v}` : ''}`} className={`mblank${bi === cur && !answered ? ' current' : ''}${answered ? (ok ? ' ok' : ' bad') : ''}`}><sup>{bi + 1}</sup>{v ?? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'}{answered && !ok && <span className="mfix"> {blanks[bi].answer}</span>}</span>;
         })}
       </div>
       {!answered && blanks[cur] && (

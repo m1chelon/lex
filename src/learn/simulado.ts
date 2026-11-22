@@ -2,16 +2,17 @@
 import type { Article, LawDoc, Unit } from '../core/types';
 import { coverage, ensureLaws, getArticle } from '../data/corpus';
 import { db, DIMS, kvGet, type Dim } from '../data/db';
-import { buildLiteral, canTrainArticle, findTargets, unitContext, unitPath, type Exercise } from './generators';
-import { buildCaseIdentify, buildCasePena } from './cases';
-import { meaningMutations, type Mutation } from './mutations';
+import { canTrainArticle, unitContext, unitPath, type Exercise } from './generators';
+import { buildCasePena } from './cases';
+import { CASE_BANK } from '../content/lawCases';
+import { questionTargets } from './lawQuestions';
+import type { Mutation } from './mutations';
 import { scopeArticles, scopeLaws, conceptExercise, conceptInScope, type SessionConfig } from './session';
 import { areaLaws, EDITAL_TJMS, type AreaId } from '../core/areas';
 import { EDITAL } from '../core/sources';
 import { topicoLabel } from './plan';
-import { CONCEPTS } from '../content/concepts';
 import { loadCalibration, recordAnswer } from './scheduler';
-import { hashStr, rng, shuffle } from './text';
+import { fold, hashStr, rng, shuffle } from './text';
 
 export type Estilo = 'leiseca' | 'cebraspe' | 'fgv';
 export interface SimOption { id: string; text: string; correct: boolean; why?: string }
@@ -48,40 +49,61 @@ export const editalQuestionCount = (area: 'tjsp' | 'tjms') => EDITAL_SIMULADO[ar
 
 const L = 'ABCDE';
 
-function unitsOf(art: Article): Unit[] { return art.units.filter((u) => !u.rev && findTargets(u).length); }
+const substantiveContrasts = new Set([
+  'vedado', 'vedada', 'vedados', 'vedadas', 'permitido', 'permitida', 'permitidos', 'permitidas',
+  'maioria absoluta', 'maioria simples', 'unanimidade', 'dias uteis', 'dias corridos',
+  'exclusivamente', 'preferencialmente', 'obrigatoriamente', 'facultativamente',
+  'cumulativamente', 'alternativamente', 'superior', 'inferior', 'superiores', 'inferiores',
+  'dolo', 'culpa', 'doloso', 'culposo', 'dolosa', 'culposa', 'citacao', 'intimacao',
+  'tutela antecipada', 'tutela cautelar', 'tutela da evidencia', 'agravo de instrumento', 'agravo interno',
+]);
+
+function alternativesForRule(law: LawDoc, unit: Unit, seed: string, meaningOnly = false): Mutation[] {
+  const r = rng(seed);
+  return shuffle(questionTargets(law, unit), r)
+    .filter(({ target }) => !meaningOnly || target.amount || target.kind === 'excecao' || substantiveContrasts.has(fold(target.text)))
+    .sort((a, b) => (b.target.priority ?? 0) - (a.target.priority ?? 0))
+    .flatMap(({ target, choices }) => choices.slice(0, 4).map((to) => ({
+      text: unit.t.slice(0, target.start) + to + unit.t.slice(target.start + target.text.length),
+      from: target.text, to, dim: target.dim, kind: 'sentido',
+      note: `A redação oficial usa “${target.text}” neste ponto.`,
+    })));
+}
 
 function qLeiSeca(law: LawDoc, art: Article, u: Unit, seed: string): Questao | null {
   const r = rng(seed);
   const where = `${law.short}, ${unitPath(art, u)}`;
   const base = { estilo: 'leiseca' as const, lawId: law.id, articleId: art.id, unitId: u.id, where, officialText: u.t,
     contextoLegal: unitContext(art, u).map(({ t }) => t).join('').trim() || undefined };
-  for (const target of findTargets(u)) {
-    const ex = buildLiteral(law, art, u, target.dim, 1, 'memorizar', seed, 5, target.text);
-    if (!ex?.options) continue;
-    const texto = ex.stem.slice(1).map((part) => part.blank ? '________' : part.t).join('');
-    const options = ex.options.map((o) => ({ ...o, why: o.why ?? (o.correct ? 'É a regra expressa nesse dispositivo.' : `O dispositivo estabelece “${ex.answer}”.`) }));
-    return { ...base, id: `S:${u.id}:B:${ex.dim}`, enunciado: ex.prompt, texto, options, target: ex.answer, dim: ex.dim };
+  const candidates = questionTargets(law, u).sort((a, b) => (b.target.priority ?? 0) - (a.target.priority ?? 0));
+  const primary = candidates.find(({ target, choices }) => target.amount && choices.length >= 4) ?? candidates.find(({ choices }) => choices.length >= 4);
+  if (primary) {
+    const { target, choices } = primary;
+    const texto = u.t.slice(0, target.start) + '________' + u.t.slice(target.start + target.text.length);
+    const options = shuffle([
+      { id: 'ok', text: target.text, correct: true, why: 'É a redação do dispositivo.' },
+      ...choices.slice(0, 4).map((text, i) => ({ id: `d${i}`, text, correct: false })),
+    ], r);
+    return { ...base, id: `S:${u.id}:B:${target.dim}`, enunciado: 'Qual alternativa completa a regra legal?', texto, options, target: target.text, dim: target.dim };
   }
-  const mutations = meaningMutations(law, u, seed).slice(0, 4);
-  if (mutations.length < 4) return null;
-  const wrong = mutations.map((change, i) => ({ id: `m${i}`, text: change.text, correct: false, why: change.note }));
-  const options = shuffle([{ id: 'ok', text: u.t, correct: true, why: 'Reproduz exatamente o texto oficial.' }, ...wrong], r);
-  return { ...base, id: `S:${u.id}:A`, enunciado: 'Qual alternativa reproduz a regra deste dispositivo?', options };
+  const changes = [...new Map(alternativesForRule(law, u, seed).map((change) => [change.text, change])).values()];
+  if (changes.length < 4 || u.t.length > 360) return null;
+  const wrong = changes.slice(0, 4).map((change, i) => ({ id: `m${i}`, text: change.text, correct: false, why: change.note }));
+  const options = shuffle([{ id: 'ok', text: u.t, correct: true, why: 'Corresponde à regra legal.' }, ...wrong], r);
+  return { ...base, id: `S:${u.id}:A`, enunciado: 'Qual alternativa expressa a regra do dispositivo?', options };
 }
 
 function qCebraspe(law: LawDoc, art: Article, u: Unit, seed: string): Questao | null {
   const r = rng(seed);
-  const where = `${law.short}, ${unitPath(art, u)}`;
-  const muts = meaningMutations(law, u, seed);
-  if (!muts.length) return null;
-  const alter = r() < 0.5;
-  const mostRelevant = muts.filter((mutation) => mutation.priority === muts[0].priority);
-  const m = alter ? mostRelevant[Math.floor(r() * mostRelevant.length)] : undefined;
-  const text = m ? m.text : u.t;
-  return { id: `S:${u.id}:CE`, estilo: 'cebraspe', lawId: law.id, articleId: art.id, unitId: u.id, where,
-    enunciado: 'Julgue a regra apresentada para o dispositivo indicado.', texto: text, ce: m ? 'E' : 'C',
+  const changes = alternativesForRule(law, u, seed, true);
+  const change = changes[0];
+  if (!change) return null;
+  const changed = r() < 0.5;
+  return { id: `S:${u.id}:CE`, estilo: 'cebraspe', lawId: law.id, articleId: art.id, unitId: u.id,
+    where: `${law.short}, ${unitPath(art, u)}`,
+    enunciado: 'Julgue a afirmação à luz do dispositivo indicado.', texto: changed ? change.text : u.t, ce: changed ? 'E' : 'C',
     contextoLegal: unitContext(art, u).map(({ t }) => t).join('').trim() || undefined,
-    mutation: m, officialText: u.t, target: (m ?? mostRelevant[0]).from, dim: (m ?? mostRelevant[0]).dim,
+    mutation: changed ? change : undefined, officialText: u.t, target: change.from, dim: change.dim,
   };
 }
 
@@ -100,8 +122,8 @@ async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, s
   if (estilo === 'fgv') {
     const laws = new Set(scopeLaws(cfg));
     const scopedArticles = new Set(arts);
-    for (const c of shuffle(CONCEPTS.filter((c) => conceptInScope(c, cfg, laws, scopedArticles)), r)) {
-      if (qs.length >= Math.ceil(n * 0.4)) break;
+    for (const c of shuffle(CASE_BANK.filter((c) => conceptInScope(c, cfg, laws, scopedArticles)), r)) {
+      if (qs.length >= n) break;
       const ex = conceptExercise(c, String(seed));
       add({ id: `S:C:${c.id}`, estilo, conceptId: c.id, enunciado: c.pergunta, contexto: c.situacao, options: ex.options!.map((o) => ({ id: o.id, text: o.text, correct: o.correct, why: o.why })) });
     }
@@ -115,12 +137,14 @@ async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, s
       const s = `${seed}:${id}:${pass}`;
       let q: Questao | null = null;
       if (estilo === 'fgv') {
-        const ex = (pass % 2 === 0 ? buildCaseIdentify : buildCasePena)(hit.law, hit.art, s) ?? buildCaseIdentify(hit.law, hit.art, s);
-        if (ex) q = { id: `S:${ex.key}`, estilo, lawId: hit.law.id, articleId: id, where: ex.where, enunciado: ex.prompt, contexto: ex.context?.map((c) => c.t).join(' '), texto: ex.stem.map((c) => c.t).join(''), options: ex.options!.map((o) => ({ ...o })) };
-      } else {
-        const us = shuffle(unitsOf(hit.art), rng(s)).sort((a, b) =>
-          (findTargets(b)[0]?.priority ?? 0) - (findTargets(a)[0]?.priority ?? 0));
-        for (const u of us) { q = estilo === 'leiseca' ? qLeiSeca(hit.law, hit.art, u, s) : qCebraspe(hit.law, hit.art, u, s); if (q && !used.has(q.id) && (!fiveChoices || q.options?.length === 5)) break; q = null; }
+        const ex = qs.filter((question) => question.dim === 'penas').length < Math.floor(n / 5) && buildCasePena(hit.law, hit.art, s);
+        if (ex) q = { id: `S:${ex.key}`, estilo, lawId: hit.law.id, articleId: id, where: ex.where, dim: ex.dim, enunciado: ex.prompt, contexto: ex.context?.map((c) => c.t).join(' '), texto: ex.stem.map((c) => c.t).join(''), options: ex.options!.map((o) => ({ ...o })) };
+      }
+      if (!q) {
+        const us = shuffle(hit.art.units.filter((unit) => !unit.rev && unit.k !== 'pena'), rng(s)).map((unit) => ({
+          unit, priority: Math.max(0, ...questionTargets(hit.law, unit).map(({ target }) => target.priority ?? 0)),
+        })).sort((a, b) => b.priority - a.priority).map(({ unit }) => unit);
+        for (const u of us) { q = estilo !== 'cebraspe' ? qLeiSeca(hit.law, hit.art, u, s) : qCebraspe(hit.law, hit.art, u, s); if (q && !used.has(q.id) && (!fiveChoices || q.options?.length === 5)) break; q = null; }
       }
       if (q && add(q)) usedArt.set(id, (usedArt.get(id) ?? 0) + 1);
     }
@@ -134,7 +158,7 @@ function tagDisciplines(questions: Questao[], area: AreaId | undefined, focus: s
   const topic = focus.startsWith('topico:') ? focus.slice(7) : focus.startsWith('topic-law:') ? focus.split(':').slice(2).join(':') : undefined;
   const items = topic ? cov.items.filter((item) => item.req.topico === topic) : cov.items;
   return questions.map((q) => {
-    const id = q.articleId ?? CONCEPTS.find((concept) => concept.id === q.conceptId)?.refs.map((ref) => `${ref.law}.${ref.art}`).find((ref) => cov.byArticle.has(ref));
+    const id = q.articleId ?? CASE_BANK.find((concept) => concept.id === q.conceptId)?.refs.map((ref) => `${ref.law}.${ref.art}`).find((ref) => cov.byArticle.has(ref));
     if (!id) return q;
     const req = items.find((item) => cov.byArticle.get(id)?.includes(item.req.id))?.req;
     return req ? { ...q, disciplina: req.topico, bloco: req.bloco } : q;

@@ -15,8 +15,9 @@ import { IBolt, IBrain, ICheck, IColumns, IClose, IHistory, IPlay, IPuzzle, ISli
 import { SimuladoFields, SimuladoHistory, useSimuladoSetup } from './Simulado';
 
 const MODES = {
-  aprender: { Icon: IStudy, tint: TINT.teal, label: 'Leitura guiada' },
-  memorizar: { Icon: IBrain, tint: TINT.violet, label: 'Escolha para completar a lacuna' },
+  aprender: { Icon: IStudy, tint: TINT.teal, label: 'Artigos com pontos-chave destacados' },
+  memorizar: { Icon: IBrain, tint: TINT.violet, label: 'Duas ou três lacunas por questão' },
+  'memorizar-guiada': { Icon: IBrain, tint: TINT.teal, label: 'Artigo completo por 3 s antes das lacunas' },
   casos: { Icon: IPuzzle, tint: TINT.orange, label: 'Situações práticas' },
   provar: { Icon: ITarget, tint: TINT.rose, label: 'Digite a resposta da lei seca' },
   relampago: { Icon: IBolt, tint: TINT.gold, label: '20 questões rápidas' },

@@ -7,15 +7,16 @@ import { PROFILE_PLAN_KEY, profileStorageKey, readProfilePlan } from '../data/pr
 import { getSettings, setSettings } from '../ui/settings';
 import { DEFAULT_ARTICLE_ORDER, type Order, type SessionConfig } from './session';
 
-export type PlanMode = 'aprender' | 'memorizar' | 'casos' | 'provar' | 'relampago' | 'simulado';
+export type PlanMode = 'aprender' | 'memorizar' | 'memorizar-guiada' | 'casos' | 'provar' | 'relampago' | 'simulado';
 export type PlanScope =
   | { kind: 'geral'; ramo: Ramo; law?: string }
   | { kind: 'curso'; area: Exclude<AreaId, 'geral'>; topico?: string; law?: string };
 export interface Plan { scope: PlanScope; mode: PlanMode; minutes: number | 'inf'; order?: Order }
 
 export const MODE_INFO: Record<PlanMode, { label: string; desc: string }> = {
-  aprender: { label: 'Aprender', desc: 'Microaula, glossário e leitura guiada. Para conhecer a lei pela primeira vez.' },
-  memorizar: { label: 'Memorizar', desc: 'Lei seca: complete lacunas com opções e revise no seu ritmo.' },
+  aprender: { label: 'Leitura Guiada', desc: 'Leia a lei com os trechos essenciais destacados.' },
+  memorizar: { label: 'Memorizar', desc: 'Complete duas ou três lacunas curtas no dispositivo.' },
+  'memorizar-guiada': { label: 'Memorizar Guiada', desc: 'Leia o artigo completo por três segundos e preencha as lacunas.' },
   casos: { label: 'Casos', desc: 'Situações práticas: identifique o instituto, o crime ou a consequência.' },
   provar: { label: 'Provar', desc: 'Nível de prova: digite as lacunas da lei seca e pratique com casos.' },
   relampago: { label: 'Relâmpago', desc: '20 questões, 10 segundos cada. Treino sob pressão.' },

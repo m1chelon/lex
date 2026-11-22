@@ -92,6 +92,8 @@ function adjForms(w: string): string[] {
   // -o -> -a, -os, -as ; -e -> -es (comum de dois gêneros)
   if (w.endsWith('o')) return [w, w.slice(0, -1) + 'a', w + 's', w.slice(0, -1) + 'as'];
   if (w.endsWith('e')) return [w, w, w + 's', w + 's'];
+  if (w.endsWith('al')) return [w, w, w.slice(0, -2) + 'ais', w.slice(0, -2) + 'ais'];
+  if (w.endsWith('ar')) return [w, w, w + 'es', w + 'es'];
   return [w, w, w, w];
 }
 

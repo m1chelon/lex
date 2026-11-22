@@ -11,7 +11,7 @@ import { recordAnswer, regradeAsGuess } from '../src/learn/scheduler';
 import { getArticle, initCorpus } from '../src/data/corpus';
 import { buildSession, canConsultStudySource, exerciseForCard, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, pendingSessionErrors, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
 import { planToConfig } from '../src/learn/plan';
-import { buildOrder, buildRubric, buildWhich, shuffledOrderItems } from '../src/learn/generators';
+import { buildLiteral, buildOrder, buildRubric, buildWhich, shuffledOrderItems } from '../src/learn/generators';
 import { normAnswer } from '../src/learn/text';
 import { getStats } from '../src/learn/stats';
 
@@ -108,8 +108,8 @@ it('prioriza a lacuna do percentual no treino, no diário e na prova da Resoluç
   const normal = await buildSession(cfg, false);
   const daily = await buildSession({ ...cfg, activity: 'daily' }, false);
   const typed = await buildSession({ ...cfg, mode: 'provar', mix: 'literal' }, false);
-  expect(itemAtLimit(normal)).toMatchObject({ kind: 'cloze-mc', answer: '70% (setenta por cento)' });
-  expect(itemAtLimit(daily)).toMatchObject({ kind: 'cloze-mc', answer: '70% (setenta por cento)' });
+  expect(itemAtLimit(normal)).toMatchObject({ kind: 'cloze-multi', blanks: expect.arrayContaining([expect.objectContaining({ answer: '70% (setenta por cento)' })]) });
+  expect(itemAtLimit(daily)).toMatchObject({ kind: 'cloze-multi', blanks: expect.arrayContaining([expect.objectContaining({ answer: '70% (setenta por cento)' })]) });
   expect(itemAtLimit(typed)).toMatchObject({ kind: 'cloze-type', answer: '70% (setenta por cento)' });
   const exam = await gerarSimulado(cfg, 'leiseca', 3, null);
   const percentItem = exam.questoes.find((question) => question.unitId === 'res850.9.i2');
@@ -120,7 +120,7 @@ it('prioriza a lacuna do percentual no treino, no diário e na prova da Resoluç
 
 it('refaz cada alvo efetivamente errado, mesmo quando o cartão também teve outro acerto', async () => {
   const active = await buildSession({ ...config, focus: 'law:res850', articleIds: ['res850.9'] }, false);
-  const options = active.items.find((item) => item.answer === '70% (setenta por cento)')!;
+  const options = active.items.find((item) => item.blanks?.some((blank) => blank.answer === '70% (setenta por cento)'))!;
   const typed = { ...options, kind: 'cloze-type' as const, options: undefined };
   const anotherTarget = { ...options, answer: 'imediatamente superior' };
   const wrong = pendingSessionErrors({
@@ -130,10 +130,10 @@ it('refaz cada alvo efetivamente errado, mesmo quando o cartão também teve out
   expect(wrong).toEqual([options]);
   const retry = await buildSession({ ...config, activity: 'retry', minutes: 0 }, false, [...wrong, typed]);
   expect(retry.items.map(({ kind, answer }) => ({ kind, answer }))).toEqual([
-    { kind: 'cloze-mc', answer: options.answer }, { kind: 'cloze-type', answer: options.answer },
+    { kind: 'cloze-multi', answer: options.answer }, { kind: 'cloze-type', answer: options.answer },
   ]);
-  expect(retry.items[0].options).not.toEqual(options.options);
-  expect(retry.items[0].options).toEqual(expect.arrayContaining(options.options!));
+  expect(retry.items[0].blanks).not.toEqual(options.blanks);
+  retry.items[0].blanks?.forEach((blank, i) => expect(blank.options).toEqual(expect.arrayContaining(options.blanks![i].options)));
   expect(retry.config.timed).toBe(false);
   const previous = await loadSession();
   try {
@@ -146,7 +146,8 @@ it('reapresenta somente as questões respondidas incorretamente no simulado', as
   const cfg: SessionConfig = { ...config, focus: 'law:res850', articleIds: ['res850.9'] };
   const exam = await gerarSimulado(cfg, 'leiseca', 3, null);
   expect(exam.questoes).toHaveLength(3);
-  const [wrong, right] = exam.questoes;
+  const wrong = exam.questoes.find((item) => item.unitId === 'res850.9.i2')!;
+  const right = exam.questoes.find((item) => item.id !== wrong.id)!;
   const retry = simuladoErrors({
     ...exam, respostas: { [wrong.id]: wrong.options!.find((o) => !o.correct)!.id, [right.id]: right.options!.find((o) => o.correct)!.id },
   });
@@ -218,31 +219,28 @@ describe('retomada da sequência de artigos', () => {
     expect((await recentSequences())[0]).toMatchObject({ articleId: position.articleId, config: { ...config, order: 'linear' } });
   });
 
-  it('converte uma lacuna antiga de digitação para opções ao retomar Memorizar', async () => {
+  it('reconstrói lacunas antigas de digitação no novo formato ao retomar Memorizar', async () => {
     const s = await buildSession(config, false);
-    const exercise = s.items.find((item) => item.kind === 'cloze-mc')!;
-    await saveSession({ ...s, items: [{ ...exercise, kind: 'cloze-type', options: undefined }] });
+    const exercise = s.items.find((item) => item.kind === 'cloze-multi')!;
+    await saveSession({ ...s, items: [{ ...exercise, kind: 'cloze-type', blanks: undefined }] });
     const restored = await resumeSession();
-    expect(restored?.items[0]).toMatchObject({ key: exercise.key, kind: 'cloze-mc' });
-    expect(restored?.items[0].options?.filter((option) => option.correct)).toHaveLength(1);
+    expect(restored?.items[0]).toMatchObject({ key: exercise.key, kind: 'cloze-multi' });
+    expect(restored?.items[0].blanks?.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('oferece alternativas para a soberania no art. 1º, I, inclusive ao restaurar uma lacuna antiga', async () => {
-    const options = { ...config, focus: 'law:cf', articleIds: ['cf.1'] };
-    const memorize = await buildSession(options, false);
-    expect(memorize.items.some((item) => item.kind === 'cloze-type')).toBe(false);
-    const sovereignty = memorize.items.find((item) => item.answer === 'soberania');
-    expect(sovereignty).toMatchObject({ kind: 'cloze-mc', where: 'CF · Art. 1º, inciso I' });
-    expect(sovereignty?.options).toHaveLength(4);
-
-    const prove = await buildSession({ ...options, mode: 'provar', mix: 'literal' }, false);
-    const typed = prove.items.find((item) => item.answer === 'soberania');
-    expect(typed?.kind).toBe('cloze-type');
-    const oldItem = { ...typed!, unitId: undefined, articleId: undefined, lawId: undefined };
-    await saveSession({ ...memorize, items: [oldItem] });
+  it('troca rubricas e lacunas antigas por dispositivos treináveis e preserva questões respondidas', async () => {
+    const opts = { ...config, focus: 'law:cp', articleIds: ['cp.3', 'cp.293'] };
+    const memorize = await buildSession(opts, false);
+    const { law, art } = getArticle('cp.3')!;
+    const old = buildRubric(law, art, 1)!;
+    const oldLiteral = buildLiteral(law, art, art.units[0], 'literal', 1, 'provar');
+    const fromMemory = memorize.items.find(({ articleId }) => articleId === 'cp.3')!;
+    await saveSession({ ...memorize, index: 1, items: [old, oldLiteral ?? { ...fromMemory, kind: 'cloze-type' }],
+      results: [{ key: old.key, ms: 1000, correct: false }] });
     const restored = await resumeSession();
-    expect(restored?.items[0]).toMatchObject({ key: oldItem.key, kind: 'cloze-mc', answer: 'soberania' });
-    expect(restored?.items[0].options?.filter((option) => option.correct)).toHaveLength(1);
+    expect(restored?.items[0]).toEqual(old);
+    expect(restored?.items[1]).toMatchObject({ kind: 'cloze-multi', unitId: 'cp.3.cpt' });
+    expect(restored?.items[1].blanks?.map(({ answer }) => answer)).toEqual(['excepcional', 'temporária', 'durante']);
   });
 
   it('retoma uma sessão antiga pelo tempo das questões já respondidas', async () => {
@@ -281,7 +279,7 @@ it('usa alternativas distintas, desfaz embaralhamentos em ordem e protege a revi
   expect(flagged.art.outdated?.length).toBeGreaterThan(0);
   for (const build of [buildWhich, buildOrder, buildRubric]) expect(build(flagged.law, flagged.art, 1)).toBeNull();
   const legacy = await buildSession(config, false);
-  await saveSession({ ...legacy, items: [{ ...which, options: [which.options![0], which.options![0]] }] });
+  await saveSession({ ...legacy, config: { ...legacy.config, mode: 'provar' }, items: [{ ...which, options: [which.options![0], which.options![0]] }] });
   const restored = await resumeSession();
   expect(restored?.items[0].options).toEqual(which.options);
 });
@@ -464,4 +462,31 @@ it('só libera a fonte de uma questão depois de uma resposta avaliada', () => {
     expect(canConsultStudySource({ kind }, true)).toBe(true);
   }
   for (const kind of ['read', 'lesson', 'term'] as const) expect(canConsultStudySource({ kind })).toBe(true);
+});
+
+it('faz a conduta do art. 293 aparecer antes da pena, com lacunas curtas e alternativas distintas', async () => {
+  const state = await buildSession({ ...config, focus: 'law:cp', articleIds: ['cp.293'] }, false);
+  const conduct = state.items[0];
+  expect(conduct).toMatchObject({ unitId: 'cp.293.cpt', kind: 'cloze-multi' });
+  expect(conduct.blanks?.map(({ answer }) => answer)).toEqual(['Falsificar', 'fabricando-os', 'alterando-os']);
+  expect(conduct.blanks?.[0].options).toEqual(expect.arrayContaining(['Falsificar', 'Adulterar', 'Suprimir', 'Utilizar']));
+  expect(state.items.find(({ dim }) => dim === 'penas')).toMatchObject({
+    kind: 'cloze-multi', blanks: expect.arrayContaining([expect.objectContaining({ answer: 'reclusão' })]),
+  });
+  const broader = await buildSession({ ...config, area: 'tjsp', focus: 'law:cp', minutes: 15 }, false);
+  expect(broader.items.filter(({ dim }) => dim === 'penas').length).toBeLessThanOrEqual(Math.floor(broader.items.length / 5));
+});
+
+it('gera casos práticos, leitura com pontos-chave, Relâmpago e Memorizar Guiada pelo fluxo de planos', async () => {
+  const scope = { kind: 'geral', ramo: 'Penal', law: 'cp' } as const;
+  const guided = planToConfig({ scope, mode: 'memorizar-guiada', minutes: 5 }, { articleIds: ['cp.293'] });
+  expect(guided.mode).toBe('memorizar-guiada');
+  expect((await buildSession(guided, false)).items[0].kind).toBe('cloze-multi');
+  const cases = await buildSession(planToConfig({ scope, mode: 'casos', minutes: 5 }, { articleIds: ['cp.293'] }), false);
+  expect(cases.items[0]).toMatchObject({ conceptId: 'lex-caso-cp.293', kind: 'concept' });
+  const reading = await buildSession({ ...guided, mode: 'aprender' }, false);
+  expect(reading.items[0]).toMatchObject({ kind: 'read', readingFocus: expect.arrayContaining([{ unitId: 'cp.293.cpt', text: 'Falsificar' }]) });
+  const blitz = await buildSession(planToConfig({ scope, mode: 'relampago', minutes: 5 }), false);
+  expect(blitz.items).toHaveLength(20);
+  expect(blitz.items.every(({ kind, dim, expectedMs }) => kind === 'cloze-mc' && dim !== 'penas' && expectedMs === 10_000)).toBe(true);
 });

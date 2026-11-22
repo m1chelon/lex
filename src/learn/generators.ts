@@ -38,6 +38,7 @@ export interface Exercise {
   priority?: number;
   where?: string; // localização do dispositivo: "EFP-SP · Artigo 241, inciso II"
   /** 'cloze-multi': lacunas na ordem do texto, cada uma com suas alternativas. */
+  readingFocus?: { unitId: string; text: string }[];
   blanks?: { answer: string; options: string[] }[];
 }
 
@@ -277,7 +278,7 @@ export function unitPathParts(art: Article, u?: Unit): string[] {
 export const unitPath = (art: Article, u?: Unit) => unitPathParts(art, u?.k === 'caput' ? undefined : u).join(', ');
 export const whereOf = (law: LawDoc, art: Article, u?: Unit) => `${law.short} · ${unitPath(art, u)}`;
 
-function clozeStem(art: Article, unit: Unit, targets: Target[]) {
+export function clozeStem(art: Article, unit: Unit, targets: Target[]) {
   const stem: Seg[] = [{ t: labOf(art, unit), strong: true }];
   let offset = 0;
   for (const target of targets) {
