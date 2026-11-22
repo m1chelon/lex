@@ -1,25 +1,10 @@
 // Backup do progresso e restauração local.
 import { db, type CardRow, type KV, type MarkRow, type ReviewRow } from './db';
-import { getSettings, setSettings, type Settings } from '../ui/settings';
-import { clearPlan, getPlan, isPlan, savePlan } from '../learn/plan';
+import { setSettings, type Settings } from '../ui/settings';
+import { clearPlan, isPlan, savePlan } from '../learn/plan';
 import { CAPI_WARDROBE_KEY, mergeWardrobes } from '../learn/capiShop';
 import { PROFILE_SETTINGS_KEY, profileStorageKey } from './profiles';
-
-const backupKey = (key: string) => key !== 'nav' && key !== 'corpus-manifest' && !key.startsWith('doutrina');
-
-export async function exportBackup() {
-  const progress = await db.transaction('r', db.cards, db.reviews, db.marks, db.kv, async () => {
-    const [cards, reviews, marks, kv] = await Promise.all([db.cards.toArray(), db.reviews.toArray(), db.marks.toArray(), db.kv.toArray()]);
-    return { cards, reviews, marks, kv: kv.filter(({ key }) => backupKey(key)) };
-  });
-  const data = { app: 'LEX', version: 3, at: new Date().toISOString(), settings: getSettings(), plan: getPlan(), ...progress };
-  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `lex-progresso-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
+import { backupKey } from './profileBackup';
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -71,17 +56,24 @@ export async function importBackup(f: Pick<File, 'text'>) {
       const current = currentCards[i];
       return !current || +(card.fsrs.last_review ?? new Date(card.createdAt)) > +(current.fsrs.last_review ? new Date(current.fsrs.last_review) : new Date(current.createdAt));
     }));
-    const fingerprints = new Set(currentReviews.map(reviewFingerprint));
+    const fingerprints = new Map(currentReviews.map((review) => [reviewFingerprint(review), review]));
     const incoming: ReviewRow[] = [];
     for (const { id, ...review } of data.reviews) {
       const fingerprint = reviewFingerprint(review);
-      if (fingerprints.has(fingerprint)) continue;
-      fingerprints.add(fingerprint);
-      incoming.push(review);
+      const existing = fingerprints.get(fingerprint);
+      if (!existing) {
+        fingerprints.set(fingerprint, review);
+        incoming.push(review);
+      } else if (review.guessed && !existing.guessed) {
+        const grade = { guessed: true, rating: review.rating };
+        if (existing.id !== undefined) await db.reviews.update(existing.id, grade);
+        Object.assign(existing, grade);
+      }
     }
     await db.reviews.bulkAdd(incoming);
     await db.marks.bulkPut(data.marks.filter((mark, i) => !currentMarks[i] || mark.at > currentMarks[i]!.at));
-    const importedKeys = data.kv.filter(({ key }, i) => key !== CAPI_WARDROBE_KEY && (!currentKeys[i] || (key.startsWith('sim:') && !currentKeys[i]?.value)));
+    const importedKeys = data.kv.filter(({ key }, i) => key !== CAPI_WARDROBE_KEY
+      && (!currentKeys[i] || ((key === 'session' || key.startsWith('sim:')) && currentKeys[i]?.value == null)));
     const restoredWardrobe = data.kv.find(({ key }) => key === CAPI_WARDROBE_KEY);
     if (restoredWardrobe) {
       const current = await db.kv.get(CAPI_WARDROBE_KEY);

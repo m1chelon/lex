@@ -6,6 +6,7 @@ type ProfileSetup = Pick<Settings, 'name' | 'area' | 'dailyMinutes' | 'when'> & 
 
 export const PRIMARY_PROFILE_ID = 'principal';
 export const PROFILE_SETTINGS_KEY = 'lex.settings';
+export const PROFILE_PLAN_KEY = 'lex.plan';
 const ACTIVE_KEY = 'lex.active-profile';
 const RECORD_PREFIX = 'lex.profiles.';
 const primary: LocalProfile = { id: PRIMARY_PROFILE_ID, kind: 'estudante', createdAt: 0 };
@@ -31,6 +32,11 @@ export const profileStorageKey = (key: string, id = activeProfile.id) =>
   id === PRIMARY_PROFILE_ID ? key : `lex.player.${id}.${key}`;
 
 export const profileDatabaseName = (id = activeProfile.id) => id === PRIMARY_PROFILE_ID ? 'lex' : `lex-player-${id}`;
+
+export function readProfilePlan(): unknown {
+  try { return JSON.parse(localStorage.getItem(profileStorageKey(PROFILE_PLAN_KEY)) ?? 'null'); }
+  catch { return null; }
+}
 
 export function listProfiles() {
   const profiles = [primary];

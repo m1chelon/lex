@@ -202,6 +202,7 @@ export function SimuladoRun({ id }: { id: string }) {
     }
   };
   const answered = Object.values(s.respostas).filter(Boolean).length;
+  const blank = s.questoes.length - answered;
   return (
     <div className="study-layout exam-layout">
       <header className="question-head">
@@ -242,7 +243,7 @@ export function SimuladoRun({ id }: { id: string }) {
       </Sheet>
       <Sheet open={confirm} onClose={() => setConfirm(false)} label="Finalizar">
         <div className="title-m">Finalizar o simulado?</div>
-        <p className="small muted" style={{ margin: '8px 0 14px' }}>{s.questoes.length - answered} questão(ões) em branco.</p>
+        <p className="small muted" style={{ margin: '8px 0 14px' }}>{blank} {blank === 1 ? 'questão' : 'questões'} em branco.</p>
         <button className="btn btn-primary btn-block" onClick={() => { setConfirm(false); void finish(); }}>Ver resultado</button>
       </Sheet>
     </div>
@@ -303,7 +304,7 @@ function SimuladoResult({ s }: { s: Simulado }) {
           )}
           <div className="list">
             {groups.map((group) => <div className="list-item" key={group.topic}>
-              <div className="grow"><strong>{group.label}</strong><small className="muted">{group.certas}/{group.total} acertos · {group.erradas} erros · {group.branco} em branco</small></div>
+              <div className="grow"><strong>{group.label}</strong><small className="muted">{group.certas}/{group.total} acertos · {group.erradas} {group.erradas === 1 ? 'erro' : 'erros'} · {group.branco} em branco</small></div>
               {group.erradas + group.branco > 0 && group.topic !== weakest?.topic && <button className="btn btn-sm btn-quiet" onClick={() => practiceSubject(group.topic)}>Treinar</button>}
             </div>)}
           </div>

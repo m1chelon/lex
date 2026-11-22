@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { RAMOS, getArea, lawsByRamo, type AreaId } from '../core/areas';
 import { SOURCES, type Ramo } from '../core/sources';
-import { profileStorageKey } from '../data/profiles';
+import { PROFILE_PLAN_KEY, profileStorageKey, readProfilePlan } from '../data/profiles';
 import { getSettings, setSettings } from '../ui/settings';
 import { DEFAULT_ARTICLE_ORDER, type Order, type SessionConfig } from './session';
 
@@ -33,9 +33,9 @@ export function isPlan(value: unknown): value is Plan {
   return scope.kind === 'curso' && (scope.area === 'tjsp' || scope.area === 'tjms') && (scope.topico === undefined || typeof scope.topico === 'string');
 }
 
-const KEY = profileStorageKey('lex.plan');
-let state: Plan | null = null;
-try { const saved: unknown = JSON.parse(localStorage.getItem(KEY) || 'null'); if (isPlan(saved)) state = saved; } catch { /* sem armazenamento */ }
+const KEY = profileStorageKey(PROFILE_PLAN_KEY);
+const saved = readProfilePlan();
+let state = isPlan(saved) ? saved : null;
 const subs = new Set<() => void>();
 export const getPlan = () => state;
 export function savePlan(p: Plan) {

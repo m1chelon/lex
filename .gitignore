@@ -1,6 +1,8 @@
 node_modules/
 dist/
 dist-public/
+.env.local
+.env.*.local
 acervo/
 raw/
 lex-doutrina.json

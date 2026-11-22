@@ -6,7 +6,7 @@ import { isDue, regradeAsGuess } from '../learn/scheduler';
 import { getCareer, careerFor, xpFor } from '../learn/career';
 import { motion } from 'motion/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BLITZ_SECONDS, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, resumeSession, saveSession, type SessionConfig, type SessionState } from '../learn/session';
+import { BLITZ_SECONDS, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, type SessionConfig, type SessionState } from '../learn/session';
 import { findTargets, type Exercise, type Seg } from '../learn/generators';
 import { recordAnswer, markSeen } from '../learn/scheduler';
 import { checkTyped, shuffle, rng, fold } from '../learn/text';
@@ -31,7 +31,7 @@ import { getPlannerTask, plannerProgress, plannerTaskKey, recordPlannerExercise 
 import { wordDiff } from '../learn/diff';
 import { DoctrineQuestion } from './DoctrineQuestion';
 
-type Answer = { correct: boolean | null; given?: string; doctrineChoices?: string[]; capiReaction?: CapiReaction };
+type Answer = { correct: boolean | null; given?: string; optionId?: string; tokenIndex?: number; doctrineChoices?: string[]; capiReaction?: CapiReaction };
 
 function Segs({ segs, blankContent, lawId, terms }: { segs: Seg[]; blankContent?: React.ReactNode; lawId?: string; terms: boolean }) {
   const seen = new Set<string>();
@@ -110,20 +110,18 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
   onInspect: (reading: boolean) => void;
 }) {
   const [typed, setTyped] = useState('');
-  const [chosen, setChosen] = useState<string>();
   const [order, setOrder] = useState<string[]>([]);
   const terms = mode !== 'provar' && canConsultStudySource(ex, answer?.correct);
   const lawId = ex.lawId;
   const answered = !!answer;
-  const selected = chosen ?? ex.options?.find((option) => option.text === answer?.given)?.id;
-  useEffect(() => { setTyped(''); setChosen(undefined); setOrder([]); }, [ex.key]);
+  const selected = answer?.optionId ?? ex.options?.find((option) => option.text === answer?.given)?.id;
+  useEffect(() => { setTyped(''); setOrder([]); }, [ex.key]);
   const shuffledOrder = useMemo(() => ex.orderItems ? shuffle(ex.orderItems, rng(ex.key + 'o')) : [], [ex.key]); // eslint-disable-line
 
   const pick = (id: string) => {
     if (answered) return;
-    setChosen(id);
     const o = ex.options!.find((x) => x.id === id)!;
-    onAnswer({ correct: o.correct, given: o.text });
+    onAnswer({ correct: o.correct, given: o.text, optionId: id });
   };
 
   if (ex.kind === 'read') {
@@ -233,14 +231,14 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
     );
   }
   if (ex.kind === 'order') {
-    const done = order.length === ex.orderItems!.length;
+    const displayedOrder = answer?.given?.split('|') ?? order;
     return (
       <div className="stack" style={{ gap: 12 }}>
         <MascotQuestion text={ex.prompt} />
         {ex.context?.length ? <div className="law-art law" style={{ fontSize: 15.5 }}><Segs segs={ex.context} lawId={lawId} terms={terms} /></div> : null}
         <div className="stack" style={{ gap: 8 }}>
           {shuffledOrder.map((it) => {
-            const pos = order.indexOf(it.id);
+            const pos = displayedOrder.indexOf(it.id);
             const right = answered ? ex.orderItems!.findIndex((x) => x.id === it.id) : -1;
             return (
               <button key={it.id} className={`opt ${answered ? (pos === right ? 'correct' : 'wrong') : ''}`} disabled={answered || pos >= 0}
@@ -251,13 +249,13 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
             );
           })}
         </div>
-        {!answered && order.length > 0 && !done && <button className="btn btn-sm btn-ghost" onClick={() => setOrder([])}>Recomeçar</button>}
+        {!answered && order.length > 0 && <button className="btn btn-sm btn-ghost" onClick={() => setOrder([])}>Recomeçar</button>}
         {feedback}
         {answered && <Official ex={ex} />}
       </div>
     );
   }
-  if (ex.kind === 'spot') return <SpotView ex={ex} answered={answered} onAnswer={onAnswer} lawId={lawId} feedback={feedback} />;
+  if (ex.kind === 'spot') return <SpotView ex={ex} answer={answer} onAnswer={onAnswer} lawId={lawId} feedback={feedback} />;
   if (ex.kind === 'cloze-multi') return <MultiView ex={ex} answered={answered} onAnswer={onAnswer} feedback={feedback} />;
   // cloze-mc, cloze-type, which-article, rubric
   const blankShown = ex.kind === 'cloze-type' && answered ? (answer?.correct ? ex.answer : answer?.given || '—') : ex.kind === 'cloze-mc' && answered ? ex.answer : undefined;
@@ -447,15 +445,15 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
     if (!saved || !item || saved.results.length <= saved.index || saved.results.at(-1)?.key !== item.key) return saved;
     let next = { ...saved, index: saved.index + 1, draft: undefined } as SessionState;
     if (next.config.infinite && next.index >= next.items.length - 3) next = await extendSession(next);
-    if (next.index >= next.items.length) return finishSession(next);
-    await saveSession(next);
+    if (next.index >= next.items.length) return finishSession(next, false, { expected: saved });
+    await saveSession(next, saved);
     return next;
   };
   const openNew = async (options: SessionConfig, interrupted?: SessionState) => {
     const next = await buildSession(options, false);
     if (!next.items.length) return next;
-    if (interrupted) await finishSession(interrupted);
-    await saveSession(next);
+    if (interrupted) await finishSession(interrupted, false, { expected: interrupted, replacement: next });
+    else await saveSession(next, null);
     return next;
   };
   const show = (st: SessionState | null) => {
@@ -480,7 +478,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
     }).catch((error) => {
       if (!mounted) return;
       console.error(error);
-      setErr('Não foi possível montar a sessão.');
+      setErr(error instanceof SessionConflict ? error.message : 'Não foi possível montar a sessão.');
     });
     return () => { mounted = false; };
   }, [resume, config]);
@@ -493,7 +491,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
       setPrevious(null);
     } catch (error) {
       console.error(error);
-      toast('Não foi possível abrir o treino. Sua sessão anterior continua salva.');
+      toast(error instanceof SessionConflict ? error.message : 'Não foi possível abrir o treino. Sua sessão anterior continua salva.');
     } finally { acting.current = false; }
   };
 
@@ -512,7 +510,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
     setS((current) => current?.id === id && current.index === index ? { ...current, draft } : current);
     void db.transaction('rw', db.kv, async () => {
       const stored = (await db.kv.get('session'))?.value as SessionState | null;
-      if (stored?.id === id && stored.index === index && !stored.finishedAt && stored.results.length <= index) {
+      if (stored?.id === id && stored.index === index && !stored.finishedAt && !stored.pausedAt && stored.results.length <= index) {
         await db.kv.put({ key: 'session', value: { ...stored, draft } });
       }
     }).catch(() => {});
@@ -535,6 +533,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
       reviewId.current = undefined;
       prevCard.current = undefined;
       await db.transaction('rw', db.cards, db.reviews, db.kv, async () => {
+        await requireCurrentSession(s);
         const submitted = a.given?.split(' | ') ?? [];
         const missedBlank = ex.blanks?.find((blank, i) => fold(blank.answer) !== fold(submitted[i] ?? ''));
         if (a.correct !== null) {
@@ -554,64 +553,75 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
         }
         await db.kv.put({ key: 'session', value: next });
       });
+      setS(next);
+      setSeconds(3);
+      setAutoPaused(false);
+      setReadingExplanation(false);
+      setAnswer({ ...a, capiReaction });
     } catch (error) {
       console.error(error);
       reviewId.current = undefined;
-      toast('A resposta pôde ser corrigida, mas não foi salva no histórico.');
-    }
-    setS(next);
-    setSeconds(3);
-    setAutoPaused(false);
-    setReadingExplanation(false);
-    setAnswer({ ...a, capiReaction });
-    acting.current = false;
+      toast(error instanceof SessionConflict ? error.message : 'Não foi possível salvar a resposta. Tente de novo.');
+    } finally { acting.current = false; }
   }, [s, ex, answer, taskId]);
 
   const advance = useCallback(async () => {
     if (!s || !ex || acting.current || (isStudyQuestion(ex) && !answer)) return;
     acting.current = true;
     haptic('tap');
-    let results = s.results;
-    if (!answer) {
-      // itens não avaliados: leitura, termo, microaula
-      const ms = Date.now() - shownAt.current;
-      if (ex.kind === 'read' && ex.articleId) {
-        const read = await kvGet<string[]>('readArticles', []);
-        await kvSet('readArticles', [...new Set([...read, ex.articleId])]);
-        const hit = getArticle(ex.articleId);
-        for (const u of hit?.art.units ?? []) for (const d of new Set(findTargets(u).map((t) => t.dim))) {
-          const key = `L:${u.id}:${d}`;
-          await markSeen(key, { articleId: ex.articleId, unitId: u.id, dim: d, type: 'read' }).catch(() => {});
-          const c = await db.cards.get(key).catch(() => undefined);
-          if (c && c.stage < 1) await db.cards.update(key, { stage: 1 }).catch(() => {});
-        }
+    try {
+      const results = answer ? s.results : [...s.results, { key: ex.key, correct: null, ms: Date.now() - shownAt.current }];
+      let next: SessionState = { ...s, results, draft: undefined, index: s.index + 1 };
+      if (s.config.infinite && next.index >= next.items.length - 3) {
+        try { next = await extendSession(next); } catch { /* Ainda pode haver questões disponíveis. */ }
       }
-      if (ex.kind === 'term') { const seen = await kvGet<string[]>('termsIntroduced', []); await kvSet('termsIntroduced', [...new Set([...seen, ex.termId!])]); }
-      if (ex.kind === 'lesson') { const done = await kvGet<string[]>('lessonsDone', []); await kvSet('lessonsDone', [...new Set([...done, ex.lessonId!])]); }
-      results = [...results, { key: ex.key, correct: null, ms }];
-    }
-    let next: SessionState = { ...s, results, draft: undefined, index: s.index + 1, finishedAt: !s.config.infinite && s.index + 1 >= s.items.length ? Date.now() : undefined };
-    if (taskId && !answer) {
-      try {
-        await db.transaction('rw', db.kv, async () => {
-          await recordPlannerExercise(taskId, ex.key);
-          await db.kv.put({ key: 'session', value: next });
+      const done = next.index >= next.items.length;
+      if (!answer) {
+        await db.transaction('rw', db.cards, db.kv, async () => {
+          await requireCurrentSession(s);
+          if (ex.kind === 'read' && ex.articleId) {
+            const read = await kvGet<string[]>('readArticles', []);
+            await db.kv.put({ key: 'readArticles', value: [...new Set([...read, ex.articleId])] });
+            const hit = getArticle(ex.articleId);
+            for (const unit of hit?.art.units ?? []) for (const dim of new Set(findTargets(unit).map((target) => target.dim))) {
+              const key = `L:${unit.id}:${dim}`;
+              await markSeen(key, { articleId: ex.articleId, unitId: unit.id, dim, type: 'read' });
+              const card = await db.cards.get(key);
+              if (card && card.stage < 1) await db.cards.update(key, { stage: 1 });
+            }
+          }
+          if (ex.kind === 'term' && ex.termId) {
+            const seen = await kvGet<string[]>('termsIntroduced', []);
+            await db.kv.put({ key: 'termsIntroduced', value: [...new Set([...seen, ex.termId])] });
+          }
+          if (ex.kind === 'lesson' && ex.lessonId) {
+            const lessons = await kvGet<string[]>('lessonsDone', []);
+            await db.kv.put({ key: 'lessonsDone', value: [...new Set([...lessons, ex.lessonId])] });
+          }
+          if (taskId) await recordPlannerExercise(taskId, ex.key);
+          if (!done) await saveSession(next);
         });
-      } catch { toast('Não foi possível registrar esta leitura na meta.'); }
-    }
-    if (s.config.infinite && next.index >= next.items.length - 3) { try { next = await extendSession(next); } catch { /* sem mais itens */ } }
-    if (next.finishedAt) next = await finishSession(next);
-    else await saveSession(next);
-    setS(next); setAnswer(null); setLawSheet(false); setReadingExplanation(false); shownAt.current = Date.now();
-    acting.current = false;
+      } else if (!done) await saveSession(next, s);
+      if (done) next = await finishSession(next, false, { expected: s });
+      setS(next);
+      setAnswer(null);
+      setLawSheet(false);
+      setReadingExplanation(false);
+      shownAt.current = Date.now();
+    } catch (error) {
+      toast(error instanceof SessionConflict ? error.message : 'Não foi possível avançar no treino. Tente de novo.');
+      setAutoPaused(true);
+    } finally { acting.current = false; }
   }, [s, ex, answer, taskId]);
 
   const end = useCallback(async (timedOut = false) => {
     if (!s || s.finishedAt || acting.current) return;
     acting.current = true;
     try {
-      setS(await finishSession(s, timedOut));
+      setS(await finishSession(s, timedOut, { expected: s }));
       setAnswer(null);
+    } catch (error) {
+      toast(error instanceof SessionConflict ? error.message : 'Não foi possível encerrar o treino. Tente de novo.');
     } finally {
       acting.current = false;
     }
@@ -636,7 +646,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
       if (e.key === 'Enter' && (answer || (ex && ['read', 'term'].includes(ex.kind)))) { e.preventDefault(); void advance(); }
       if (!answer && ex?.options && !ex.doctrineParts && /^[1-9a-e]$/i.test(e.key)) {
         const i = /\d/.test(e.key) ? +e.key - 1 : e.key.toLowerCase().charCodeAt(0) - 97;
-        const o = ex.options[i]; if (o) void submit({ correct: o.correct, given: o.text });
+        const o = ex.options[i]; if (o) void submit({ correct: o.correct, given: o.text, optionId: o.id });
       }
     };
     window.addEventListener('keydown', k);
@@ -646,11 +656,16 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
   const close = async () => {
     if (acting.current) return;
     haptic('soft');
-    if (s && !s.finishedAt) {
-      acting.current = true;
-      await saveSession({ ...s, pausedAt: Date.now() });
+    acting.current = true;
+    try {
+      if (s && !s.finishedAt) await saveSession({ ...s, pausedAt: Date.now() }, s);
+      nav.back();
+    } catch (error) {
+      if (error instanceof SessionConflict) { toast(error.message); nav.back(); }
+      else toast('Não foi possível pausar o treino. Tente de novo.');
+    } finally {
+      acting.current = false;
     }
-    nav.back();
   };
   if (err) return <div className="stack" style={{ paddingTop: 40 }}>
     <div className="empty" role="status">{err}</div>
@@ -668,7 +683,13 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
   );
   if (!s) return <TucaLoading msg="Montando sua sessão" full />;
   if (!ex) return <Summary s={s} startXp={career?.xp}
-    onClose={async () => { await saveSession(null); await close(); }}
+    onClose={async () => {
+      try { await saveSession(null, s); }
+      catch (error) {
+        if (!(error instanceof SessionConflict)) { toast('Não foi possível limpar o resumo. Tente de novo.'); return; }
+      }
+      await close();
+    }}
     onNext={(next) => nav.replace({ name: 'session', config: next, reenter: s.id })} />;
 
   const progress = s.config.infinite ? (s.index % 20) / 20 : s.index / s.items.length;
@@ -812,9 +833,9 @@ function TucaReact({ correct, reaction, combo, method, review, confidence }: { c
 }
 
 /** "Encontre o erro": cada palavra é tocável; a trocada é a resposta. */
-function SpotView({ ex, answered, onAnswer, lawId, feedback }: { ex: Exercise; answered: boolean; onAnswer: (a: Answer) => void; lawId?: string; feedback: React.ReactNode }) {
-  const [tapped, setTapped] = useState<number | null>(null);
-  useEffect(() => setTapped(null), [ex.key]);
+function SpotView({ ex, answer, onAnswer, lawId, feedback }: { ex: Exercise; answer: Answer | null; onAnswer: (a: Answer) => void; lawId?: string; feedback: React.ReactNode }) {
+  const answered = !!answer;
+  const tapped = answer?.tokenIndex;
   const tokens = useMemo(() => {
     const out: { t: string; alt?: boolean; lab?: boolean }[] = [];
     for (const sg of ex.stem) {
@@ -823,7 +844,7 @@ function SpotView({ ex, answered, onAnswer, lawId, feedback }: { ex: Exercise; a
     }
     return out;
   }, [ex.key]); // eslint-disable-line
-  const tap = (i: number) => { if (answered) return; setTapped(i); haptic('tap'); onAnswer({ correct: !!tokens[i].alt, given: tokens[i].t }); };
+  const tap = (i: number) => { if (answered) return; onAnswer({ correct: !!tokens[i].alt, given: tokens[i].t, tokenIndex: i }); };
   return (
     <div className="stack" style={{ gap: 14 }}>
       <MascotQuestion text={ex.prompt} />
@@ -872,9 +893,9 @@ function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answere
         <div className="stack" style={{ gap: 8 }}>
           <div className="xsmall muted">Lacuna {cur + 1} de {blanks.length}</div>
           <div className="chips">{blanks[cur].options.map((o) => <button key={o} className="chip" style={{ fontSize: 15, minHeight: 42 }} onClick={() => choose(o)}>{o}</button>)}</div>
-          {cur > 0 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setFilled(filled.slice(0, -1))}>Desfazer</button>}
         </div>
       )}
+      {!answered && cur > 0 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setFilled(filled.slice(0, -1))}>Desfazer</button>}
       {feedback}
       {answered && <Official ex={ex} />}
     </div>

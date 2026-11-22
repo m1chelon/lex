@@ -2,12 +2,13 @@ import 'fake-indexeddb/auto';
 import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { importBackup } from '../src/data/backup';
+import { createBackupBlob } from '../src/data/profileBackup';
 import { finishSimulado, loadSimulado, saveSimulado, type Simulado } from '../src/learn/simulado';
 import { db } from '../src/data/db';
 import { reviewQueue, setReviewMark } from '../src/learn/reviewQueue';
 import { recordAnswer, regradeAsGuess } from '../src/learn/scheduler';
 import { initCorpus } from '../src/data/corpus';
-import { buildSession, canConsultStudySource, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, resumeSession, saveSession, scopeArticles, type SessionConfig } from '../src/learn/session';
+import { buildSession, canConsultStudySource, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
 import { planToConfig } from '../src/learn/plan';
 
 const config: SessionConfig = { area: 'geral', focus: 'law:cpp', mode: 'memorizar', minutes: 5 };
@@ -43,6 +44,30 @@ it('faz os blocos contarem apenas questões, inclusive o último bloco curto', (
 });
 
 describe('retomada da sequência de artigos', () => {
+  it('grava uma resposta só uma vez e mantém o novo treino ao rejeitar uma gravação atrasada', async () => {
+    const active = await buildSession(config);
+    const first = active.items[0];
+    const answered = { ...active, results: [{ key: first.key, correct: true, ms: 1000 }] };
+    const saveAnswer = () => db.transaction('rw', db.kv, db.cards, db.reviews, async () => {
+      await requireCurrentSession(active);
+      await recordAnswer({
+        cardId: first.key, base: { articleId: first.articleId, unitId: first.unitId, dim: first.dim, type: first.kind },
+        correct: true, ms: 1000, expectedMs: first.expectedMs, mode: 'memorizar', type: first.kind,
+      });
+      await saveSession(answered);
+    });
+    const attempts = await Promise.allSettled([saveAnswer(), saveAnswer()]);
+    expect(attempts.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.find((result) => result.status === 'rejected')).toMatchObject({ reason: expect.any(SessionConflict) });
+    expect(await db.reviews.where('cardId').equals(first.key).count()).toBe(1);
+
+    const replacement = await buildSession({ ...config, focus: 'law:cf' }, false);
+    await finishSession(answered, false, { expected: answered, replacement });
+    await expect(saveSession({ ...answered, pausedAt: Date.now() }, answered)).rejects.toBeInstanceOf(SessionConflict);
+    expect((await loadSession())?.id).toBe(replacement.id);
+    expect((await loadSequence(config))?.articleId).toBe(active.items[1].articleId);
+  });
+
   it('mantém a sessão pausada e depois abre outra no próximo exercício do mesmo artigo', async () => {
     const s = await buildSession(config);
     expect(s.items.length).toBeGreaterThan(1);
@@ -172,6 +197,33 @@ describe('persistência do simulado e backup', () => {
     expect(await db.reviews.get(id!)).toMatchObject(original);
     await expect(importBackup({ text: async () => JSON.stringify({ ...backup, cards: [{}] }) })).rejects.toThrow();
     expect(await db.reviews.count()).toBe(rows.length + 1);
+  });
+
+  it('exporta e restaura o treino pausado, as marcações e o registro de um chute', async () => {
+    const session = await buildSession(config);
+    const paused = { ...session, pausedAt: Date.now() };
+    await saveSession(paused);
+    const mark = { id: 'note:cf.5.test-restore', kind: 'note' as const, target: 'cf.5', text: 'Rever no próximo treino', at: 100 };
+    await db.marks.put(mark);
+    const cardId = 'backup-roundtrip-test';
+    const { reviewId, previous } = await recordAnswer({
+      cardId, base: { dim: 'literal', type: 'cloze-mc' },
+      correct: true, ms: 8000, expectedMs: 20_000, mode: 'memorizar', type: 'cloze-mc',
+    });
+    const initial = (await db.reviews.get(reviewId))!;
+    await regradeAsGuess(previous, cardId, reviewId);
+    const backup = await createBackupBlob();
+    await db.reviews.put(initial);
+    await db.marks.delete(mark.id);
+    await db.cards.delete(cardId);
+    await saveSession(null);
+
+    await importBackup(backup);
+    await importBackup(backup);
+    expect(await db.reviews.where('cardId').equals(cardId).toArray()).toEqual([expect.objectContaining({ id: reviewId, guessed: true })]);
+    expect(await db.marks.get(mark.id)).toEqual(mark);
+    expect((await db.cards.get(cardId))?.fsrs.due).toBeInstanceOf(Date);
+    expect(await loadSession()).toMatchObject({ id: session.id, pausedAt: paused.pausedAt });
   });
 });
 it('só libera a fonte de uma questão depois de uma resposta avaliada', () => {

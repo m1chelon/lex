@@ -1,5 +1,5 @@
 // Montagem de sessões: escopo (área/edital/lei/ramo), ordem, modo e modo infinito.
-import { db, kvGet, kvSet, type CardRow, type Dim, type ReviewRow } from '../data/db';
+import { db, kvGet, type CardRow, type Dim, type ReviewRow } from '../data/db';
 import { coverage, ensureLaws, getArticle, getLaw, getUnit, lawIdOf } from '../data/corpus';
 import { buildLiteral, buildOrder, buildRead, buildRubric, buildWhich, findTargets, type Exercise } from './generators';
 import { buildCaseIdentify, buildCasePena } from './cases';
@@ -41,6 +41,21 @@ export interface SessionState {
   startedAt: number; pausedAt?: number; finishedAt?: number; timedOut?: boolean;
   cursor?: number; seed?: number; // modo infinito / linear: posição no escopo
   draft?: string[]; // escolhas parciais da questão de doutrina
+}
+
+export class SessionConflict extends Error {
+  constructor() { super('O treino foi atualizado em outra aba. Volte ao Início para retomar.'); }
+}
+
+export async function requireCurrentSession(expected: SessionState | null) {
+  const current = await loadSession();
+  if (expected === null) {
+    if (current && !current.finishedAt && current.index < current.items.length) throw new SessionConflict();
+    return;
+  }
+  if (!current || current.id !== expected.id || current.index !== expected.index
+    || current.results.length !== expected.results.length || current.startedAt !== expected.startedAt
+    || current.pausedAt !== expected.pausedAt || current.finishedAt !== expected.finishedAt) throw new SessionConflict();
 }
 
 export function isStudyQuestion({ kind }: Pick<Exercise, 'kind'>): boolean {
@@ -476,9 +491,7 @@ export async function buildSession(cfg: SessionConfig, persist = true): Promise<
 export async function extendSession(state: SessionState): Promise<SessionState> {
   let b = await nextBatch(state, 6 * 60);
   if (!b.items.length) { b = await nextBatch({ ...state, cursor: 0, seed: (state.seed ?? 1) + 1 }, 6 * 60); }
-  const next = { ...state, items: [...state.items, ...b.items], cursor: b.cursor };
-  await saveSession(next);
-  return next;
+  return { ...state, items: [...state.items, ...b.items], cursor: b.cursor };
 }
 
 interface SequencePosition { articleId: string; practiced: string[]; config?: SessionConfig; updatedAt?: number }
@@ -506,9 +519,10 @@ export async function loadSequence(cfg: SessionConfig): Promise<SequencePosition
   return articles.includes(saved.articleId) ? saved : null;
 }
 
-export async function finishSession(s: SessionState, timedOut = false): Promise<SessionState> {
+export async function finishSession(s: SessionState, timedOut = false, options?: { expected: SessionState; replacement?: SessionState }): Promise<SessionState> {
   const next = { ...s, index: s.items.length, finishedAt: Date.now(), timedOut };
   const key = sequenceKey(s.config);
+  let position: SequencePosition | null = null;
   if (key && s.results.length) {
     const pendingArticle = s.items.slice(Math.max(s.index, s.results.length)).find((item) => item.articleId)?.articleId;
     const articleId = pendingArticle ?? (await scopeArticles(s.config, s.seed ?? 0))[s.cursor ?? 0];
@@ -519,16 +533,29 @@ export async function finishSession(s: SessionState, timedOut = false): Promise<
       }
     }
     const { startArticleId, sequenceSkip, ...config } = s.config;
-    await kvSet(key, articleId ? {
+    position = articleId ? {
       articleId, practiced: [...new Set(practiced)], config,
       updatedAt: Date.now(),
-    } : null);
+    } : null;
   }
-  await saveSession(next);
+  await db.transaction('rw', db.kv, async () => {
+    if (options) await requireCurrentSession(options.expected);
+    if (key && s.results.length) await db.kv.put({ key, value: position });
+    await db.kv.put({ key: 'session', value: options?.replacement ?? next });
+  });
   return next;
 }
 
-export async function saveSession(s: SessionState | null) { await kvSet('session', s); }
+export async function saveSession(s: SessionState | null, expected?: SessionState | null) {
+  if (expected === undefined) {
+    await db.kv.put({ key: 'session', value: s });
+    return;
+  }
+  await db.transaction('rw', db.kv, async () => {
+    await requireCurrentSession(expected);
+    await db.kv.put({ key: 'session', value: s });
+  });
+}
 
 export async function resumeSession(): Promise<SessionState | null> {
   const saved = await loadSession();
@@ -581,13 +608,13 @@ export async function resumeSession(): Promise<SessionState | null> {
     ? saved.results.reduce((sum, result) => sum + result.ms, 0)
     : saved.pausedAt - saved.startedAt;
   const active = { ...saved, items, startedAt: Date.now() - Math.max(0, elapsed), pausedAt: undefined };
-  if (firstPending >= items.length && saved.index === firstPending) return finishSession(active);
-  await saveSession(active);
+  if (firstPending >= items.length && saved.index === firstPending) return finishSession(active, false, { expected: saved });
+  await saveSession(active, saved);
   return active;
 }
 
 export async function loadSession(): Promise<SessionState | null> {
-  const saved = await kvGet<SessionState | null>('session', null);
+  const saved = (await db.kv.get('session'))?.value as SessionState | null;
   if (!saved?.config || !Array.isArray(saved.items) || !Array.isArray(saved.results) || !Number.isInteger(saved.index) || saved.index < 0 || saved.index > saved.items.length) return null;
   if (saved.config.order) return saved;
   return { ...saved, config: { ...saved.config, order: 'misturado' } };

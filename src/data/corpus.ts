@@ -37,19 +37,30 @@ function indexDoc(doc: LawDoc) {
 let storedRows = new Map<string, StoredLaw>();
 const loading = new Map<string, Promise<boolean>>();
 
-function loadManifest(): Promise<Manifest | null> {
-  if (manifest) return Promise.resolve(manifest);
+async function fetchCorpusJson<T>(path: string, message: string): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(path, { cache: 'no-cache', signal: controller.signal });
+    if (!response.ok) throw new Error(message);
+    return await response.json() as T;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function loadManifest(refresh = false): Promise<Manifest | null> {
+  if (manifest && !refresh) return Promise.resolve(manifest);
   manifestLoad ??= (async () => {
     try {
-      const response = await fetch('./data/manifest.json', { cache: 'no-cache' });
-      if (!response.ok) throw new Error('Manifesto indisponível');
-      const downloaded = await response.json() as Manifest;
+      const downloaded = await fetchCorpusJson<Manifest>('./data/manifest.json', 'Manifesto indisponível');
       if (!Array.isArray(downloaded?.laws)) throw new Error('Manifesto inválido');
+      const changed = manifest && JSON.stringify(manifest) !== JSON.stringify(downloaded);
       manifest = downloaded;
       await libraryDb.kv.put({ key: 'corpus-manifest', value: downloaded }).catch(() => {});
+      if (changed) bump();
     } catch {
-      const cached = (await libraryDb.kv.get('corpus-manifest').catch(() => undefined))?.value as Manifest | undefined;
-      manifest = Array.isArray(cached?.laws) ? cached : null;
+      // Mantém o último índice disponível ao perder a conexão.
     }
     return manifest;
   })().finally(() => { manifestLoad = null; });
@@ -59,9 +70,16 @@ function loadManifest(): Promise<Manifest | null> {
 /** O índice e as leis já guardadas bastam para abrir o app. */
 export function prepareCorpus(): Promise<void> {
   indexed ??= (async () => {
-    const [, stored] = await Promise.all([loadManifest(), libraryDb.laws.toArray().catch(() => [])]);
+    const [cached, stored] = await Promise.all([
+      libraryDb.kv.get('corpus-manifest').catch(() => undefined),
+      libraryDb.laws.toArray().catch(() => []),
+    ]);
+    const savedManifest = cached?.value as Manifest | undefined;
+    if (!manifest && Array.isArray(savedManifest?.laws)) manifest = savedManifest;
     storedRows = new Map(stored.map((s) => [s.id, s]));
     for (const s of stored) indexDoc(s.doc);
+    if (manifest) void loadManifest(true);
+    else await loadManifest();
     bump();
   })();
   return indexed;
@@ -91,9 +109,7 @@ export async function ensureLaws(ids: string[], onProgress?: (msg: string) => vo
       const task = (async () => {
         onProgress?.(`Baixando e validando ${m.short}…`);
         try {
-          const response = await fetch(`./data/laws/${m.id}.json`, { cache: 'no-cache' });
-          if (!response.ok) return false;
-          const doc = await response.json() as LawDoc;
+          const doc = await fetchCorpusJson<LawDoc>(`./data/laws/${m.id}.json`, 'Norma indisponível');
           if (doc.id !== m.id || doc.provenance?.sha256 !== m.provenance?.sha256 || !Array.isArray(doc.articles)) return false;
           if (storedRows.get(id)?.method === 'manual') return false;
           const row: StoredLaw = { id: doc.id, doc, sha: doc.provenance.sha256, method: 'automatico', storedAt: new Date().toISOString() };

@@ -11,7 +11,7 @@
     "test": "vitest run",
     "validate": "tsx scripts/validate.ts",
     "import:refresh": "tsx scripts/import.ts --refresh",
-    "build:public": "tsc --noEmit && tsx scripts/validate.ts && tsx scripts/check-traps.ts && vite build --outDir dist-public && node -e \"require('fs').rmSync('dist-public/data/doutrina',{recursive:true,force:true})\"",
+    "build:public": "tsc --noEmit && vite build --mode portal --outDir dist-public && node -e \"require('fs').rmSync('dist-public/data',{recursive:true,force:true})\"",
     "doutrina": "python3 -I scripts/doutrina.py acervo public/data/doutrina && python3 -I scripts/doutrina-bundle.py public/data/doutrina lex-doutrina.json"
   },
   "keywords": [],

@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
-import { eraseProfileData, exportBackup, importBackup } from '../data/backup';
+import { useEffect, useRef, useState } from 'react';
+import { eraseProfileData, importBackup } from '../data/backup';
+import { exportBackup } from '../data/profileBackup';
+import { lockLex } from '../data/access';
 import { activeProfile } from '../data/profiles';
 import { Segmented, Sheet, toast, useAsync } from '../ui/primitives';
 import { setSettings, useSettings, haptic } from '../ui/settings';
 import { nav } from '../ui/nav';
 import { db } from '../data/db';
 import { getStats } from '../learn/stats';
+import { getPlan } from '../learn/plan';
 import { getCalibration } from '../learn/scheduler';
 import { LEVELS } from './TermSheet';
 import { IChevR, IExternal, IShield, IUpload, IFull, IInfo, ISettings, IBook, ISparkle, IHeart, IShieldLock, IDoc, IDownload, ITrash, ICart, IPeople } from '../ui/icons';
@@ -30,6 +33,7 @@ export function Me() {
   const [help, setHelp] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [persisted, setPersisted] = useState<boolean | null>(null);
+  const backupInput = useRef<HTMLInputElement>(null);
   useEffect(() => { navigator.storage?.persisted?.().then(setPersisted).catch(() => {}); }, []);
   const cal = getCalibration();
 
@@ -38,7 +42,7 @@ export function Me() {
   const [busyD, setBusyD] = useState(false);
   useEffect(() => { void doutrinaMeta().then(setDMeta); }, []);
   const exportData = async () => {
-    try { await exportBackup(); toast('Backup exportado'); }
+    try { await exportBackup(getPlan()); toast('Backup exportado'); }
     catch { toast('Não foi possível exportar o backup.'); }
   };
   const importData = async (f: File) => {
@@ -135,9 +139,11 @@ export function Me() {
 
       <div className="caps" style={{ margin: '8px 4px 0' }}>Dados</div>
       <div className="list">
+        <button className="list-item" onClick={lockLex}><IShieldLock /><div className="grow">Bloquear o LEX</div></button>
         <button className="list-item" onClick={() => nav.push({ name: 'admin' })}><IShield style={{ color: 'var(--gold)' }} /><div className="grow"><div style={{ fontWeight: 620 }}>Fontes, cobertura e integridade</div><div className="xsmall muted">Painel administrativo de importação</div></div><IChevR className="chev" /></button>
         <button className="list-item" onClick={exportData}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#5fd3c4,#2bb5a8)' }}><IDownload size={18} /></span><div className="grow">Exportar backup do progresso</div></button>
-        <label className="list-item" style={{ cursor: 'pointer' }}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#8fd16a,#4fae3c)' }}><IUpload size={18} /></span><div className="grow">Restaurar backup</div><input type="file" accept="application/json" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importData(file); }} /></label>
+        <button className="list-item" type="button" onClick={() => backupInput.current?.click()}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#8fd16a,#4fae3c)' }}><IUpload size={18} /></span><div className="grow">Restaurar backup</div></button>
+        <input ref={backupInput} type="file" accept=".json,application/json" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importData(file); }} />
         <button className="list-item" onClick={async () => { const ok = await navigator.storage?.persist?.(); setPersisted(!!ok); toast(ok ? 'Armazenamento protegido' : 'O navegador não concedeu proteção'); }}><IInfo /><div className="grow">Proteger dados contra limpeza automática<div className="xsmall muted">{persisted ? 'Ativo' : 'Recomendado'}</div></div></button>
         <button className="list-item" style={{ color: 'var(--bad)' }} onClick={() => setConfirmReset(true)}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#fb7185,#e11d48)' }}><ITrash size={18} /></span><div className="grow">Apagar dados do perfil</div></button>
       </div>

@@ -2,9 +2,16 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
+    mode === 'portal' && {
+      name: 'lex-portal',
+      transformIndexHtml: {
+        order: 'pre',
+        handler: (html: string) => html.replace('src="/src/main.tsx"', 'src="/src/portal.tsx"'),
+      },
+    },
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -50,4 +57,4 @@ export default defineConfig({
     },
   },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },
-} as any);
+} as any));

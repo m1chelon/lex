@@ -47,7 +47,9 @@ it('mantém progresso e preferências legados, isola os perfis e compartilha as 
   expect(primary.db.name).toBe('lex');
   primary.db.close();
 
-  vi.stubGlobal('fetch', async () => { throw new Error('offline'); });
+  let failNetwork: (error: Error) => void = () => {};
+  const offline = new Promise<Response>((_resolve, reject) => { failNetwork = reject; });
+  vi.stubGlobal('fetch', () => offline);
   const next = await openApp();
   const { getPlan, savePlan } = await import('../src/learn/plan');
   expect(next.activeProfile).toEqual(assistant);
@@ -60,6 +62,8 @@ it('mantém progresso e preferências legados, isola os perfis e compartilha as 
   expect(await next.kvGet('capi-wardrobe', null)).toBeNull();
   await next.prepareCorpus();
   expect(next.getLaw('cf')?.id).toBe('cf');
+  failNetwork(new Error('offline'));
+  vi.stubGlobal('fetch', async () => { throw new Error('offline'); });
 
   savePlan({ scope: { kind: 'curso', area: 'tjms' }, mode: 'memorizar', minutes: 10 });
   await next.kvSet('session', { id: 'treino-assistente' });
