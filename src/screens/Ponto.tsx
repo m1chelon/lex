@@ -31,8 +31,12 @@ export function PontoScreen() {
   const bater = async () => {
     if (hoje) return;
     if (!studied) { haptic('bad'); toast('Faça pelo menos uma atividade hoje para bater o ponto.'); return; }
-    await baterPonto(Math.round((stats?.todayMs ?? 0) / 60000));
-    haptic('ok'); setV((x) => x + 1);
+    try {
+      await baterPonto(Math.round((stats?.todayMs ?? 0) / 60000));
+      haptic('ok'); setV((x) => x + 1);
+    } catch {
+      toast('Não foi possível registrar o ponto. Tente de novo.');
+    }
   };
 
   return (

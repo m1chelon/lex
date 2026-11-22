@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { importBackup } from '../src/data/backup';
 import { createBackupBlob } from '../src/data/profileBackup';
-import { finishSimulado, loadSimulado, saveSimulado, updateSimulado, type Simulado } from '../src/learn/simulado';
+import { finishSimulado, listSimulados, loadSimulado, saveSimulado, updateSimulado, type Simulado } from '../src/learn/simulado';
+import { baterPonto, getPontos, pontoHoje } from '../src/learn/ponto';
 import { db } from '../src/data/db';
 import { reviewQueue, setReviewMark } from '../src/learn/reviewQueue';
 import { recordAnswer, regradeAsGuess } from '../src/learn/scheduler';
@@ -229,6 +230,53 @@ describe('minha revisão', () => {
 });
 
 describe('persistência do simulado e backup', () => {
+  it('junta respostas de um backup e mantém o simulado encerrado ao restaurar uma cópia antiga', async () => {
+    const sim: Simulado = {
+      id: 'sim-restore-overlap', estilo: 'cebraspe', n: 3, tempoMin: null, createdAt: 1, startedAt: 1, title: '',
+      position: 1, questoes: ['a', 'b', 'c'].map((id) => ({ id, estilo: 'cebraspe', enunciado: 'Julgue o item.', ce: 'C' })),
+      respostas: { a: 'E', b: '' },
+    };
+    const key = `sim:${sim.id}`;
+    const restore = (value: unknown) => importBackup({ text: async () => JSON.stringify({ app: 'LEX', version: 3, kv: [{ key, value }] }) });
+    await saveSimulado(sim);
+    const other = { ...sim, respostas: { a: 'C', b: 'C', c: 'C', desconhecida: 'C' }, position: 2 };
+    await restore(other);
+    expect(await loadSimulado(sim.id)).toMatchObject({ position: 1, respostas: { a: 'E', b: '', c: 'C' } });
+    expect((await loadSimulado(sim.id))?.respostas).not.toHaveProperty('desconhecida');
+    await restore({ ...other, finishedAt: 2 });
+    await restore(other);
+    const reviews = await db.reviews.count();
+    expect(await finishSimulado(sim.id)).toMatchObject({ finishedAt: 2 });
+    expect(await db.reviews.count()).toBe(reviews);
+  });
+
+  it('ignora entradas já corrompidas no histórico e rejeita um simulado inválido no backup', async () => {
+    const key = 'sim:sim-corrompido';
+    const value = { id: 'sim-corrompido', startedAt: 1, questoes: [null], respostas: {} };
+    const backup = { app: 'LEX', version: 3, kv: [{ key, value }, { key: 'audit-atomic', value: 1 }] };
+    await expect(importBackup({ text: async () => JSON.stringify(backup) })).rejects.toThrow('Simulado inválido');
+    expect(await db.kv.get('audit-atomic')).toBeUndefined();
+    await db.kv.put({ key, value });
+    expect(await loadSimulado(value.id)).toBeNull();
+    const history = (await db.kv.get('simulados'))?.value;
+    await db.kv.put({ key: 'simulados', value: { broken: true } });
+    expect(await listSimulados()).toEqual([]);
+    await db.kv.put({ key: 'simulados', value: history ?? [] });
+    await db.kv.delete(key);
+  });
+
+  it('mantém o primeiro ponto do dia e combina presenças de dois aparelhos', async () => {
+    const first = { day: '2024-03-10', at: Date.UTC(2024, 2, 10, 16), min: 8 };
+    const another = { day: '2024-03-11', at: Date.UTC(2024, 2, 11, 16), min: 11 };
+    await db.kv.put({ key: 'pontos', value: [first] });
+    await Promise.all([baterPonto(19), baterPonto(20)]);
+    const today = (await pontoHoje())!;
+    expect(today.min).toBe(19);
+    const backup = { app: 'LEX', version: 3, kv: [{ key: 'pontos', value: [first, another] }] };
+    await importBackup({ text: async () => JSON.stringify(backup) });
+    expect(await getPontos()).toEqual([first, another, today]);
+  });
+
   it('mantém a posição e registra uma finalização apenas uma vez', async () => {
     const sim: Simulado = {
       id: 'sim-audit', estilo: 'leiseca', n: 2, tempoMin: null, createdAt: 1, startedAt: 1, title: 'Teste',

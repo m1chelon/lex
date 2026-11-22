@@ -6,7 +6,7 @@ import { isDue, regradeAsGuess } from '../learn/scheduler';
 import { getCareer, careerFor, xpFor } from '../learn/career';
 import { motion } from 'motion/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BLITZ_SECONDS, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, sessionDeadline, sessionInProgress, type SessionConfig, type SessionState } from '../learn/session';
+import { BLITZ_SECONDS, blitzDeadline, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, sessionDeadline, sessionInProgress, type SessionConfig, type SessionState } from '../learn/session';
 import { findTargets, shuffledOrderItems, type Exercise, type Seg } from '../learn/generators';
 import { savePlan, type Plan } from '../learn/plan';
 import { recordAnswer, markSeen } from '../learn/scheduler';
@@ -405,15 +405,24 @@ function Timer({ startedAt, deadline, onTimeout }: { startedAt: number; deadline
 }
 
 /** Relâmpago: anel de 10 s por questão; ao zerar, conta como erro. */
-function BlitzClock({ onTimeout }: { onTimeout: () => void }) {
+const BLITZ_TIMEOUT: Answer = { correct: false, given: '(tempo esgotado)' };
+
+function BlitzClock({ deadline, onTimeout }: { deadline: number; onTimeout: () => void }) {
   const [left, setLeft] = useState(BLITZ_SECONDS);
   const fn = useRef(onTimeout); fn.current = onTimeout;
   useEffect(() => {
-    const t0 = Date.now();
-    const i = setInterval(() => { const l = BLITZ_SECONDS - Math.floor((Date.now() - t0) / 1000); setLeft(Math.max(0, l)); if (l <= 3 && l > 0) haptic('soft'); }, 250);
-    const t = setTimeout(() => fn.current(), BLITZ_SECONDS * 1000);
+    let previous = BLITZ_SECONDS;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      if (remaining > 0 && remaining <= 3 && remaining < previous) haptic('soft');
+      previous = remaining;
+      setLeft(remaining);
+    };
+    tick();
+    const i = setInterval(tick, 250);
+    const t = setTimeout(() => fn.current(), Math.max(0, deadline - Date.now()));
     return () => { clearInterval(i); clearTimeout(t); };
-  }, []);
+  }, [deadline]);
   return (
     <span className={`blitz-clock${left <= 3 ? ' low' : ''}`} role="timer" aria-label={`${left} segundos`}>
       <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.5" className="bc-track" /><circle cx="18" cy="18" r="15.5" className="bc-ring" style={{ animationDuration: `${BLITZ_SECONDS}s` }} /></svg>
@@ -523,16 +532,19 @@ export function SessionScreen({ active, resume, config, plan }: { active: boolea
   const career = useAsync(getCareer, []);
   const [guess, setGuess] = useState<'sabia' | 'chutei' | null>(null);
   useEffect(() => setGuess(null), [ex?.key, s?.index]);
-  const submit = useCallback(async (a: Answer) => {
+  const submit = useCallback(async (response: Answer) => {
     if (!s || !ex || answer || acting.current) return;
+    const now = Date.now();
     const deadline = sessionDeadline(s);
-    if (deadline !== null && Date.now() >= deadline) {
+    if (deadline !== null && now >= deadline) {
       setTimeExpired(true);
       return;
     }
+    const a = s.config.blitz && now >= blitzDeadline(shownAt.current) ? BLITZ_TIMEOUT : response;
     acting.current = true;
     haptic(a.correct ? 'ok' : a.correct === false ? 'bad' : 'tap');
-    const ms = Date.now() - shownAt.current;
+    const elapsed = Math.max(0, now - shownAt.current);
+    const ms = s.config.blitz ? Math.min(elapsed, BLITZ_SECONDS * 1000) : elapsed;
     const base = { articleId: ex.articleId, unitId: ex.unitId, conceptId: ex.conceptId, dim: ex.dim, type: ex.kind };
     const next = { ...s, draft: undefined, results: [...s.results, { key: ex.key, correct: a.correct, ms }] };
     let capiReaction: CapiReaction | undefined;
@@ -731,7 +743,7 @@ export function SessionScreen({ active, resume, config, plan }: { active: boolea
         <div className="row question-toolbar">
           <button className="icon-btn glass" aria-label="Pausar e voltar" onClick={close}><IClose /></button>
           <div className="question-progress"><span className="small muted">{position}</span><Progress value={progress} /></div>
-          {s.config.blitz ? (answer ? <span className="blitz-clock done"><IBolt size={16} /></span> : <BlitzClock key={ex.key + s.index} onTimeout={() => void submit({ correct: false, given: '(tempo esgotado)' })} />) : <Timer startedAt={s.startedAt} deadline={sessionDeadline(s)} onTimeout={() => setTimeExpired(true)} />}
+          {s.config.blitz ? (answer ? <span className="blitz-clock done"><IBolt size={16} /></span> : <BlitzClock key={ex.key + s.index} deadline={blitzDeadline(shownAt.current)} onTimeout={() => void submit(BLITZ_TIMEOUT)} />) : <Timer startedAt={s.startedAt} deadline={sessionDeadline(s)} onTimeout={() => setTimeExpired(true)} />}
           <button className="btn btn-quiet btn-sm focus-toggle" aria-label="Modo foco" aria-pressed={settings.studyFocus} onClick={() => setSettings({ studyFocus: !settings.studyFocus })}>Foco</button>
           {s.config.mode !== 'provar' && !s.config.blitz && <button className="icon-btn glass" onClick={() => setLevelSheet(true)} aria-label="Opções de leitura"><IText size={19} /></button>}
         </div>

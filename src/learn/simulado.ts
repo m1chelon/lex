@@ -215,13 +215,17 @@ export function desempenhoDisciplinas(s: Simulado) {
 }
 
 
+function simuladoIds(saved: unknown) {
+  return [...new Set(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [])];
+}
+
 export async function saveSimulado(s: Simulado) {
   await db.transaction('rw', db.kv, async () => {
     const key = `sim:${s.id}`;
     if (await db.kv.get(key)) return;
     await db.kv.put({ key, value: s });
-    const list = (await db.kv.get('simulados'))?.value as string[] | undefined;
-    if (!list?.includes(s.id)) await db.kv.put({ key: 'simulados', value: [s.id, ...(list ?? [])].slice(0, 30) });
+    const list = simuladoIds((await db.kv.get('simulados'))?.value);
+    if (!list.includes(s.id)) await db.kv.put({ key: 'simulados', value: [s.id, ...list].slice(0, 30) });
   });
 }
 
@@ -230,6 +234,11 @@ export function simuladoDeadline(s: Simulado) {
 }
 
 type SimuladoProgress = { position: number } | { questionId: string; optionId: string };
+
+function validOption(question: Questao, optionId: string) {
+  return question.estilo === 'cebraspe' ? optionId === 'C' || optionId === 'E'
+    : question.options?.some((option) => option.id === optionId);
+}
 
 export async function updateSimulado(id: string, change: SimuladoProgress) {
   const at = Date.now();
@@ -247,7 +256,7 @@ export async function updateSimulado(id: string, change: SimuladoProgress) {
     }
     const { questionId, optionId } = change;
     const question = current.questoes.find((item) => item.id === questionId);
-    if (!question || !(question.estilo === 'cebraspe' ? optionId === 'C' || optionId === 'E' : question.options?.some((option) => option.id === optionId))) return;
+    if (!question || !validOption(question, optionId)) return;
     const value = current.respostas[questionId] === optionId ? '' : optionId;
     await db.kv.put({ key, value: { ...current, respostas: { ...current.respostas, [questionId]: value } } });
   });
@@ -285,13 +294,36 @@ export async function finishSimulado(id: string): Promise<Simulado> {
   }
 }
 
+export function readSavedSimulado(value: unknown, id: string): Simulado | null {
+  const saved = value as Simulado | null;
+  if (!saved || saved.id !== id || !Array.isArray(saved.questoes) || !saved.respostas || typeof saved.respostas !== 'object'
+    || Array.isArray(saved.respostas) || !Number.isFinite(saved.startedAt)
+    || (saved.tempoMin != null && (!Number.isFinite(saved.tempoMin) || saved.tempoMin < 0))
+    || (saved.finishedAt != null && !Number.isFinite(saved.finishedAt))
+    || (saved.edital !== undefined && saved.edital !== 'tjsp' && saved.edital !== 'tjms')) return null;
+  const ids = new Set<string>();
+  const respostas: [string, string][] = [];
+  for (const question of saved.questoes) {
+    if (!question || typeof question.id !== 'string' || typeof question.enunciado !== 'string' || ids.has(question.id)) return null;
+    if (![question.contexto, question.texto, question.disciplina, question.officialText, question.mutation?.note]
+      .every((text) => text == null || typeof text === 'string')) return null;
+    if (question.estilo === 'cebraspe') {
+      if (question.ce !== 'C' && question.ce !== 'E') return null;
+    } else if ((question.estilo !== 'leiseca' && question.estilo !== 'fgv') || !Array.isArray(question.options)
+      || !question.options.length || !question.options.every((option) => option && typeof option.id === 'string'
+        && typeof option.text === 'string' && typeof option.correct === 'boolean' && (option.why == null || typeof option.why === 'string'))) return null;
+    ids.add(question.id);
+    const answer = saved.respostas[question.id];
+    if (Object.hasOwn(saved.respostas, question.id) && (answer === '' || validOption(question, answer))) respostas.push([question.id, answer]);
+  }
+  return { ...saved, respostas: Object.fromEntries(respostas) };
+}
+
 export async function loadSimulado(id: string): Promise<Simulado | null> {
-  const saved = await kvGet<Simulado | null>(`sim:${id}`, null);
-  if (!saved || !Array.isArray(saved.questoes) || !saved.respostas || !Number.isFinite(saved.startedAt)) return null;
-  return saved;
+  return readSavedSimulado(await kvGet(`sim:${id}`, null), id);
 }
 export async function listSimulados(): Promise<Simulado[]> {
-  const ids = await kvGet<string[]>('simulados', []);
+  const ids = simuladoIds(await kvGet('simulados', []));
   return (await Promise.all(ids.map(loadSimulado))).filter((x): x is Simulado => !!x?.questoes.length);
 }
 

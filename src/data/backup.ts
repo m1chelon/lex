@@ -6,6 +6,8 @@ import { sessionInProgress, type SessionState } from '../learn/session';
 import { CAPI_WARDROBE_KEY, mergeWardrobes } from '../learn/capiShop';
 import { PROFILE_SETTINGS_KEY, profileStorageKey } from './profiles';
 import { backupKey } from './profileBackup';
+import { mergePontos } from '../learn/ponto';
+import { readSavedSimulado } from '../learn/simulado';
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -35,6 +37,7 @@ function parseBackup(value: unknown) {
   });
   const kv = rows(value.kv).map((row) => {
     if (typeof row.key !== 'string' || !('value' in row)) throw new Error('Preferência inválida');
+    if (row.key.startsWith('sim:') && row.value != null && !readSavedSimulado(row.value, row.key.slice(4))) throw new Error('Simulado inválido');
     return row as unknown as KV;
   });
   return { cards, reviews, marks, kv: kv.filter(({ key }) => backupKey(key)),
@@ -74,13 +77,34 @@ export async function importBackup(f: Pick<File, 'text'>) {
     await db.reviews.bulkAdd(incoming);
     await db.marks.bulkPut(data.marks.filter((mark, i) => !currentMarks[i] || mark.at > currentMarks[i]!.at));
     const importedKeys = data.kv.filter(({ key, value }, i) => {
-      if (key === CAPI_WARDROBE_KEY) return false;
+      if (key === CAPI_WARDROBE_KEY || key === 'pontos' || key.startsWith('sim:')) return false;
       const current = currentKeys[i];
       if (!current) return true;
       if (key === 'session') return !sessionInProgress(current.value as SessionState | null)
         && sessionInProgress(value as SessionState | null);
-      return key.startsWith('sim:') && current.value == null;
+      return false;
     });
+    data.kv.forEach(({ key, value }, i) => {
+      if (!key.startsWith('sim:')) return;
+      const id = key.slice(4);
+      const restored = readSavedSimulado(value, id);
+      const local = readSavedSimulado(currentKeys[i]?.value, id);
+      if (!restored || local?.finishedAt) return;
+      if (!local || restored.finishedAt) {
+        importedKeys.push({ key, value: restored });
+        return;
+      }
+      // O histórico local tem precedência quando os dois aparelhos escolheram a mesma questão.
+      if (local.startedAt === restored.startedAt && local.questoes.length === restored.questoes.length &&
+        local.questoes.every((question, index) => question.id === restored.questoes[index].id)) {
+        importedKeys.push({ key, value: { ...local, respostas: { ...restored.respostas, ...local.respostas } } });
+      }
+    });
+    const restoredPontos = data.kv.find(({ key }) => key === 'pontos');
+    if (restoredPontos) {
+      const local = await db.kv.get('pontos');
+      importedKeys.push({ key: 'pontos', value: mergePontos(local?.value, restoredPontos.value) });
+    }
     const restoredWardrobe = data.kv.find(({ key }) => key === CAPI_WARDROBE_KEY);
     if (restoredWardrobe) {
       const current = await db.kv.get(CAPI_WARDROBE_KEY);

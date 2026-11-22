@@ -353,6 +353,7 @@ export async function buildDaily(cfg: SessionConfig, now = new Date()): Promise<
 
 export const BLITZ_SECONDS = 10;
 export const BLITZ_COUNT = 20;
+export const blitzDeadline = (shownAt: number) => shownAt + BLITZ_SECONDS * 1000;
 const words = (e: Exercise) => e.stem.reduce((n, s) => n + s.t.split(/\s+/).filter(Boolean).length, 0);
 
 /** Relâmpago: 20 questões curtas de lei seca, sorteadas no escopo, com alternativas. */
