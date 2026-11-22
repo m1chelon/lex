@@ -9,10 +9,9 @@ import './styles/study.css';
 import './styles/atmosphere.css';
 import './styles/capi-shop.css';
 import { App } from './App';
-import { CapiWardrobe } from './ui/CapiWardrobe';
 
 try { if (window.self !== window.top) document.documentElement.dataset.framed = '1'; } catch { document.documentElement.dataset.framed = '1'; }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><CapiWardrobe><App /></CapiWardrobe></StrictMode>,
+  <StrictMode><App /></StrictMode>,
 );

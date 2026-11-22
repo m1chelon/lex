@@ -1,6 +1,9 @@
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { corpusVersion, initCorpus, onCorpus, prepareCorpus } from './data/corpus';
+import { hasPrimaryProgress } from './data/db';
+import { activeProfile, PRIMARY_PROFILE_ID, primaryHasName, primaryHasPreferences } from './data/profiles';
+import { CapiWardrobe } from './ui/CapiWardrobe';
 import { loadCalibration } from './learn/scheduler';
 import { nav, useNav, type Route, type Tab } from './ui/nav';
 import { Toaster, spring, useAsync } from './ui/primitives';
@@ -33,7 +36,7 @@ import { ConcursosScreen, CursoScreen } from './screens/Cursos';
 import { DoctrineCatalog, DoctrineCourseScreen } from './screens/DoctrineCourses';
 import { PlannerScreen } from './screens/Planner';
 import { CapiShop } from './screens/CapiShop';
-import { ProfilesScreen } from './screens/Profiles';
+import { FirstProfileScreen, ProfilesScreen } from './screens/Profiles';
 
 export function useCorpusVersion() { return useSyncExternalStore(onCorpus, corpusVersion); }
 
@@ -123,6 +126,19 @@ function quickPlay() {
 }
 
 export function App() {
+  const [needsProfile] = useState(() => activeProfile.id === PRIMARY_PROFILE_ID && !primaryHasName());
+  const preserve = useAsync(() => needsProfile
+    ? primaryHasPreferences() ? Promise.resolve(true) : hasPrimaryProgress().catch(() => false)
+    : Promise.resolve(false), [needsProfile]);
+
+  if (needsProfile) {
+    if (preserve === undefined) return <Splash msg="Preparando seu perfil…" />;
+    return <div className="app"><AmbientBackdrop /><FirstProfileScreen preserve={!!preserve} /></div>;
+  }
+  return <CapiWardrobe><StudyApp /></CapiWardrobe>;
+}
+
+function StudyApp() {
   const [ready, setReady] = useState(false);
   const { tab, stack, dir } = useNav();
   const settings = useSettings();

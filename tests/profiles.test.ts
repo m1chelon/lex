@@ -25,6 +25,48 @@ async function openApp() {
   return { ...profiles, ...storage, ...settings, ...nav, ...corpus };
 }
 
+it('cria o primeiro perfil sem apresentar o perfil padrão na lista e sem herdar sua base', async () => {
+  vi.stubGlobal('localStorage', memoryStorage());
+  const boot = await openApp();
+  expect(boot.primaryHasName()).toBe(false);
+  expect(boot.primaryHasPreferences()).toBe(false);
+  expect(await boot.hasPrimaryProgress()).toBe(false);
+  const profile = boot.createProfile({ name: '  Marina  ', kind: 'estudante', area: 'tjms', dailyMinutes: 20, when: 'tarde' });
+  boot.selectProfile(profile.id);
+  boot.libraryDb.close();
+
+  const next = await openApp();
+  expect(next.activeProfile.id).toBe(profile.id);
+  expect(next.listProfiles().map(({ id }) => id)).toEqual([profile.id]);
+  expect(next.getSettings()).toMatchObject({ name: 'Marina', area: 'tjms', dailyMinutes: 20, when: 'tarde' });
+  expect(next.db.name).toBe(next.profileDatabaseName(profile.id));
+  next.db.close();
+});
+
+it('identifica dados de quem estudava sem nome e personaliza o mesmo perfil', async () => {
+  vi.stubGlobal('localStorage', memoryStorage());
+  const boot = await openApp();
+  await boot.libraryDb.kv.put({ key: 'corpus-manifest', value: { laws: [] } });
+  expect(await boot.hasPrimaryProgress()).toBe(false);
+  const mark = { id: 'fav:cf.6', kind: 'fav' as const, target: 'cf.6', at: 1 };
+  await boot.libraryDb.marks.put(mark);
+  expect(await boot.hasPrimaryProgress()).toBe(true);
+  expect(boot.primaryHasName()).toBe(false);
+  localStorage.setItem('lex.settings', JSON.stringify({ theme: 'aura', studyFocus: true, area: 'tjsp' }));
+  const profile = boot.personalizePrimary({ name: '  Paulo ', area: 'tjsp', when: 'manha', dailyMinutes: 30 });
+  boot.selectProfile(profile);
+  boot.libraryDb.close();
+
+  const next = await openApp();
+  expect(next.activeProfile.id).toBe(next.PRIMARY_PROFILE_ID);
+  expect(next.primaryHasName()).toBe(true);
+  expect(next.getSettings()).toMatchObject({ name: 'Paulo', area: 'tjsp', dailyMinutes: 30, studyFocus: true });
+  expect(await next.db.marks.get(mark.id)).toEqual(mark);
+  await next.libraryDb.marks.delete(mark.id);
+  await next.libraryDb.kv.delete('corpus-manifest');
+  next.libraryDb.close();
+});
+
 it('mantém progresso e preferências legados, isola os perfis e compartilha as leis offline', async () => {
   vi.stubGlobal('localStorage', memoryStorage());
   localStorage.setItem('lex.settings', JSON.stringify({ name: 'Titular', area: 'tjsp', dailyMinutes: 20, onboarded: true }));

@@ -18,7 +18,7 @@ import { TIPO_LABEL } from '../content/types';
 import { nav } from '../ui/nav';
 import { CType, Progress, Segmented, Sheet, spring, toast, useAsync } from '../ui/primitives';
 import { haptic, reducedMotion, setSettings, useSettings } from '../ui/settings';
-import { IClose, ICheck, IX, IChevR, ISparkle, IFlame, IBolt, IText, ILock } from '../ui/icons';
+import { IClose, ICheck, IX, IChevR, ISparkle, IFlame, IBolt, IText, ILock, ITimer } from '../ui/icons';
 import { Mascot, MascotQuestion } from '../ui/Mascot';
 import type { CapiReaction } from '../ui/capi';
 import { LegalReference } from '../ui/LegalReference';
@@ -510,16 +510,27 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
 
   const ex = s && s.index < s.items.length ? s.items[s.index] : null;
   const previewKey = s?.config.mode === 'memorizar-guiada' && ex?.kind === 'cloze-multi' && !answer ? `${s.id}:${s.index}` : null;
-  const [revealed, setRevealed] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ key: string; second: number } | null>(null);
+  const previewSecond = preview && preview.key === previewKey ? preview.second : 1;
   const previewArticle = previewKey && ex?.articleId ? getArticle(ex.articleId)?.art : undefined;
-  const readingPreview = !!previewArticle && previewKey !== revealed;
+  const readingPreview = !!previewArticle && previewSecond <= 3;
   useEffect(() => {
     if (!active || !readingPreview || !previewKey) return;
-    const timer = window.setTimeout(() => {
-      shownAt.current = Date.now();
-      questionBody.current?.scrollTo({ top: 0 });
-      setRevealed(previewKey);
-    }, 3000);
+    const started = performance.now();
+    let timer: number;
+    const tick = () => {
+      const elapsed = performance.now() - started;
+      const second = Math.floor(elapsed / 1000) + 1;
+      if (second > 3) {
+        shownAt.current = Date.now();
+        questionBody.current?.scrollTo({ top: 0 });
+        setPreview({ key: previewKey, second: 4 });
+      } else {
+        setPreview({ key: previewKey, second });
+        timer = window.setTimeout(tick, second * 1000 - elapsed);
+      }
+    };
+    tick();
     return () => window.clearTimeout(timer);
   }, [active, previewKey, readingPreview]);
   const taskId = s?.config.planner && plannerTaskKey(s.config.planner.day, s.config.planner.goal);
@@ -762,7 +773,15 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
           <button className="btn btn-quiet btn-sm focus-toggle" aria-label="Modo foco" aria-pressed={settings.studyFocus} onClick={() => setSettings({ studyFocus: !settings.studyFocus })}>Foco</button>
           {s.config.mode !== 'provar' && !s.config.blitz && <button className="icon-btn glass" onClick={() => setLevelSheet(true)} aria-label="Opções de leitura"><IText size={19} /></button>}
         </div>
-        {checkpoint && <p className="question-checkpoint small" role="status">
+        {readingPreview && (
+          <div className="row memory-clock">
+            <span className="memory-clock-face" data-second={previewSecond} role="timer" aria-label={`Segundo ${previewSecond} de 3`}>
+              <span aria-hidden="true">{previewSecond}</span>
+            </span>
+            <span className="small"><ITimer size={16} /> Memorize o artigo</span>
+          </div>
+        )}
+        {checkpoint && !readingPreview && <p className="question-checkpoint small" role="status">
           <strong>Bloco {checkpoint.block}</strong>
           {checkpoint.remaining === 0 ? ' concluído' : checkpoint.remaining === 1 ? ' · falta 1 questão' : ` · faltam ${checkpoint.remaining} questões`}
         </p>}
@@ -781,7 +800,6 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
           transition={spring} className="stack question-content">
           {readingPreview && previewArticle ? (
             <section className="law-art stack" aria-label="Leitura antes das lacunas">
-              <p className="small" role="status">Leia o artigo. As lacunas aparecem em três segundos.</p>
               <ArticleView art={previewArticle} showNotes={false} selectedUnit={ex.unitId} />
             </section>
           ) : ex.kind === 'lesson' ? (

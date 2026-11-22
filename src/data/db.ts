@@ -91,3 +91,17 @@ export async function kvGet<T>(key: string, fallback: T): Promise<T> {
 export async function kvSet(key: string, value: unknown) {
   try { await db.kv.put({ key, value }); } catch { /* armazenamento indisponível */ }
 }
+
+/** A legislação baixada e os metadados de inicialização não representam um perfil. */
+export async function hasPrimaryProgress() {
+  const profileKeys = ['session', 'pontos', 'simulados', 'readArticles', 'lessonsDone', 'termsIntroduced',
+    'studyPlanner', 'capi-wardrobe', 'doutrinaMeta', 'blitzBest', 'moods'];
+  return libraryDb.transaction('r', libraryDb.cards, libraryDb.reviews, libraryDb.marks, libraryDb.kv, async () => {
+    const [cards, reviews, marks, state, sequence] = await Promise.all([
+      libraryDb.cards.count(), libraryDb.reviews.count(), libraryDb.marks.count(),
+      libraryDb.kv.bulkGet(profileKeys), libraryDb.kv.where('key').startsWith('["sequencia",').count(),
+    ]);
+    return cards > 0 || reviews > 0 || marks > 0 || sequence > 0
+      || state.some((row) => Array.isArray(row?.value) ? row.value.length > 0 : !!row?.value);
+  });
+}

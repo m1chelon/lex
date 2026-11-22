@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
-import { activeProfile, createProfile, listProfiles, PRIMARY_PROFILE_ID, selectProfile, type ProfileKind } from '../data/profiles';
+import { hasPrimaryProgress } from '../data/db';
+import { activeProfile, createProfile, listProfiles, personalizePrimary, PRIMARY_PROFILE_ID, selectProfile, type ProfileKind } from '../data/profiles';
 import { COURSE_NAME } from '../learn/plan';
 import { ICheck, IChevR, IPeople, IUser } from '../ui/icons';
 import { Mascot } from '../ui/Mascot';
-import { PageHeader, Segmented, Sheet, toast } from '../ui/primitives';
+import { PageHeader, Segmented, Sheet, toast, useAsync } from '../ui/primitives';
 import { haptic, readProfileSettings, type Settings } from '../ui/settings';
 
 const KINDS: { id: ProfileKind; label: string }[] = [
@@ -22,30 +23,40 @@ export const profileKindLabel = (kind: ProfileKind) => kind === 'assistente' ? '
 export const profileDisplayName = (name: string, id: string) =>
   name.trim() || (id === PRIMARY_PROFILE_ID ? 'Meu perfil' : 'Perfil sem nome');
 
-function NewProfileForm({ onCreate }: { onCreate: (id: string) => void }) {
+function NewProfileForm({ onCreate, first = false, preserve = false }: {
+  onCreate: (id: string) => void; first?: boolean; preserve?: boolean;
+}) {
+  const initial = preserve ? readProfileSettings(PRIMARY_PROFILE_ID) : undefined;
   const [name, setName] = useState('');
   const [kind, setKind] = useState<ProfileKind>('estudante');
-  const [area, setArea] = useState<Settings['area']>('geral');
-  const [dailyMinutes, setDailyMinutes] = useState(15);
-  const [when, setWhen] = useState<Settings['when']>('noite');
+  const [area, setArea] = useState<Settings['area']>(initial?.area ?? 'geral');
+  const [dailyMinutes, setDailyMinutes] = useState(initial?.dailyMinutes ?? 15);
+  const [when, setWhen] = useState<Settings['when']>(initial?.when ?? 'noite');
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim()) { setError('Informe um nome ou apelido.'); return; }
-    try { onCreate(createProfile({ name, kind, area, dailyMinutes, when }).id); }
-    catch { setError('Não foi possível salvar o perfil neste aparelho.'); }
+    setSaving(true);
+    try {
+      const preferences = { name, area, dailyMinutes, when };
+      onCreate(preserve ? personalizePrimary(preferences) : createProfile({ ...preferences, kind }).id);
+    } catch {
+      setSaving(false);
+      setError('Não foi possível salvar o perfil neste aparelho.');
+    }
   };
   return (
     <form className="stack profile-form" onSubmit={submit}>
-      <h2 className="title-m">Novo perfil</h2>
+      {!first && <h2 className="title-m">Novo perfil</h2>}
       <label>Nome ou apelido
         <input className="input" value={name} onChange={(event) => { setName(event.target.value); setError(''); }}
           maxLength={24} required placeholder="Como a Capi vai te chamar" autoComplete="nickname" />
       </label>
-      <fieldset>
+      {!first && <fieldset>
         <legend>Tipo de perfil</legend>
         <Segmented label="Tipo de perfil" value={kind} options={KINDS} onChange={setKind} />
-      </fieldset>
+      </fieldset>}
       <label>Objetivo de estudo
         <select className="input" value={area} onChange={(event) => setArea(event.target.value as Settings['area'])}>
           <option value="geral">Direito em geral</option>
@@ -66,19 +77,34 @@ function NewProfileForm({ onCreate }: { onCreate: (id: string) => void }) {
         </label>
       </div>
       {error && <p className="small profile-form-error" role="alert">{error}</p>}
-      <button className="btn btn-primary btn-block" type="submit">Criar perfil</button>
+      <button className="btn btn-primary btn-block" type="submit" disabled={saving}>{preserve ? 'Salvar perfil e jogar' : first ? 'Criar perfil e jogar' : 'Criar perfil'}</button>
     </form>
   );
 }
 
+function switchTo(id: string) {
+  haptic('soft');
+  selectProfile(id);
+  window.location.reload();
+}
+
+export function FirstProfileScreen({ preserve }: { preserve: boolean }) {
+  return (
+    <main className="screen profile-welcome" aria-labelledby="profile-welcome-title">
+      <div className="profile-welcome-card glass">
+        <Mascot size={78} decorative still />
+        <h1 className="title-l" id="profile-welcome-title">{preserve ? 'Personalize seu perfil' : 'Crie seu perfil no LEX'}</h1>
+        <p className="small muted">{preserve ? 'Escolha seu nome para jogar com o progresso já salvo.' : 'Escolha como a Capi vai te chamar e defina seu objetivo de estudo.'}</p>
+        <NewProfileForm first preserve={preserve} onCreate={switchTo} />
+      </div>
+    </main>
+  );
+}
+
 export function ProfilesScreen() {
-  const [profiles, setProfiles] = useState(listProfiles);
+  const primaryProgress = useAsync(() => hasPrimaryProgress().catch(() => false), []);
+  const profiles = listProfiles(primaryProgress || undefined);
   const [creating, setCreating] = useState(false);
-  const switchTo = (id: string) => {
-    haptic('soft');
-    selectProfile(id);
-    window.location.reload();
-  };
   return (
     <div className="stack local-profiles">
       <PageHeader title="Perfis" sub="Neste aparelho" />
@@ -108,10 +134,7 @@ export function ProfilesScreen() {
       </ul>
       <button className="btn btn-primary btn-block" type="button" onClick={() => { haptic('tap'); setCreating(true); }}><IUser size={19} /> Novo perfil</button>
       <Sheet open={creating} onClose={() => setCreating(false)} label="Novo perfil" tall>
-        <NewProfileForm onCreate={(id) => {
-          setProfiles(listProfiles());
-          switchTo(id);
-        }} />
+        <NewProfileForm onCreate={switchTo} />
       </Sheet>
     </div>
   );

@@ -38,8 +38,23 @@ export function readProfilePlan(): unknown {
   catch { return null; }
 }
 
-export function listProfiles() {
-  const profiles = [primary];
+function primarySettings(): Partial<Settings> {
+  try { return JSON.parse(localStorage.getItem(PROFILE_SETTINGS_KEY) ?? '{}') ?? {}; }
+  catch { return {}; }
+}
+
+export function primaryHasName() {
+  const name = primarySettings().name;
+  return typeof name === 'string' && !!name.trim();
+}
+
+export function primaryHasPreferences() {
+  try { return Object.keys(primarySettings()).length > 0 || localStorage.getItem(PROFILE_PLAN_KEY) !== null; }
+  catch { return false; }
+}
+
+export function listProfiles(includePrimary = activeProfile.id === PRIMARY_PROFILE_ID || primaryHasPreferences()) {
+  const profiles = includePrimary ? [primary] : [];
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -61,6 +76,13 @@ export function createProfile({ name, kind, area, dailyMinutes, when }: ProfileS
   try { localStorage.setItem(RECORD_PREFIX + id, JSON.stringify(profile)); }
   catch (error) { localStorage.removeItem(preferences); throw error; }
   return profile;
+}
+
+export function personalizePrimary({ name, area, dailyMinutes, when }: Omit<ProfileSetup, 'kind'>) {
+  const nickname = name.trim().slice(0, 24);
+  if (!nickname) throw new Error('Informe um nome ou apelido.');
+  localStorage.setItem(PROFILE_SETTINGS_KEY, JSON.stringify({ ...primarySettings(), name: nickname, area, dailyMinutes, when }));
+  return PRIMARY_PROFILE_ID;
 }
 
 export function selectProfile(id: string) {
