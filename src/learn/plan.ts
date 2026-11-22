@@ -15,7 +15,7 @@ export interface Plan { scope: PlanScope; mode: PlanMode; minutes: number | 'inf
 
 export const MODE_INFO: Record<PlanMode, { label: string; desc: string }> = {
   aprender: { label: 'Aprender', desc: 'Microaula, glossário e leitura guiada. Para conhecer a lei pela primeira vez.' },
-  memorizar: { label: 'Memorizar', desc: 'Lei seca: complete lacunas com opções e revise no seu ritmo.' },
+  memorizar: { label: 'Memorizar', desc: 'Complete lacunas sobre prazos, limites, requisitos, competências e exceções da lei.' },
   casos: { label: 'Casos', desc: 'Situações práticas: identifique o instituto, o crime ou a consequência.' },
   provar: { label: 'Provar', desc: 'Nível de prova: digite as lacunas da lei seca e pratique com casos.' },
   relampago: { label: 'Relâmpago', desc: '20 questões, 10 segundos cada. Treino sob pressão.' },

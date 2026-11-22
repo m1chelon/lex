@@ -118,6 +118,47 @@ it('prioriza a lacuna do percentual no treino, no diário e na prova da Resoluç
   expect(percentItem?.texto).toContain('até ________ do quadro');
 });
 
+it('abre Jogar → Memorizar com dois pontos independentes no Regimento Interno', async () => {
+  const plan = {
+    scope: { kind: 'curso', area: 'tjsp', topico: '6. Legislação Interna', law: 'ritjsp' },
+    mode: 'memorizar', minutes: 10,
+  } as const;
+  const state = await buildSession(planToConfig(plan), false);
+  const selected = state.items.filter(({ unitId }) => unitId === 'ritjsp.10.p1');
+  expect(selected.map(({ answer }) => answer)).toEqual(['quinze dias', 'vinte dias']);
+  expect(new Set(selected.map(({ key }) => key)).size).toBe(2);
+  expect(selected.every(({ kind, options, memoryPoint }) => kind === 'cloze-mc' && options?.length === 4 && memoryPoint)).toBe(true);
+  const [invitation, announcement] = selected;
+  expect(invitation.prompt).toContain('convocar eleição');
+  expect(announcement.prompt).toContain('antecedência');
+  const { updated } = await recordAnswer({
+    cardId: announcement.key, base: { articleId: announcement.articleId, unitId: announcement.unitId, dim: announcement.dim, type: announcement.kind },
+    correct: false, ms: 1000, expectedMs: 15_000, mode: 'memorizar', type: announcement.kind,
+  });
+  try {
+    expect(await exerciseForCard(updated, 'memorizar', 'revisao')).toMatchObject({ key: announcement.key, answer: announcement.answer });
+  } finally {
+    await db.cards.delete(announcement.key);
+    await db.reviews.where('cardId').equals(announcement.key).delete();
+  }
+});
+
+it('atualiza uma lacuna pendente da Memorização salva sem alterar a resposta já registrada', async () => {
+  const state = await buildSession({ ...config, focus: 'law:res850', articleIds: ['res850.9'] }, false);
+  const current = state.items.find(({ answer }) => answer === '70% (setenta por cento)')!;
+  const answered = { ...current, memoryPoint: undefined, answer: 'poderá' };
+  const legacy = { ...current, memoryPoint: undefined, answer: 'superior', priority: 2 };
+  const results = [{ key: answered.key, correct: true, ms: 2000 }];
+  const previous = await loadSession();
+  try {
+    await saveSession({ ...state, items: [answered, legacy], results, index: 1 });
+    const resumed = await resumeSession();
+    expect(resumed?.items[0]).toEqual(answered);
+    expect(resumed?.results).toEqual(results);
+    expect(resumed?.items[1]).toMatchObject({ memoryPoint: current.memoryPoint, answer: current.answer });
+  } finally { await saveSession(previous); }
+});
+
 it('refaz cada alvo efetivamente errado, mesmo quando o cartão também teve outro acerto', async () => {
   const active = await buildSession({ ...config, focus: 'law:res850', articleIds: ['res850.9'] }, false);
   const options = active.items.find((item) => item.answer === '70% (setenta por cento)')!;

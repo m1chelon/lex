@@ -1,0 +1,42 @@
+export const PROCEDURE_MEMORY = `
+# Código de Processo Civil — forma, comunicação, instrução, tutela e recursos
+cpc.144.cpt|L|Qual é o instituto que impede o juiz de atuar nos casos deste artigo?|impedimento|suspeição|incompetência absoluta|incompetência relativa
+cpc.145.p1|E|Ao declarar suspeição por foro íntimo, o juiz precisa expor as razões?|sem necessidade de declarar suas razões|desde que declare suas razões em decisão fundamentada|apenas quando as razões forem comunicadas ao tribunal|com indicação reservada das razões às partes
+cpc.189.p1|L|Quem pode consultar autos sob segredo de justiça e pedir certidões dos atos?|às partes e aos seus procuradores|às partes e a qualquer advogado, constituído ou não|às partes e a qualquer terceiro com interesse econômico|às partes pessoalmente, mediante autorização judicial
+cpc.203.p2|L|Qual conceito o CPC dá ao pronunciamento decisório que não é sentença?|Decisão interlocutória|Despacho|Acórdão|Ato meramente ordinatório
+cpc.219.cpt|T|Quais dias são computados na contagem de prazo processual em dias?|somente os dias úteis|todos os dias corridos|os dias úteis e os sábados|somente os dias de funcionamento do tribunal em horário integral
+cpc.219.pu|E|Em que espécie de prazo se aplica a contagem do art. 219?|somente aos prazos processuais|aos prazos processuais e materiais|somente aos prazos fixados pelo juiz|somente aos prazos recursais
+cpc.220.cpt|T|Qual é o intervalo inclusivo de suspensão dos prazos processuais no fim do ano?|entre 20 de dezembro e 20 de janeiro|entre 19 de dezembro e 19 de janeiro|entre 20 de dezembro e 6 de janeiro|entre 21 de dezembro e 20 de janeiro
+cpc.224.cpt|T|O que se faz com os dias do começo e do vencimento na contagem?|excluindo o dia do começo e incluindo o dia do vencimento|incluindo o dia do começo e excluindo o dia do vencimento|incluindo os dias do começo e do vencimento|excluindo os dias do começo e do vencimento
+cpc.224.p2|T|Que dia conta como data de publicação no Diário da Justiça eletrônico?|o primeiro dia útil seguinte ao da disponibilização|o próprio dia útil da disponibilização|o primeiro dia corrido depois da disponibilização|o segundo dia útil seguinte ao da disponibilização
+cpc.238.cpt|L|Para que serve a citação?|integrar a relação processual|tomar ciência de termos do processo em que já se integra|manifestar ciência da sentença para abertura do prazo recursal|receber aviso de um ato processual sem integrar a relação
+cpc.238.pu|T|Qual é o prazo previsto para efetivar a citação a partir da propositura?|45 (quarenta e cinco) dias|30 (trinta) dias|40 (quarenta) dias|60 (sessenta) dias
+cpc.239.p1|E|Qual ato supre a falta ou nulidade da citação?|comparecimento espontâneo do réu ou do executado|conhecimento informal da existência da ação pelo réu ou executado|comparecimento do autor ou do exequente|decurso do prazo para manifestação do réu ou executado
+cpc.246.cpt|T|Qual é o prazo para a citação eletrônica contado da decisão que a determina?|2 (dois) dias úteis|2 (dois) dias corridos|3 (três) dias úteis|5 (cinco) dias úteis
+cpc.269.cpt|L|Para que serve a intimação?|se dá ciência a alguém dos atos e dos termos do processo|se convoca o réu para integrar a relação processual|se certifica o cumprimento da ordem judicial no processo|se notifica exclusivamente a parte representada pela Advocacia Pública
+cpc.294.pu|L|Em que momentos pode ser concedida tutela provisória de urgência?|em caráter antecedente ou incidental|somente em caráter antecedente|somente em caráter incidental|em caráter incidental, salvo após a sentença
+cpc.300.cpt|L|Quais requisitos sustentam a tutela de urgência?|a probabilidade do direito e o perigo de dano ou o risco ao resultado útil do processo|a certeza do direito e o perigo de dano ou o risco ao resultado útil do processo|a probabilidade do direito, mesmo sem perigo de dano nem risco ao resultado útil|o perigo de dano e tese firmada em súmula vinculante
+cpc.300.p3|E|O que impede a concessão da tutela antecipada de urgência?|perigo de irreversibilidade dos efeitos da decisão|ausência de prova documental pré-constituída|necessidade de contraditório posterior|risco de dano patrimonial reversível
+cpc.303.p2|L|Qual é a consequência de não aditar a inicial na tutela antecipada antecedente?|extinto sem resolução do mérito|extinto com resolução do mérito|suspenso até a manifestação do réu|remetido ao tribunal para juízo de retratação
+cpc.304.p5|T|Qual é o prazo para demandar a revisão, reforma ou invalidação da tutela estabilizada?|2 (dois) anos|1 (um) ano|3 (três) anos|5 (cinco) anos
+cpc.311.pu|E|Em que incisos o CPC permite conceder tutela da evidência liminarmente?|incisos II e III|incisos I e II|incisos II e IV|incisos III e IV
+cpc.321.cpt|T|Qual é o prazo para emendar ou completar a petição inicial?|15 (quinze) dias|5 (cinco) dias|10 (dez) dias|20 (vinte) dias
+cpc.334.cpt|T|Qual é a antecedência mínima da designação da audiência de conciliação ou mediação?|30 (trinta) dias|15 (quinze) dias|20 (vinte) dias|40 (quarenta) dias
+cpc.334.cpt|T|Com que antecedência mínima o réu deve ser citado para essa audiência?|20 (vinte) dias|10 (dez) dias|15 (quinze) dias|30 (trinta) dias
+cpc.334.p5|T|Com quantos dias de antecedência da audiência o réu manifesta desinteresse?|10 (dez) dias|5 (cinco) dias|15 (quinze) dias|20 (vinte) dias
+cpc.335.cpt|T|Qual é o prazo da contestação?|15 (quinze) dias|5 (cinco) dias|10 (dez) dias|20 (vinte) dias
+cpc.335.i2|T|Qual ato inicia o prazo de contestação quando o réu pede o cancelamento na hipótese indicada?|do protocolo do pedido de cancelamento da audiência de conciliação ou de mediação apresentado pelo réu|da intimação da decisão que deferir o cancelamento|da data inicialmente designada para a audiência, ainda que cancelada|da ciência da manifestação de desinteresse apresentada pelo autor
+cpc.337.i2|L|Quais espécies de incompetência devem ser alegadas em preliminar de contestação?|incompetência absoluta e relativa|somente incompetência absoluta|somente incompetência relativa|incompetência relativa e conflito positivo de competência
+cpc.373.i2|L|Que fatos cabe ao réu provar segundo a distribuição estática?|fato impeditivo, modificativo ou extintivo do direito do autor|fato constitutivo do direito do autor|fato constitutivo ou modificativo do direito do autor|fato extintivo ou constitutivo do direito do autor
+cpc.523.cpt|T|Qual é o prazo para pagamento voluntário no cumprimento de sentença por quantia certa?|15 (quinze) dias|5 (cinco) dias|10 (dez) dias|30 (trinta) dias
+cpc.523.p1|L|Quais acréscimos incidem quando não há pagamento voluntário?|multa de dez por cento e, também, de honorários de advogado de dez por cento|multa de cinco por cento e honorários de advogado de dez por cento|multa de dez por cento e honorários de advogado de cinco por cento|honorários de advogado de dez por cento, sem multa
+cpc.525.cpt|E|O início do prazo de impugnação depende de penhora ou nova intimação?|independentemente de penhora ou nova intimação|após a realização da penhora, dispensada nova intimação|após nova intimação, mesmo sem penhora|após a penhora e nova intimação
+cpc.995.cpt|E|Qual é a regra geral sobre a eficácia da decisão quando há recurso?|Os recursos não impedem a eficácia da decisão|Os recursos impedem a eficácia da decisão|Os recursos impedem a eficácia da decisão até o juízo de admissibilidade|Os recursos impedem a eficácia da decisão apenas em relação ao recorrente
+cpc.1003.p5|T|Qual é o prazo geral para interpor recursos e responder a eles?|15 (quinze) dias|5 (cinco) dias|10 (dez) dias|20 (vinte) dias
+cpc.1012.cpt|L|Qual é o efeito que o caput atribui à apelação?|efeito suspensivo|apenas efeito devolutivo|efeito regressivo obrigatório|efeito suspensivo condicionado a pedido ao relator
+cpc.1021.cpt|L|Qual recurso leva a decisão do relator ao respectivo colegiado?|agravo interno|agravo de instrumento|apelação|recurso ordinário
+cpc.1023.cpt|T|Em quanto tempo se opõem embargos de declaração no CPC?|5 (cinco) dias|2 (dois) dias|10 (dez) dias|15 (quinze) dias
+cpc.1026.cpt|L|O que os embargos de declaração fazem com o prazo dos outros recursos?|interrompem o prazo|suspendem o prazo|não alteram o prazo|prorrogam o prazo por cinco dias
+cpc.1026.p2|L|Qual é o teto da multa pelos primeiros embargos manifestamente protelatórios?|dois por cento|um por cento|cinco por cento|dez por cento
+cpc.1026.p3|L|Qual é o teto da multa na reiteração de embargos manifestamente protelatórios?|dez por cento|dois por cento|cinco por cento|vinte por cento
+`;

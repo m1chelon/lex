@@ -11,7 +11,8 @@ const cardinals = new Map([
   ['oitocentos', 800], ['novecentos', 900],
 ] as const);
 const foldedCardinals = new Map([...cardinals].map(([word, value]) => [fold(word), value]));
-const written = `(?:${[...cardinals.keys()].join('|')})(?:\\s+e\\s+(?:${[...cardinals.keys()].join('|')})){0,2}`;
+const writtenPart = [...cardinals.keys()].join('|').replace('cinquenta', 'cinq[uü]enta');
+const written = `(?:${writtenPart})(?:\\s+e\\s+(?:${writtenPart})){0,2}`;
 const numberStart = '(?<![\\p{L}\\p{N}.,/%-])';
 const complete = '(?![\\p{L}\\p{N}])';
 const digits = '\\d{1,4}(?:,\\d{1,2})?';
@@ -20,6 +21,8 @@ const percent = new RegExp(`${numberStart}(?:(?<digits>${digits})(?<symbol>\\s*%
 const duration = new RegExp(`${numberStart}${cardinal}\\s+(?<unit>dias?|horas?|mês|meses|anos?|minutos?|sessões|sessão)(?<qualifier>\\s+(?:úteis|útil|corridos?|consecutivos?|ininterruptos?))?${complete}`, 'giu');
 const rangeStart = new RegExp(`${numberStart}${cardinal}\\s+(?:a|até)\\s+$`, 'iu');
 const count = new RegExp(`${numberStart}${cardinal}(?<relation>\\s+(?:ou\\s+mais|ou\\s+menos))?(?=\\s+(?:pessoas?|integrantes?|participantes?|agentes?|servidor(?:es|as?)?(?:\\(as?\\))?|membros?|testemunhas?|candidatos?|eleitores?|deputados?|senadores?|vereadores?|magistrados?|votos?|parcelas?|infrações?|vagas?|sessões|turmas?|assinaturas?)${complete})`, 'giu');
+const wage = new RegExp(`${numberStart}${cardinal}(?<unit>\\s+(?:salários?[ -]mínimos?|vezes (?:o|do) salário[ -]mínimo))${complete}`, 'giu');
+const bareLimit = new RegExp(`\\b(?:no\\s+mínimo|no\\s+máximo|(?:limite|mínimo|máximo|total)\\s+de)\\s+${cardinal}(?=\\s*(?:[,.](?!\\d)|[;)]|$))`, 'giu');
 const money = /(?<![\p{L}\p{N}])(?<prefix>R\$\s*)(?<number>\d{1,3}(?:\.\d{3})+(?:,\d{2})?|\d+(?:,\d{2})?)(?!\d|[.,]\d)(?<gloss>\s*\([^()\n]*(?:reais?|centavos?)\))?/giu;
 const fractionForms = [
   [1, 10, 'um décimo'], [1, 8, 'um oitavo'], [1, 6, 'um sexto'], [1, 5, 'um quinto'],
@@ -158,6 +161,24 @@ export function findLegalAmounts(text: string): LegalAmount[] {
       format: (v) => {
         const formatted = inSourceFormat(v, number, gloss, feminine);
         return formatted && formatted + relation;
+      } });
+  }
+  for (const match of text.matchAll(bareLimit)) {
+    const { number, gloss } = match.groups!;
+    const threshold = number + (gloss ?? '');
+    out.push({ kind: 'quantidade', text: threshold, start: match.index + match[0].length - threshold.length,
+      value: parseNumber(number), group: 'quantidade', format: (v) => inSourceFormat(v, number, gloss) });
+  }
+  for (const match of text.matchAll(wage)) {
+    const { number, gloss, unit } = match.groups!;
+    const times = /^\s+vezes\b/u.test(unit);
+    out.push({ kind: 'valor', text: match[0], start: match.index, value: parseNumber(number), group: 'salarios-minimos',
+      min: times ? 1 : undefined, format: (v) => {
+        const numeral = inSourceFormat(v, number, gloss);
+        if (!numeral || !Number.isInteger(v)) return undefined;
+        const unitText = times ? unit : unit.replace(/salários?/iu, v === 1 ? 'salário' : 'salários')
+          .replace(/mínimos?/iu, v === 1 ? 'mínimo' : 'mínimos');
+        return numeral + unitText;
       } });
   }
   for (const match of text.matchAll(money)) {
