@@ -32,13 +32,12 @@ export function TodayPlanCard({ today, goal, task, carry, pending, onEdit, compa
 }) {
   const progress = task ? plannerProgress(task, goal.target) : null;
   const done = progress?.completed ?? 0;
-  const total = progress?.total ?? goal.target;
   const nextArticle = goal.kind === 'law' && progress?.next ? getArticle(progress.next) : null;
   const planned = pending?.config.planner;
   const canResume = pending && !pending.finishedAt && pending.index < pending.items.length && planned
     && plannerTaskKey(planned.day, planned.goal) === plannerTaskKey(today, goal);
   const start = (quick: boolean) => nav.push({ name: 'session', config: plannerConfig(today, goal, quick) });
-  const allDone = !!task && done >= total;
+  const allDone = done >= goal.target;
   return (
     <section className={`planner-today${compact ? ' compact' : ''}`} aria-label="Plano de hoje">
       <div className="row between">
@@ -46,18 +45,20 @@ export function TodayPlanCard({ today, goal, task, carry, pending, onEdit, compa
         <button className="btn btn-quiet btn-sm" onClick={onEdit}>{compact ? 'Planner' : 'Editar semana'}</button>
       </div>
       <h2>{plannerSubject(goal)}</h2>
-      <p className="planner-meter">{!total ? goal.kind === 'review' ? 'Sem revisões pendentes' : 'Conteúdo em dia' : `${done} de ${plannerQuantity(goal, total)}`}
-        {task && total && total < goal.target ? ` · ${plannerQuantity(goal)} na meta` : ''}</p>
-      {total > 0 && <progress value={done} max={total} aria-label="Progresso da meta de hoje" />}
+      <p className="planner-meter">{done} de {plannerQuantity(goal)}</p>
+      <progress value={done} max={goal.target} aria-label="Progresso da meta de hoje" />
+      {progress && !progress.remaining.length && !allDone && <p className="small muted">
+        {goal.kind === 'review' ? 'Sem revisões pendentes na última busca.' : 'Sem mais atividades disponíveis na última busca.'}
+      </p>}
       {nextArticle && <p className="small muted">Próximo · {articleTitle(nextArticle.law.id, nextArticle.art)}</p>}
       {!!carry && <p className="small muted">A meta inclui até {plannerQuantity(goal, carry)} remanejados.</p>}
       <div className="planner-actions">
         {canResume ? <button className="btn btn-primary" onClick={() => nav.push({ name: 'session', resume: true })}><IPlay size={18} /> Retomar treino</button>
           : !allDone && <>
-            <button className="btn btn-primary" onClick={() => start(false)}><IPlay size={18} /> {done || task?.done.length ? 'Continuar meta' : 'Começar treino'}</button>
+            <button className="btn btn-primary" onClick={() => start(false)}><IPlay size={18} /> {task ? 'Continuar meta' : 'Começar treino'}</button>
             <button className="btn btn-quiet" onClick={() => start(true)}><IClock size={17} /> Praticar 5 min</button>
           </>}
-        {allDone && !!total && <span className="planner-finished"><ICheck size={17} /> {total < goal.target ? 'Conteúdo disponível concluído' : 'Meta concluída'}</span>}
+        {allDone && <span className="planner-finished"><ICheck size={17} /> Meta concluída</span>}
       </div>
     </section>
   );
@@ -117,7 +118,7 @@ export function PlannerScreen({ pending }: { pending?: SessionState | null }) {
             <div className="planner-chart-legend small muted"><span>Meta</span><span>Realizado</span></div>
             <div className="planner-bars" role="group" aria-label="Progresso das metas da semana">
               {days.map(({ name, date, goal, progress, done }) => {
-                const complete = progress && progress.completed >= progress.total;
+                const complete = goal && progress && progress.completed >= goal.target;
                 const label = goal ? `${name}, ${dateLabel(date)}, ${plannerSubject(goal)}, ${done} de ${plannerQuantity(goal)}` : `${name}, dia livre`;
                 return <button key={date} className="planner-bar" data-goal={!!goal} aria-label={label}
                   aria-current={date === today ? 'date' : undefined} onClick={() => {
@@ -135,7 +136,7 @@ export function PlannerScreen({ pending }: { pending?: SessionState | null }) {
               return <li key={date} aria-current={date === today ? 'date' : undefined}>
                 <span className="planner-date"><strong>{name}</strong><small>{dateLabel(date)}</small></span>
                 <span className="planner-day-goal"><strong>{entry ? plannerSubject(entry) : 'Livre'}</strong>
-                  {entry && <small>{progress && progress.total ? `${progress.completed} de ${plannerQuantity(entry, progress.total)}` : plannerQuantity(entry)}
+                  {entry && <small>{progress ? `${progress.completed} de ${plannerQuantity(entry)}` : plannerQuantity(entry)}
                     {!!plan?.carry[date] && ` · inclui ${plan.carry[date]} remanejados`}</small>}</span>
                 {date === today && entry && <button className="btn btn-quiet btn-sm" onClick={() => setView('today')}>Hoje</button>}
               </li>;
@@ -151,7 +152,7 @@ export function PlannerScreen({ pending }: { pending?: SessionState | null }) {
           <h2 className="title-m">{selected.name} · {dateLabel(selected.date)}</h2>
           {selected.goal ? <>
             <strong>{plannerSubject(selected.goal)}</strong>
-            <p className="muted">{selected.progress?.total ? `${selected.done} de ${plannerQuantity(selected.goal, selected.progress.total)} concluídos` : 'Conteúdo em dia'}</p>
+            <p className="muted">{selected.done} de {plannerQuantity(selected.goal)} concluídos</p>
           </> : <p className="muted">Dia livre no Planner</p>}
         </div>}
       </Sheet>

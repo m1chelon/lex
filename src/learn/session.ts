@@ -1,24 +1,23 @@
 // Montagem de sessões: escopo (área/edital/lei/ramo), ordem, modo e modo infinito.
 import { db, kvGet, type CardRow, type Dim, type ReviewRow } from '../data/db';
 import { coverage, ensureLaws, getArticle, getLaw, getUnit, lawIdOf } from '../data/corpus';
-import { buildLiteral, buildOrder, buildRead, buildRubric, buildWhich, findTargets, type Exercise } from './generators';
+import { buildLiteral, buildOrder, buildRead, buildRubric, buildWhich, canTrainArticle, findTargets, type Exercise } from './generators';
 import { buildCaseIdentify, buildCasePena } from './cases';
 import { CONCEPTS } from '../content/concepts';
 import { LESSONS } from '../content/lessons';
 import { getArea, lawsByRamo, areaLaws, type AreaId } from '../core/areas';
 import { isDue, retrievability } from './scheduler';
-import { fold, hashStr, rng, shuffle } from './text';
+import { fold, hashStr, normAnswer, rng, shuffle } from './text';
 import { findTerms, getTerm } from './terms';
 import type { Concept, Ref } from '../content/types';
 import type { Ramo } from '../core/sources';
 import { getSettings } from '../ui/settings';
 import { buildPairDrill } from './pairDrills';
-import { latestReviews } from './reviewQueue';
+import { latestReviews, reviewQueue } from './reviewQueue';
 import { buildDoctrineSession, doctrineExercise, doctrinePlannerGroups, isCurrentDoctrineQuestion, type DoctrineScope } from './doctrineCourses';
 import { dayKey } from './mood';
 import { getPlannerTask, plannerProgress, plannerTaskKey, type PlannerTask, type StudyGoal } from './planner';
 import { scopeToFocus } from './plan';
-import { reviewQueue } from './reviewQueue';
 
 export type Mode = 'aprender' | 'memorizar' | 'casos' | 'provar';
 export type Order = 'misturado' | 'linear';
@@ -39,8 +38,18 @@ export interface SessionState {
   id: string; config: SessionConfig; items: Exercise[]; index: number;
   results: { key: string; correct: boolean | null; ms: number }[];
   startedAt: number; pausedAt?: number; finishedAt?: number; timedOut?: boolean;
+  keepsClockOnReload?: true;
   cursor?: number; seed?: number; // modo infinito / linear: posição no escopo
   draft?: string[]; // escolhas parciais da questão de doutrina
+}
+
+export function sessionInProgress(state: SessionState | null | undefined): state is SessionState {
+  return !!state && !state.finishedAt && Array.isArray(state.items) && state.index < state.items.length;
+}
+
+export function sessionDeadline(state: SessionState) {
+  return state.config.timed && !state.config.infinite && state.config.minutes > 0
+    ? state.startedAt + state.config.minutes * 60_000 : null;
 }
 
 export class SessionConflict extends Error {
@@ -50,7 +59,7 @@ export class SessionConflict extends Error {
 export async function requireCurrentSession(expected: SessionState | null) {
   const current = await loadSession();
   if (expected === null) {
-    if (current && !current.finishedAt && current.index < current.items.length) throw new SessionConflict();
+    if (sessionInProgress(current)) throw new SessionConflict();
     return;
   }
   if (!current || current.id !== expected.id || current.index !== expected.index
@@ -232,9 +241,9 @@ async function nextBatch(state: SessionState, budgetSec: number): Promise<{ item
     const artId = articles[cursor++];
     if (cfg.mode === 'aprender') {
       const hit = getArticle(artId);
-      if (!hit) continue;
+      if (!hit || !canTrainArticle(hit.art)) continue;
       if (!readArts.has(artId)) push(buildRead(hit.law, hit.art));
-      for (const u of hit.art.units) for (const h of findTerms(u.t, hit.law.id)) {
+      for (const u of hit.art.units.filter((unit) => !unit.rev)) for (const h of findTerms(u.t, hit.law.id)) {
         const term = getTerm(h.id);
         if (term && !termsSeen.has(term.id)) { termsSeen.add(term.id); push({ key: `T:${term.id}`, kind: 'term', dim: 'conceitual', family: 'glossario', termId: term.id, articleId: artId, prompt: 'Conheça o termo', stem: [], expectedMs: 30000, stage: 0 }); }
       }
@@ -374,7 +383,7 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
   const cards = new Map((await db.cards.toArray()).map((card) => [card.id, card]));
   const getArticleItems = (id: string) => {
     const hit = getArticle(id);
-    if (!hit || hit.art.rev || hit.art.noCurrent || !hit.art.units.some((unit) => unit.t && !unit.rev)) return [];
+    if (!hit || !canTrainArticle(hit.art) || !hit.art.units.some((unit) => unit.t && !unit.rev)) return [];
     const exercises = unitItems(id, 'memorizar', cards, day + ':' + id, true);
     return exercises.length ? exercises : [buildRead(hit.law, hit.art)];
   };
@@ -440,7 +449,11 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
 export async function buildSession(cfg: SessionConfig, persist = true): Promise<SessionState> {
   const area = cfg.area ?? getSettings().area;
   const config: SessionConfig = { ...cfg, area, order: cfg.order ?? DEFAULT_ARTICLE_ORDER, timed: !cfg.infinite && !cfg.blitz, infinite: cfg.blitz ? false : cfg.infinite };
-  const state: SessionState = { id: `s${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, config, items: [], index: 0, results: [], startedAt: Date.now(), cursor: 0, seed: hashStr(`${Date.now()}:${cfg.focus}`) };
+  const now = Date.now();
+  const state: SessionState = {
+    id: `s${now}-${Math.random().toString(36).slice(2, 8)}`, config, items: [], index: 0, results: [],
+    startedAt: now, keepsClockOnReload: true, cursor: 0, seed: hashStr(`${now}:${cfg.focus}`),
+  };
   if (cfg.activity) {
     if (cfg.activity === 'planner' && cfg.planner) {
       await buildPlannedStudy(state, cfg.planner);
@@ -569,20 +582,30 @@ export async function resumeSession(): Promise<SessionState | null> {
     if (!getLaw(law)) pendingLaws.add(law);
   }
   if (pendingLaws.size) await ensureLaws([...pendingLaws]);
-  const remaining = saved.items.slice(firstPending).map((exercise) => {
-    if (!isCurrentDoctrineQuestion(exercise.key)) return exercise;
+  const remaining = saved.items.slice(firstPending).flatMap((exercise) => {
+    if (exercise.articleId && ['literal', 'leitura'].includes(exercise.family)) {
+      const hit = getArticle(exercise.articleId);
+      if (hit && !canTrainArticle(hit.art)) return [];
+      if (exercise.kind === 'which-article' && exercise.options &&
+          new Set(exercise.options.map(({ text }) => normAnswer(text))).size < exercise.options.length) {
+        const fixed = hit && buildWhich(hit.law, hit.art, exercise.stage);
+        return fixed ? [{ ...fixed, practice: exercise.practice }] : [];
+      }
+    }
+    if (!isCurrentDoctrineQuestion(exercise.key)) return [exercise];
     const current = doctrineExercise(exercise.key, String(saved.seed));
-    if (!current) return exercise;
+    if (!current) return [exercise];
     const sameOptions = current.options?.length === exercise.options?.length && current.options?.every((option, index) => {
       const savedOption = exercise.options?.[index];
       return savedOption?.id === option.id && savedOption.text === option.text
         && savedOption.correct === option.correct && savedOption.why === option.why;
     });
     const sameParts = JSON.stringify(current.doctrineParts) === JSON.stringify(exercise.doctrineParts);
-    return current.prompt === exercise.prompt && sameOptions && sameParts ? exercise : { ...current, practice: exercise.practice };
+    return [current.prompt === exercise.prompt && sameOptions && sameParts ? exercise : { ...current, practice: exercise.practice }];
   });
   const legacyTyped = saved.config.mode !== 'provar' && remaining.some((exercise) => exercise.kind === 'cloze-type');
-  const revised = remaining.some((exercise, index) => exercise !== saved.items[firstPending + index]);
+  const revised = remaining.length !== saved.items.length - firstPending
+    || remaining.some((exercise, index) => exercise !== saved.items[firstPending + index]);
   if (!legacyTyped && !revised && !saved.pausedAt && !saved.config.timed) return saved;
   let items = revised ? [...saved.items.slice(0, firstPending), ...remaining] : saved.items;
   if (legacyTyped) {
@@ -603,12 +626,14 @@ export async function resumeSession(): Promise<SessionState | null> {
       return choices ? [{ ...choices, key: exercise.key, practice: exercise.practice }] : [];
     })];
   }
-  // Sessões salvas antes da pausa explícita só têm o tempo das atividades concluídas.
-  const elapsed = saved.pausedAt === undefined
-    ? saved.results.reduce((sum, result) => sum + result.ms, 0)
-    : saved.pausedAt - saved.startedAt;
-  const active = { ...saved, items, startedAt: Date.now() - Math.max(0, elapsed), pausedAt: undefined };
+  const now = Date.now();
+  // Backups anteriores não guardavam o tempo de uma sessão fechada sem usar a pausa.
+  const elapsed = saved.pausedAt !== undefined ? saved.pausedAt - saved.startedAt
+    : saved.keepsClockOnReload ? now - saved.startedAt : saved.results.reduce((sum, result) => sum + result.ms, 0);
+  const active = { ...saved, items, startedAt: now - Math.max(0, elapsed), pausedAt: undefined, keepsClockOnReload: true } satisfies SessionState;
   if (firstPending >= items.length && saved.index === firstPending) return finishSession(active, false, { expected: saved });
+  const deadline = sessionDeadline(active);
+  if (firstPending < items.length && deadline !== null && now >= deadline) return finishSession(active, true, { expected: saved });
   await saveSession(active, saved);
   return active;
 }

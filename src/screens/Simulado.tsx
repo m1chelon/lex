@@ -1,3 +1,4 @@
+import { liveQuery } from 'dexie';
 import { TucaLoading } from '../ui/TucaLoading';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader, Progress, Segmented, Sheet, CType, toast, useAsync } from '../ui/primitives';
@@ -8,7 +9,7 @@ import { FocusList, focusLabel } from './Home';
 import { Flag } from '../ui/Flags';
 import { COURSE_NAME, getPlan, scopeToFocus } from '../learn/plan';
 import type { AreaId } from '../core/areas';
-import { corrigir, desempenhoDisciplinas, editalQuestionCount, EDITAL_SIMULADO, finishSimulado, gerarSimulado, gerarSimuladoEdital, letra, listSimulados, loadSimulado, saveSimulado, type Estilo, type Simulado } from '../learn/simulado';
+import { corrigir, desempenhoDisciplinas, editalQuestionCount, EDITAL_SIMULADO, finishSimulado, gerarSimulado, gerarSimuladoEdital, letra, listSimulados, loadSimulado, simuladoDeadline, updateSimulado, type Estilo, type Simulado } from '../learn/simulado';
 import { getArticle, articleTitle } from '../data/corpus';
 import { CONCEPTS } from '../content/concepts';
 import { Mascot, MascotQuestion } from '../ui/Mascot';
@@ -134,8 +135,9 @@ export function SimuladoConfig({ area: areaProp, focus: focusProp }: { area?: Ar
 function Countdown({ s, onEnd }: { s: Simulado; onEnd: () => void }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i); }, []);
-  const el = Math.floor((now - s.startedAt) / 1000);
-  const rem = s.tempoMin ? s.tempoMin * 60 - el : null;
+  const el = Math.max(0, Math.floor((now - s.startedAt) / 1000));
+  const deadline = simuladoDeadline(s);
+  const rem = deadline === null ? null : Math.ceil((deadline - now) / 1000);
   const expired = rem !== null && rem <= 0;
   const fired = useRef(false);
   useEffect(() => { if (expired && !fired.current) { fired.current = true; onEnd(); } }, [expired, onEnd]);
@@ -152,46 +154,36 @@ export function SimuladoRun({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const finishing = useRef(false);
   const deadlineReached = useRef(false);
-  const latest = useRef<Simulado | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const { studyFocus } = useSettings();
   useLayoutEffect(() => { body.current?.scrollTo({ top: 0 }); }, [s?.position]);
   useEffect(() => {
-    let active = true;
-    void loadSimulado(id).then((stored) => {
-      if (!active) return;
-      latest.current = stored;
-      setS(stored);
+    const subscription = liveQuery(() => loadSimulado(id)).subscribe({
+      next: setS,
+      error: () => setS(null),
     });
-    return () => { active = false; };
+    return () => subscription.unsubscribe();
   }, [id]);
   if (s === undefined) return <TucaLoading msg="Preparando o simulado" full />;
   if (!s?.questoes.length) return <div className="stack"><PageHeader title="Simulado indisponível" /><button className="btn btn-primary" onClick={() => nav.replace({ name: 'jogar', mode: 'simulado' })}>Criar simulado</button></div>;
   if (s.finishedAt) return <SimuladoResult s={s} />;
   const i = Math.max(0, Math.min(s.questoes.length - 1, typeof s.position === 'number' && Number.isInteger(s.position) ? s.position : 0));
   const q = s.questoes[i];
-  const saveProgress = (next: Simulado) => {
-    latest.current = next;
-    setS(next);
-    void saveSimulado(next).catch(() => toast('Não foi possível salvar o progresso do simulado'));
+  const saveProgress = (change: Parameters<typeof updateSimulado>[1]) => {
+    if (finishing.current || deadlineReached.current) return;
+    void updateSimulado(id, change).catch(() => toast('Não foi possível salvar o progresso do simulado'));
   };
-  const setI = (position: number) => {
-    if (!latest.current || finishing.current) return;
-    saveProgress({ ...latest.current, position });
-  };
-  const answer = (value: string) => {
-    if (!latest.current || finishing.current || deadlineReached.current) return;
+  const setI = (position: number) => saveProgress({ position });
+  const answer = (optionId: string) => {
     haptic('soft');
-    const { respostas } = latest.current;
-    saveProgress({ ...latest.current, respostas: { ...respostas, [q.id]: respostas[q.id] === value ? '' : value } });
+    saveProgress({ questionId: q.id, optionId });
   };
   const finish = async () => {
-    if (!latest.current || finishing.current) return;
+    if (finishing.current) return;
     finishing.current = true;
     setSaving(true);
     try {
-      const result = await finishSimulado(latest.current);
-      latest.current = result;
+      const result = await finishSimulado(id);
       setS(result);
       haptic('ok');
     } catch {

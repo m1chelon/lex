@@ -48,7 +48,7 @@ it('conserva a meta e só contabiliza o artigo quando todas as atividades foram 
 it('organiza as metas por dia e remaneja o saldo para a próxima meta da mesma matéria', async () => {
   const monday = '2026-11-16';
   const today = '2026-11-17';
-  const mondayGoal = { ...civilLaw, target: 2 };
+  const mondayGoal = { ...civilLaw, target: 3 };
   const wednesdayGoal = { ...civilLaw, target: 1 };
   const doctrine: StudyGoal = { kind: 'doctrine', courseId: 'consumidor', unit: 'modules', target: 1 };
   const days = [mondayGoal, doctrine, wednesdayGoal, null, null, null, null];
@@ -58,7 +58,7 @@ it('organiza as metas por dia e remaneja o saldo para a próxima meta da mesma m
     groups: [{ id: 'cf.1', keys: ['a', 'b'] }, { id: 'cf.2', keys: ['c'] }], done: ['a'] };
   const tasks = new Map([[plannerTaskKey(monday, mondayGoal), task]]);
   const result = redistribution(plan, tasks, today);
-  expect(result.moves.map(({ day, count }) => [day, count])).toEqual([['2026-11-18', 1], ['2026-11-23', 1]]);
+  expect(result.moves.map(({ day, count }) => [day, count])).toEqual([['2026-11-18', 1], ['2026-11-23', 2]]);
   expect(redistribution(result.next, tasks, today).moves).toEqual([]);
   await savePlanner([mondayGoal, null, wednesdayGoal, null, null, null, null], today);
   const edited = (await getPlanner())!;

@@ -2,6 +2,7 @@
 import { db, type CardRow, type KV, type MarkRow, type ReviewRow } from './db';
 import { setSettings, type Settings } from '../ui/settings';
 import { clearPlan, isPlan, savePlan } from '../learn/plan';
+import { sessionInProgress, type SessionState } from '../learn/session';
 import { CAPI_WARDROBE_KEY, mergeWardrobes } from '../learn/capiShop';
 import { PROFILE_SETTINGS_KEY, profileStorageKey } from './profiles';
 import { backupKey } from './profileBackup';
@@ -72,8 +73,14 @@ export async function importBackup(f: Pick<File, 'text'>) {
     }
     await db.reviews.bulkAdd(incoming);
     await db.marks.bulkPut(data.marks.filter((mark, i) => !currentMarks[i] || mark.at > currentMarks[i]!.at));
-    const importedKeys = data.kv.filter(({ key }, i) => key !== CAPI_WARDROBE_KEY
-      && (!currentKeys[i] || ((key === 'session' || key.startsWith('sim:')) && currentKeys[i]?.value == null)));
+    const importedKeys = data.kv.filter(({ key, value }, i) => {
+      if (key === CAPI_WARDROBE_KEY) return false;
+      const current = currentKeys[i];
+      if (!current) return true;
+      if (key === 'session') return !sessionInProgress(current.value as SessionState | null)
+        && sessionInProgress(value as SessionState | null);
+      return key.startsWith('sim:') && current.value == null;
+    });
     const restoredWardrobe = data.kv.find(({ key }) => key === CAPI_WARDROBE_KEY);
     if (restoredWardrobe) {
       const current = await db.kv.get(CAPI_WARDROBE_KEY);

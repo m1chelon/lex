@@ -3,13 +3,15 @@ import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { importBackup } from '../src/data/backup';
 import { createBackupBlob } from '../src/data/profileBackup';
-import { finishSimulado, loadSimulado, saveSimulado, type Simulado } from '../src/learn/simulado';
+import { finishSimulado, loadSimulado, saveSimulado, updateSimulado, type Simulado } from '../src/learn/simulado';
 import { db } from '../src/data/db';
 import { reviewQueue, setReviewMark } from '../src/learn/reviewQueue';
 import { recordAnswer, regradeAsGuess } from '../src/learn/scheduler';
-import { initCorpus } from '../src/data/corpus';
+import { getArticle, initCorpus } from '../src/data/corpus';
 import { buildSession, canConsultStudySource, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
 import { planToConfig } from '../src/learn/plan';
+import { buildOrder, buildRubric, buildWhich, shuffledOrderItems } from '../src/learn/generators';
+import { normAnswer } from '../src/learn/text';
 
 const config: SessionConfig = { area: 'geral', focus: 'law:cpp', mode: 'memorizar', minutes: 5 };
 
@@ -135,12 +137,43 @@ describe('retomada da sequência de artigos', () => {
 
   it('retoma uma sessão antiga pelo tempo das questões já respondidas', async () => {
     const s = await buildSession(config);
-    await saveSession({ ...s, startedAt: s.startedAt - 700_000, results: [{ key: s.items[0].key, correct: true, ms: 8000 }] });
+    await saveSession({ ...s, keepsClockOnReload: undefined, startedAt: s.startedAt - 700_000, results: [{ key: s.items[0].key, correct: true, ms: 8000 }] });
     const clock = vi.spyOn(Date, 'now').mockReturnValue(s.startedAt);
     const resumed = await resumeSession();
     clock.mockRestore();
     expect(resumed?.startedAt).toBe(s.startedAt - 8000);
   });
+
+  it('mantém o relógio de um treino ativo após recarregar a página', async () => {
+    const s = await buildSession(config);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(s.startedAt + 60_000);
+    try {
+      expect((await resumeSession())?.startedAt).toBe(s.startedAt);
+      clock.mockReturnValue(s.startedAt + config.minutes * 60_000);
+      expect(await resumeSession()).toMatchObject({ timedOut: true, index: s.items.length });
+    } finally { clock.mockRestore(); }
+  });
+});
+
+it('usa alternativas distintas, desfaz embaralhamentos em ordem e protege a revisão de textos sinalizados', async () => {
+  const locate = getArticle('cc.1619')!;
+  const which = buildWhich(locate.law, locate.art, 1)!;
+  expect(which.options).toHaveLength(4);
+  expect(new Set(which.options!.map(({ text }) => normAnswer(text))).size).toBe(4);
+
+  const enumeration = getArticle('cc.67')!;
+  const order = buildOrder(enumeration.law, enumeration.art, 1)!;
+  const shuffled = shuffledOrderItems(order).map(({ id }) => id);
+  expect(shuffled.join('|')).not.toBe(order.answer);
+  expect(new Set(shuffled)).toEqual(new Set(order.orderItems!.map(({ id }) => id)));
+
+  const flagged = getArticle('cp.171')!;
+  expect(flagged.art.outdated?.length).toBeGreaterThan(0);
+  for (const build of [buildWhich, buildOrder, buildRubric]) expect(build(flagged.law, flagged.art, 1)).toBeNull();
+  const legacy = await buildSession(config, false);
+  await saveSession({ ...legacy, items: [{ ...which, options: [which.options![0], which.options![0]] }] });
+  const restored = await resumeSession();
+  expect(restored?.items[0].options).toEqual(which.options);
 });
 
 describe('minha revisão', () => {
@@ -169,20 +202,45 @@ describe('minha revisão', () => {
 describe('persistência do simulado e backup', () => {
   it('mantém a posição e registra uma finalização apenas uma vez', async () => {
     const sim: Simulado = {
-      id: 'sim-audit', estilo: 'leiseca', n: 1, tempoMin: null, createdAt: 1, startedAt: 1, title: 'Teste',
+      id: 'sim-audit', estilo: 'leiseca', n: 2, tempoMin: null, createdAt: 1, startedAt: 1, title: 'Teste',
       position: 0, questoes: [{ id: 'S:cpp.10.cpt:B:prazos', articleId: 'cpp.10', unitId: 'cpp.10.cpt',
-        estilo: 'leiseca', enunciado: 'Qual é o prazo?', options: [{ id: 'ok', text: '10 dias', correct: true }] }],
-      respostas: { 'S:cpp.10.cpt:B:prazos': 'ok' },
+        estilo: 'leiseca', enunciado: 'Qual é o prazo?', options: [{ id: 'ok', text: '10 dias', correct: true }] },
+      { id: 'S:cpp.10.cpt:CE', estilo: 'cebraspe', enunciado: 'Julgue o item.', ce: 'C' }],
+      respostas: {},
     };
-    await saveSimulado({ ...sim, position: 1 });
-    expect((await loadSimulado(sim.id))?.position).toBe(1);
-    const [first, second] = await Promise.all([finishSimulado(sim), finishSimulado(sim)]);
+    await saveSimulado(sim);
+    const [q1, q2] = sim.questoes;
+    await Promise.all([
+      updateSimulado(sim.id, { questionId: q1.id, optionId: 'ok' }),
+      updateSimulado(sim.id, { position: 1 }),
+      updateSimulado(sim.id, { questionId: q2.id, optionId: 'C' }),
+    ]);
+    const expected = { [q1.id]: 'ok', [q2.id]: 'C' };
+    expect(await loadSimulado(sim.id)).toMatchObject({ position: 1, respostas: expected });
+    const [first, second] = await Promise.all([finishSimulado(sim.id), finishSimulado(sim.id)]);
     expect(first.finishedAt).toBe(second.finishedAt);
-    await saveSimulado({ ...sim, respostas: {} });
-    expect((await loadSimulado(sim.id))?.respostas).toEqual(sim.respostas);
-    const rows = await db.reviews.where('cardId').equals(sim.questoes[0].id).toArray();
+    expect(first.respostas).toEqual(expected);
+    await updateSimulado(sim.id, { questionId: q1.id, optionId: 'ok' });
+    expect((await loadSimulado(sim.id))?.respostas).toEqual(expected);
+    const rows = await db.reviews.where('cardId').equals(q1.id).toArray();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ dim: 'prazos', correct: true, given: '10 dias' });
+  });
+
+  it('grava escolhas válidas feitas antes do prazo do simulado', async () => {
+    const startedAt = Date.now();
+    const q = { id: 'teste-ce', estilo: 'cebraspe', enunciado: 'Julgue o item.', ce: 'C' } as const;
+    const sim: Simulado = { id: 'sim-deadline', estilo: 'cebraspe', n: 1, tempoMin: 1, startedAt,
+      createdAt: startedAt, title: '', questoes: [q], respostas: {} };
+    await saveSimulado(sim);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(startedAt + 59_999);
+    try {
+      await updateSimulado(sim.id, { questionId: q.id, optionId: 'C' });
+      await updateSimulado(sim.id, { questionId: q.id, optionId: 'inexistente' });
+      clock.mockReturnValue(startedAt + 60_000);
+      await updateSimulado(sim.id, { questionId: q.id, optionId: 'E' });
+      expect((await finishSimulado(sim.id)).respostas).toEqual({ [q.id]: 'C' });
+    } finally { clock.mockRestore(); }
   });
 
   it('preserva revisões com IDs coincidentes e ignora a reimportação do mesmo backup', async () => {
@@ -216,7 +274,7 @@ describe('persistência do simulado e backup', () => {
     await db.reviews.put(initial);
     await db.marks.delete(mark.id);
     await db.cards.delete(cardId);
-    await saveSession(null);
+    await saveSession({ ...session, index: session.items.length, finishedAt: Date.now() });
 
     await importBackup(backup);
     await importBackup(backup);
@@ -224,6 +282,10 @@ describe('persistência do simulado e backup', () => {
     expect(await db.marks.get(mark.id)).toEqual(mark);
     expect((await db.cards.get(cardId))?.fsrs.due).toBeInstanceOf(Date);
     expect(await loadSession()).toMatchObject({ id: session.id, pausedAt: paused.pausedAt });
+
+    const current = await buildSession({ ...config, focus: 'law:cp' });
+    await importBackup(backup);
+    expect((await loadSession())?.id).toBe(current.id);
   });
 });
 it('só libera a fonte de uma questão depois de uma resposta avaliada', () => {

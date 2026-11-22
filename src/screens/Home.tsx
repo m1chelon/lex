@@ -105,7 +105,7 @@ export function Home() {
   const planner = usePlanner(calendarDay);
   const goal = planner?.plan && plannerGoalOn(planner.plan, calendarDay);
   const goalProgress = goal && planner.task ? plannerProgress(planner.task, goal.target) : null;
-  const goalDone = goalProgress !== null && goalProgress.completed >= goalProgress.total;
+  const goalDone = !!goal && (goalProgress?.completed ?? 0) >= goal.target;
   const reviewMinute = Math.floor(now.getTime() / 60_000);
   const reviews = useAsync(() => reviewQueue().catch(() => null), [reviewMinute]);
   const [shelf, setShelf] = useState<'continue' | 'review'>();
@@ -193,7 +193,7 @@ export function Home() {
       return { title, detail, label: 'Continuar estudo', action: resume };
     }
     if (goal && !goalDone) return {
-      title: plannerSubject(goal), detail: `Meta de hoje · ${goalProgress?.completed ?? 0} de ${plannerQuantity(goal, goalProgress?.total ?? goal.target)}`,
+      title: plannerSubject(goal), detail: `Meta de hoje · ${goalProgress?.completed ?? 0} de ${plannerQuantity(goal)}`,
       label: 'Estudar meta de hoje', action: () => nav.push({ name: 'session', config: plannerConfig(calendarDay, goal) }),
     };
     if (sequence && planConfig) return {
@@ -263,10 +263,10 @@ export function Home() {
             <button className="btn btn-primary home-next-action" disabled={!ready} onClick={nextStudy.action}>
               <IPlay size={19} /> {nextStudy.label}
             </button>
-            {goalDone
-              ? <p className="home-goal-status"><ICheck size={16} /> <span>{goalProgress.total ? 'Meta de hoje concluída' : 'Conteúdo em dia'} · {goal && plannerSubject(goal)}</span></p>
+            {goal && goalDone
+              ? <p className="home-goal-status"><ICheck size={16} /> <span>Meta de hoje concluída · {plannerSubject(goal)}</span></p>
               : goal && unfinished
-                ? <p className="home-goal-status">Meta de hoje · {plannerSubject(goal)} · {goalProgress?.completed ?? 0} de {plannerQuantity(goal, goalProgress?.total ?? goal.target)}</p>
+                ? <p className="home-goal-status">Meta de hoje · {plannerSubject(goal)} · {goalProgress?.completed ?? 0} de {plannerQuantity(goal)}</p>
                 : !goal && !!stats && <p className="home-goal-status">{today} de {settings.dailyMinutes} min estudados hoje</p>}
           </div>
           <div className="home-next-links" role="group" aria-label="Organizar o estudo">

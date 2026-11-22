@@ -97,7 +97,9 @@ export function initCorpus(onProgress?: (msg: string) => void): Promise<void> {
 
 /** Garante que as leis estejam no aparelho (baixa as que faltam ou mudaram). */
 export async function ensureLaws(ids: string[], onProgress?: (msg: string) => void): Promise<void> {
-  const index = await loadManifest();
+  await prepareCorpus();
+  const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+  const index = await (online && manifestLoad ? manifestLoad : loadManifest());
   const tasks: Promise<boolean>[] = [];
   const started: Promise<boolean>[] = [];
   for (const id of ids) {

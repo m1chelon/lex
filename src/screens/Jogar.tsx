@@ -70,8 +70,7 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
       return;
     }
     haptic('ok');
-    savePlan(plan);
-    nav.replace({ name: 'session', config: planToConfig(plan, scope.kind === 'curso' && scope.topico ? { title: label.title } : {}) });
+    nav.replace({ name: 'session', plan, config: planToConfig(plan, scope.kind === 'curso' && scope.topico ? { title: label.title } : {}) });
   };
 
   return (

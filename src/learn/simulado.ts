@@ -2,7 +2,7 @@
 import type { Article, LawDoc, Unit } from '../core/types';
 import { coverage, ensureLaws, getArticle } from '../data/corpus';
 import { db, kvGet } from '../data/db';
-import { buildLiteral, unitPath } from './generators';
+import { buildLiteral, canTrainArticle, unitPath } from './generators';
 import { buildCaseIdentify, buildCasePena } from './cases';
 import { literalMutations, meaningMutations, type Mutation } from './mutations';
 import { scopeArticles, scopeLaws, conceptExercise, conceptInScope, type SessionConfig } from './session';
@@ -112,7 +112,7 @@ async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, s
       if (qs.length >= n) break;
       if ((usedArt.get(id) ?? 0) > pass) continue;
       const hit = getArticle(id);
-      if (!hit || hit.art.outdated?.length || hit.art.noCurrent) continue;
+      if (!hit || !canTrainArticle(hit.art)) continue;
       const s = `${seed}:${id}:${pass}`;
       let q: Questao | null = null;
       if (estilo === 'fgv') {
@@ -218,21 +218,48 @@ export function desempenhoDisciplinas(s: Simulado) {
 export async function saveSimulado(s: Simulado) {
   await db.transaction('rw', db.kv, async () => {
     const key = `sim:${s.id}`;
-    const previous = (await db.kv.get(key))?.value as Simulado | undefined;
-    if (previous?.finishedAt) return;
+    if (await db.kv.get(key)) return;
     await db.kv.put({ key, value: s });
     const list = (await db.kv.get('simulados'))?.value as string[] | undefined;
     if (!list?.includes(s.id)) await db.kv.put({ key: 'simulados', value: [s.id, ...(list ?? [])].slice(0, 30) });
   });
 }
 
-export async function finishSimulado(s: Simulado): Promise<Simulado> {
+export function simuladoDeadline(s: Simulado) {
+  return s.tempoMin && s.tempoMin > 0 ? s.startedAt + s.tempoMin * 60_000 : null;
+}
+
+type SimuladoProgress = { position: number } | { questionId: string; optionId: string };
+
+export async function updateSimulado(id: string, change: SimuladoProgress) {
+  const at = Date.now();
+  await db.transaction('rw', db.kv, async () => {
+    const key = `sim:${id}`;
+    const current = await loadSimulado(id);
+    if (!current || current.finishedAt) return;
+    const deadline = simuladoDeadline(current);
+    if (deadline !== null && at >= deadline) return;
+    if ('position' in change) {
+      const { position } = change;
+      if (!Number.isInteger(position) || position < 0 || position >= current.questoes.length) return;
+      await db.kv.put({ key, value: { ...current, position } });
+      return;
+    }
+    const { questionId, optionId } = change;
+    const question = current.questoes.find((item) => item.id === questionId);
+    if (!question || !(question.estilo === 'cebraspe' ? optionId === 'C' || optionId === 'E' : question.options?.some((option) => option.id === optionId))) return;
+    const value = current.respostas[questionId] === optionId ? '' : optionId;
+    await db.kv.put({ key, value: { ...current, respostas: { ...current.respostas, [questionId]: value } } });
+  });
+}
+
+export async function finishSimulado(id: string): Promise<Simulado> {
   try {
     return await db.transaction('rw', db.kv, db.cards, db.reviews, async () => {
-      const key = `sim:${s.id}`;
-      const existing = (await db.kv.get(key))?.value as Simulado | undefined;
-      if (existing?.finishedAt) return existing;
-      const result = { ...s, finishedAt: Date.now() };
+      const existing = await loadSimulado(id);
+      if (!existing) throw new Error('Simulado indisponível');
+      if (existing.finishedAt) return existing;
+      const result = { ...existing, finishedAt: Date.now() };
       for (const question of result.questoes) {
         const given = result.respostas[question.id];
         if (!given) continue;
@@ -249,7 +276,7 @@ export async function finishSimulado(s: Simulado): Promise<Simulado> {
           expected: answer?.text, target: question.mutation?.from ?? (format === 'B' ? answer?.text : undefined),
         });
       }
-      await db.kv.put({ key, value: result });
+      await db.kv.put({ key: `sim:${id}`, value: result });
       return result;
     });
   } catch (error) {

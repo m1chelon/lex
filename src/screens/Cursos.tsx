@@ -82,14 +82,14 @@ const COURSE_BLOCKS: Record<string, string> = {
   III: 'Bloco III · Conhecimentos Gerais',
 };
 
-export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
+export function CursoScreen({ id, active }: { id: 'tjsp' | 'tjms'; active: boolean }) {
   const version = useCorpusVersion();
   const { now } = useAmbient();
   const a = getArea(id);
   const cov = coverage(id);
   const manifest = getManifest();
-  const nextSequence = useAsync(async () => (await recentSequences()).find(({ config }) => config.area === id) ?? null, [id]);
-  const pending = useAsync(loadSession, []);
+  const nextSequence = useAsync(async () => (await recentSequences()).find(({ config }) => config.area === id) ?? null, [id, active]);
+  const pending = useAsync(loadSession, [active]);
   const unfinished = pending && !pending.finishedAt && pending.index < pending.items.length;
   const resumeHere = unfinished && pending.config.area === id;
   const nextArticle = nextSequence && getArticle(nextSequence.articleId);
@@ -124,16 +124,16 @@ export function CursoScreen({ id }: { id: 'tjsp' | 'tjms' }) {
     const entries = target ? selected.filter((entry) => entry.id === target) : selected;
     if (!entries.length) return;
     haptic('ok');
+    const config = { area: id, mode: 'memorizar' as const, focus: 'auto', minutes: 10, order: 'linear' as const, title: PRACTICE[activity].title };
+    if (activity !== 'memory') {
+      const field = activity === 'review' ? 'due' : 'errors';
+      const practiceCardIds = [...new Set(entries.flatMap((entry) => entry[field].map((card) => card.id)))].slice(0, 12);
+      nav.push({ name: 'session', config: { ...config, activity: 'review', practiceCardIds } });
+      return;
+    }
     nav.push({ name: 'session', config: {
-      area: id,
-      mode: 'memorizar',
-      focus: 'auto',
-      minutes: 10,
-      order: 'linear',
+      ...config,
       articleIds: entries.slice(0, 64).map((entry) => entry.id),
-      practiceCardIds: [...new Set(entries.slice(0, 64).flatMap((entry) => activity === 'memory' ? [] : entry[activity === 'review' ? 'due' : 'errors'].map((card) => card.id)))],
-      revenge: activity === 'errors',
-      title: PRACTICE[activity].title,
     } });
   };
   const openLaw = async (law: string) => {

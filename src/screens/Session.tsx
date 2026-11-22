@@ -6,8 +6,9 @@ import { isDue, regradeAsGuess } from '../learn/scheduler';
 import { getCareer, careerFor, xpFor } from '../learn/career';
 import { motion } from 'motion/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BLITZ_SECONDS, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, type SessionConfig, type SessionState } from '../learn/session';
-import { findTargets, type Exercise, type Seg } from '../learn/generators';
+import { BLITZ_SECONDS, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, sessionDeadline, sessionInProgress, type SessionConfig, type SessionState } from '../learn/session';
+import { findTargets, shuffledOrderItems, type Exercise, type Seg } from '../learn/generators';
+import { savePlan, type Plan } from '../learn/plan';
 import { recordAnswer, markSeen } from '../learn/scheduler';
 import { checkTyped, shuffle, rng, fold } from '../learn/text';
 import { db, kvGet, kvSet, type CardRow } from '../data/db';
@@ -116,7 +117,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
   const answered = !!answer;
   const selected = answer?.optionId ?? ex.options?.find((option) => option.text === answer?.given)?.id;
   useEffect(() => { setTyped(''); setOrder([]); }, [ex.key]);
-  const shuffledOrder = useMemo(() => ex.orderItems ? shuffle(ex.orderItems, rng(ex.key + 'o')) : [], [ex.key]); // eslint-disable-line
+  const shuffledOrder = useMemo(() => shuffledOrderItems(ex), [ex]);
 
   const pick = (id: string) => {
     if (answered) return;
@@ -391,11 +392,11 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
   );
 }
 
-function Timer({ startedAt, limitMin, onTimeout }: { startedAt: number; limitMin?: number; onTimeout?: () => void }) {
+function Timer({ startedAt, deadline, onTimeout }: { startedAt: number; deadline: number | null; onTimeout?: () => void }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i); }, []);
-  const elapsed = Math.floor((now - startedAt) / 1000);
-  const remaining = limitMin ? limitMin * 60 - elapsed : null;
+  const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const remaining = deadline === null ? null : Math.ceil((deadline - now) / 1000);
   const fired = useRef(false);
   useEffect(() => { if (remaining !== null && remaining <= 0 && !fired.current) { fired.current = true; onTimeout?.(); } }, [remaining, onTimeout]);
   const v = remaining !== null ? Math.max(0, remaining) : elapsed;
@@ -421,7 +422,7 @@ function BlitzClock({ onTimeout }: { onTimeout: () => void }) {
   );
 }
 
-export function SessionScreen({ active, resume, config }: { active: boolean; resume?: boolean; config?: SessionConfig }) {
+export function SessionScreen({ active, resume, config, plan }: { active: boolean; resume?: boolean; config?: SessionConfig; plan?: Plan }) {
   const [s, setS] = useState<SessionState | null>(null);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [seconds, setSeconds] = useState(3);
@@ -454,6 +455,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
     if (!next.items.length) return next;
     if (interrupted) await finishSession(interrupted, false, { expected: interrupted, replacement: next });
     else await saveSession(next, null);
+    if (plan) savePlan(plan);
     return next;
   };
   const show = (st: SessionState | null) => {
@@ -468,7 +470,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
     let mounted = true;
     opening.current ??= resume ? openSaved().then((state) => ({ state })) : (async () => {
       const saved = await loadSession();
-      if (saved && !saved.finishedAt && saved.index < saved.items.length) return { state: saved, interrupted: true };
+      if (sessionInProgress(saved)) return { state: saved, interrupted: true };
       return { state: config ? await openNew(config) : null };
     })();
     void opening.current.then(({ state, interrupted }) => {
@@ -523,6 +525,11 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
   useEffect(() => setGuess(null), [ex?.key, s?.index]);
   const submit = useCallback(async (a: Answer) => {
     if (!s || !ex || answer || acting.current) return;
+    const deadline = sessionDeadline(s);
+    if (deadline !== null && Date.now() >= deadline) {
+      setTimeExpired(true);
+      return;
+    }
     acting.current = true;
     haptic(a.correct ? 'ok' : a.correct === false ? 'bad' : 'tap');
     const ms = Date.now() - shownAt.current;
@@ -724,7 +731,7 @@ export function SessionScreen({ active, resume, config }: { active: boolean; res
         <div className="row question-toolbar">
           <button className="icon-btn glass" aria-label="Pausar e voltar" onClick={close}><IClose /></button>
           <div className="question-progress"><span className="small muted">{position}</span><Progress value={progress} /></div>
-          {s.config.blitz ? (answer ? <span className="blitz-clock done"><IBolt size={16} /></span> : <BlitzClock key={ex.key + s.index} onTimeout={() => void submit({ correct: false, given: '(tempo esgotado)' })} />) : <Timer startedAt={s.startedAt} limitMin={s.config.timed && !s.config.infinite ? s.config.minutes : undefined} onTimeout={() => setTimeExpired(true)} />}
+          {s.config.blitz ? (answer ? <span className="blitz-clock done"><IBolt size={16} /></span> : <BlitzClock key={ex.key + s.index} onTimeout={() => void submit({ correct: false, given: '(tempo esgotado)' })} />) : <Timer startedAt={s.startedAt} deadline={sessionDeadline(s)} onTimeout={() => setTimeExpired(true)} />}
           <button className="btn btn-quiet btn-sm focus-toggle" aria-label="Modo foco" aria-pressed={settings.studyFocus} onClick={() => setSettings({ studyFocus: !settings.studyFocus })}>Foco</button>
           {s.config.mode !== 'provar' && !s.config.blitz && <button className="icon-btn glass" onClick={() => setLevelSheet(true)} aria-label="Opções de leitura"><IText size={19} /></button>}
         </div>

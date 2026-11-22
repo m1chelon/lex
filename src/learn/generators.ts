@@ -61,6 +61,10 @@ const STOP = new Set(fold('para pelo pela pelos pelas como mais quando onde sobr
 
 export interface Target { text: string; start: number; dim: Dim }
 
+export function canTrainArticle(art: Article) {
+  return !art.rev && !art.noCurrent && !art.outdated?.length;
+}
+
 export function findTargets(u: Unit): Target[] {
   const t = u.t;
   const out: Target[] = [];
@@ -92,23 +96,22 @@ export function unitDims(u: Unit): Dim[] {
 }
 
 // ---------- pools de distratores (por lei) ----------
-const poolCache = new Map<string, { prazos: string[]; penas: string[] }>();
+const poolCache = new WeakMap<LawDoc, { prazos: string[]; penas: string[] }>();
 export function pools(law: LawDoc) {
-  let p = poolCache.get(law.id);
+  let p = poolCache.get(law);
   if (p) return p;
   const prazos = new Set<string>(), penas = new Set<string>();
   for (const a of law.articles) for (const u of a.units) {
-    if (a.rev || a.noCurrent || a.outdated?.length || u.rev) continue;
+    if (!canTrainArticle(a) || u.rev) continue;
     for (const tg of findTargets(u)) {
       if (tg.dim === 'prazos') prazos.add(tg.text);
       else if (tg.dim === 'penas') penas.add(tg.text);
     }
   }
   p = { prazos: [...prazos], penas: [...penas] };
-  poolCache.set(law.id, p);
+  poolCache.set(law, p);
   return p;
 }
-export function clearPools(lawId?: string) { if (lawId) poolCache.delete(lawId); else poolCache.clear(); }
 
 const EXT: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, sessenta: 60, noventa: 90, 'cento e vinte': 120, 'cento e oitenta': 180 };
 /** Valor normalizado de um prazo ("2 (dois) anos" e "dois anos" -> "2 anos"). */
@@ -238,7 +241,7 @@ export const unitPath = (art: Article, u?: Unit) => unitPathParts(art, u?.k === 
 export const whereOf = (law: LawDoc, art: Article, u?: Unit) => `${law.short} · ${unitPath(art, u)}`;
 
 export function buildLiteral(law: LawDoc, art: Article, u: Unit, dim: Dim, stage: number, mode: 'aprender' | 'memorizar' | 'provar', seedExtra = '', choiceCount?: number, preferredTarget?: string): Exercise | null {
-  if (art.outdated?.length || art.noCurrent) return null; // redação possivelmente desatualizada: fora da literalidade
+  if (!canTrainArticle(art)) return null;
   const targets = findTargets(u).filter((x) => x.dim === dim);
   if (!targets.length) return null;
   const seed = `${u.id}:${dim}:${stage}:${seedExtra}`;
@@ -287,9 +290,11 @@ export function buildLiteral(law: LawDoc, art: Article, u: Unit, dim: Dim, stage
 
 /** Ordenação de incisos de um mesmo dispositivo. */
 export function buildOrder(law: LawDoc, art: Article, stage: number): Exercise | null {
+  if (!canTrainArticle(art)) return null;
   const groups = new Map<string, Unit[]>();
   for (const u of art.units) if (u.k === 'inc' && !u.rev && u.t) groups.set(u.parent || 'caput', [...(groups.get(u.parent || 'caput') || []), u]);
-  const g = [...groups.entries()].find(([, us]) => us.length >= 3 && us.length <= 7);
+  const g = [...groups.entries()].find(([, us]) => us.length >= 3 && us.length <= 7
+    && new Set(us.map((unit) => normAnswer(unit.t))).size === us.length);
   if (!g) return null;
   const [parentKey, us] = g;
   const parent = parentKey === 'caput' ? art.units.find((x) => x.k === 'caput') : art.units.find((x) => x.id === parentKey);
@@ -301,28 +306,48 @@ export function buildOrder(law: LawDoc, art: Article, stage: number): Exercise |
   };
 }
 
+export function shuffledOrderItems(ex: Pick<Exercise, 'key' | 'orderItems'>) {
+  const items = ex.orderItems ?? [];
+  const shuffled = shuffle(items, rng(ex.key + 'o'));
+  return shuffled.length > 1 && shuffled.every((item, index) => item.id === items[index].id)
+    ? [...shuffled.slice(1), shuffled[0]] : shuffled;
+}
+
 /** Qual é o artigo? (localização do dispositivo) */
 export function buildWhich(law: LawDoc, art: Article, stage: number): Exercise | null {
+  if (!canTrainArticle(art)) return null;
   const caput = art.units.find((u) => u.k === 'caput' && u.t && !u.rev);
   if (!caput || caput.t.length < 40) return null;
   const idx = law.articles.indexOf(art);
   const r = rng(`W:${art.id}:${stage}`);
-  const near = law.articles.filter((a, i) => a !== art && Math.abs(i - idx) <= 8 && !/^[a-z]+\d*-/.test(a.n));
-  const ds = shuffle(near, r).slice(0, 3);
+  const label = normAnswer(art.lab);
+  const near = new Map<string, string>();
+  for (const candidate of law.articles.slice(Math.max(0, idx - 8), idx + 9)) {
+    const key = normAnswer(candidate.lab);
+    if (key !== label && canTrainArticle(candidate) && !/^[a-z]+\d*-/.test(candidate.n)) near.set(key, candidate.lab);
+  }
+  const ds = shuffle([...near.values()], r).slice(0, 3);
   if (ds.length < 3) return null;
-  const options = shuffle([{ id: 'ok', text: art.lab, correct: true }, ...ds.map((d, i) => ({ id: `d${i}`, text: d.lab, correct: false }))], r);
+  const options = shuffle([{ id: 'ok', text: art.lab, correct: true }, ...ds.map((d, i) => ({ id: `d${i}`, text: d, correct: false }))], r);
   // sem "where": a localização é justamente o que se pergunta
   return { key: `W:${art.id}`, kind: 'which-article', dim: 'literal', family: 'literal', lawId: law.id, articleId: art.id, stage, prompt: `Em qual artigo (${law.short}) está este texto?`, stem: [{ t: caput.t }], options, answer: art.lab, expectedMs: 15000 };
 }
 
 /** Rubrica (nomen iuris) — associação entre conduta e crime/instituto. */
 export function buildRubric(law: LawDoc, art: Article, stage: number): Exercise | null {
+  if (!canTrainArticle(art)) return null;
   const caput = art.units.find((u) => u.k === 'caput' && u.t && !u.rev);
   if (!art.rub || !caput) return null;
   const r = rng(`R:${art.id}:${stage}`);
   const idx = law.articles.indexOf(art);
-  const rubs = [...new Set(law.articles.filter((a, i) => a.rub && a !== art && Math.abs(i - idx) <= 25).map((a) => a.rub!))].filter((x) => fold(x) !== fold(art.rub!));
-  const ds = shuffle(rubs, r).slice(0, 3);
+  const rubric = normAnswer(art.rub);
+  const rubs = new Map<string, string>();
+  for (const candidate of law.articles.slice(Math.max(0, idx - 25), idx + 26)) {
+    if (!candidate.rub || !canTrainArticle(candidate)) continue;
+    const key = normAnswer(candidate.rub);
+    if (key !== rubric) rubs.set(key, candidate.rub);
+  }
+  const ds = shuffle([...rubs.values()], r).slice(0, 3);
   if (ds.length < 3) return null;
   const options = shuffle([{ id: 'ok', text: art.rub, correct: true }, ...ds.map((d, i) => ({ id: `d${i}`, text: d, correct: false }))], r);
   return { key: `R:${art.id}`, kind: 'rubric', dim: 'conceitual', family: 'literal', lawId: law.id, articleId: art.id, stage, where: whereOf(law, art), prompt: 'Qual é o nome (rubrica) deste dispositivo?', stem: [{ t: art.lab + ' ', strong: true }, { t: caput.t }], options, answer: art.rub, expectedMs: 15000 };

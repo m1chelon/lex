@@ -2,7 +2,7 @@
 // Montadas a partir do texto oficial: o caso descreve a conduta exatamente como no tipo penal,
 // e as alternativas são rubricas/penas REAIS de outros dispositivos do mesmo diploma.
 import type { Article, LawDoc } from '../core/types';
-import { contextualAlternatives, type Exercise, type Option } from './generators';
+import { canTrainArticle, contextualAlternatives, type Exercise, type Option } from './generators';
 import { fold, rng, shuffle } from './text';
 
 const NOMES = ['Ana', 'Bruno', 'Carla', 'Diego', 'Elisa', 'Fábio', 'Gabriela', 'Heitor', 'Inês', 'João', 'Larissa', 'Marcos', 'Natália', 'Otávio', 'Paula', 'Rafael', 'Sílvia', 'Tiago'];
@@ -15,7 +15,7 @@ const CONTEXTOS = [
 
 function penaOf(art: Article) { return art.units.find((u) => u.k === 'pena' && u.t && !u.rev)?.t.replace(/[.;]\s*$/, ''); }
 function caputOf(art: Article) { return art.units.find((u) => u.k === 'caput' && u.t && !u.rev)?.t; }
-const eligible = (a: Article) => !!a.rub && !!caputOf(a) && !a.rev && !a.noCurrent && !a.outdated?.length && caputOf(a)!.length > 30;
+const eligible = (a: Article) => !!a.rub && canTrainArticle(a) && (caputOf(a)?.length ?? 0) > 30;
 
 /** Identificação do crime/instituto a partir da conduta descrita (5 alternativas). */
 export function buildCaseIdentify(law: LawDoc, art: Article, seed = ''): Exercise | null {

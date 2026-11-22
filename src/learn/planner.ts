@@ -117,7 +117,7 @@ export function redistribution(planner: StudyPlanner, tasks: Map<string, Planner
     const goal = plannerGoalOn(planner, day);
     if (!goal || goal.kind === 'review' || !availableGoals.has(goalKey(goal))) continue;
     const task = tasks.get(plannerTaskKey(day, goal));
-    const count = task ? plannerProgress(task, goal.target).remaining.length : goal.target;
+    const count = goal.target - (task ? plannerProgress(task, goal.target).completed : 0);
     if (count) backlog.set(goalKey(goal), (backlog.get(goalKey(goal)) ?? 0) + count);
   }
   const moves: { day: string; goal: StudyGoal; count: number }[] = [];
@@ -129,7 +129,7 @@ export function redistribution(planner: StudyPlanner, tasks: Map<string, Planner
     if (!pending) continue;
     const task = tasks.get(plannerTaskKey(day, goal));
     const progress = task ? plannerProgress(task, goal.target) : null;
-    const available = Math.max(0, (progress?.remaining.length ?? goal.target) - (carry[day] ?? 0));
+    const available = Math.max(0, goal.target - (progress?.completed ?? 0) - (carry[day] ?? 0));
     const count = Math.min(pending, available);
     if (count) {
       carry[day] = (carry[day] ?? 0) + count;

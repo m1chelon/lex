@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { corpusVersion, onCorpus, prepareCorpus } from './data/corpus';
+import { corpusVersion, initCorpus, onCorpus, prepareCorpus } from './data/corpus';
 import { loadCalibration } from './learn/scheduler';
 import { nav, useNav, type Route, type Tab } from './ui/nav';
 import { Toaster, spring, useAsync } from './ui/primitives';
@@ -62,7 +62,7 @@ function RouteScreen({ r, active }: { r: Route; active: boolean }) {
     case 'ramo': return <RamoScreen ramo={r.ramo} />;
     case 'biblioteca': return <LawLibraryScreen />;
     case 'article': return <ArticleScreen id={r.id} unitId={r.unitId} />;
-    case 'session': return <SessionScreen active={active} resume={r.resume} config={r.config} />;
+    case 'session': return <SessionScreen active={active} resume={r.resume} config={r.config} plan={r.plan} />;
     case 'lesson': return <LessonScreen id={r.id} />;
     case 'compare': return <CompareScreen id={r.id} />;
     case 'glossary': return <GlossaryScreen />;
@@ -76,7 +76,7 @@ function RouteScreen({ r, active }: { r: Route; active: boolean }) {
     case 'planner': return <PlannerRoute active={active} />;
     case 'capi-shop': return <CapiShop />;
     case 'perfis': return <ProfilesScreen />;
-    case 'curso': return <CursoScreen id={r.id} />;
+    case 'curso': return <CursoScreen id={r.id} active={active} />;
     case 'simulado-run': return <SimuladoRun id={r.id} />;
     case 'forest': return <ForestScreen />;
     case 'ponto': return <PontoScreen />;
@@ -145,13 +145,14 @@ export function App() {
       ]);
       if (!active) return;
       setReady(true);
+      if (navigator.onLine) void initCorpus().catch((error: unknown) => console.error(error));
     })();
     return () => { active = false; };
   }, []);
 
   const top = stack[stack.length - 1];
   const mainId = top ? `lex-route-${stack.length - 1}-${top.name}` : `lex-tab-${tab}`;
-  const sessionBelow = stack.findLastIndex((route) => route.name === 'session');
+  const sessionBelow = stack.map((route) => route.name).lastIndexOf('session');
   const routeIndexes = stack.flatMap((route, index) => index === stack.length - 1 || index === sessionBelow
     || ['curso', 'doutrina-curso', 'search', 'planner', 'ramo'].includes(route.name) ? [index] : []);
   const keepCatalog = tab === 'formacao' || tab === 'cursos' || tab === 'direito';

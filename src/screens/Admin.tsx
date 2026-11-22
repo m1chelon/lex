@@ -6,7 +6,6 @@ import { REQUIREMENTS, resolveRequirement, describe } from '../core/edital';
 import { checkRefAgainst } from '../core/verifyRefs';
 import type { LawDoc } from '../core/types';
 import { coverage, getLaw, getManifest, removeLaw, storeManualLaw } from '../data/corpus';
-import { clearPools } from '../learn/generators';
 import { GLOSSARY } from '../content/glossary';
 import { CONCEPTS } from '../content/concepts';
 import { LESSONS } from '../content/lessons';
@@ -88,7 +87,7 @@ export function AdminScreen() {
   };
   const confirm = async () => {
     if (!preview) return;
-    await storeManualLaw(preview); clearPools(preview.id);
+    await storeManualLaw(preview);
     toast(`${preview.short} importado e validado`); setPreview(null); setTarget(null);
   };
   const previewCov = preview ? REQUIREMENTS.filter((r) => r.law === preview.id).map((r) => resolveRequirement(preview, r)) : [];

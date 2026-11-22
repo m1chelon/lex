@@ -6,7 +6,7 @@ export type Route =
   | { name: 'ramo'; ramo: import('../core/sources').Ramo }
   | { name: 'biblioteca' }
   | { name: 'article'; id: string; unitId?: string }
-  | { name: 'session'; resume?: boolean; config?: import('../learn/session').SessionConfig; reenter?: string }
+  | { name: 'session'; resume?: boolean; config?: import('../learn/session').SessionConfig; plan?: import('../learn/plan').Plan; reenter?: string }
   | { name: 'lesson'; id: string }
   | { name: 'compare'; id: string }
   | { name: 'glossary' }
