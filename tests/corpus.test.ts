@@ -54,6 +54,53 @@ it('atualiza uma norma já baixada quando o índice online mudou desde a última
   expect(fresh.getLaw('cf')?.provenance.sha256).toBe(sha256);
 });
 
+it('atualiza a lei quando muda a versão do parser, mesmo com a fonte original idêntica', async () => {
+  const read = async (path: string) => JSON.parse(await readFile(new URL(`../public/${path}`, import.meta.url), 'utf8'));
+  const manifest = await read('data/manifest.json') as { laws: { id: string; provenance: LawDoc['provenance'] }[] };
+  const law = await read('data/laws/cf.json') as LawDoc;
+  const previousParser = law.provenance.parserVersion;
+  await libraryDb.kv.put({ key: 'corpus-manifest', value: manifest });
+  await libraryDb.laws.put({ id: law.id, doc: law, sha: law.provenance.sha256, method: 'automatico', storedAt: new Date().toISOString() });
+  const parserVersion = `${previousParser}-novo`;
+  manifest.laws.find(({ id }) => id === 'cf')!.provenance.parserVersion = parserVersion;
+  let served = law;
+  vi.stubGlobal('fetch', async (url: string) => {
+    if (url.endsWith('/manifest.json')) return Response.json(manifest);
+    if (url.endsWith('/cf.json')) return Response.json(served);
+    return new Response(null, { status: 503 });
+  });
+  vi.resetModules();
+  const fresh = await import('../src/data/corpus');
+  await fresh.initCorpus();
+  expect(fresh.getLaw('cf')?.provenance.parserVersion).toBe(previousParser);
+  served = { ...law, provenance: { ...law.provenance, parserVersion } };
+  await fresh.initCorpus();
+  expect(fresh.getLaw('cf')?.provenance).toMatchObject({ sha256: law.provenance.sha256, parserVersion });
+  expect((await libraryDb.laws.get('cf'))?.doc.provenance.parserVersion).toBe(parserVersion);
+});
+
+it('publica o índice e baixa as normas quando a conexão volta após uma abertura sem cache', async () => {
+  await libraryDb.kv.delete('corpus-manifest');
+  await libraryDb.laws.clear();
+  vi.stubGlobal('fetch', async () => { throw new Error('Sem conexão'); });
+  vi.resetModules();
+  const fresh = await import('../src/data/corpus');
+  await fresh.prepareCorpus();
+  expect(fresh.getManifest()).toBeNull();
+  expect(fresh.getLaw('cf')).toBeUndefined();
+  const version = fresh.corpusVersion();
+
+  vi.stubGlobal('fetch', async (url: string) => {
+    const body = await readFile(new URL(`../public/${url}`, import.meta.url), 'utf8');
+    return new Response(body);
+  });
+  await fresh.initCorpus();
+
+  expect(fresh.getManifest()?.laws).toContainEqual(expect.objectContaining({ id: 'cf' }));
+  expect(fresh.getLaw('cf')?.id).toBe('cf');
+  expect(fresh.corpusVersion()).toBe(version + 2);
+});
+
 it.each([
   ['cp', '121'],
   ['cc', '233'],

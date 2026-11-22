@@ -66,7 +66,7 @@ function loadManifest(refresh = false): Promise<Manifest | null> {
     try {
       const downloaded = await fetchCorpusJson<Manifest>('./data/manifest.json', 'Manifesto indisponível');
       if (!Array.isArray(downloaded?.laws)) throw new Error('Manifesto inválido');
-      const changed = manifest && JSON.stringify(manifest) !== JSON.stringify(downloaded);
+      const changed = JSON.stringify(manifest) !== JSON.stringify(downloaded);
       manifest = downloaded;
       await libraryDb.kv.put({ key: 'corpus-manifest', value: downloaded }).catch(() => {});
       if (changed) bump();
@@ -102,8 +102,12 @@ export function initCorpus(onProgress?: (msg: string) => void): Promise<void> {
     await prepareCorpus();
     const area = getSettings().area;
     await ensureLaws(area === 'geral' ? ['cf', 'cp', 'cpp', 'cc', 'cpc'] : areaLaws(area), onProgress);
-  })();
+  })().finally(() => { ready = null; });
   return ready;
+}
+
+function matchesRevision(doc: LawDoc, expected: LawDoc['provenance']) {
+  return doc.provenance?.sha256 === expected.sha256 && doc.provenance.parserVersion === expected.parserVersion;
 }
 
 /** Garante que as leis estejam no aparelho (baixa as que faltam ou mudaram). */
@@ -115,15 +119,19 @@ export async function ensureLaws(ids: string[], onProgress?: (msg: string) => vo
   const started: Promise<boolean>[] = [];
   for (const id of ids) {
     const m = index?.laws.find((x) => x.id === id);
-    if (!m || m.status !== 'ok' || !m.provenance) continue;
+    const revision = m?.provenance;
+    if (!m || m.status !== 'ok' || !revision) continue;
     const have = storedRows.get(id);
-    if (have && (have.sha === m.provenance.sha256 || have.method === 'manual')) { if (!docs.has(id)) indexDoc(have.doc); continue; }
+    if (have && (have.method === 'manual' || matchesRevision(have.doc, revision))) {
+      if (!docs.has(id)) indexDoc(have.doc);
+      continue;
+    }
     if (!loading.has(id)) {
       const task = (async () => {
         onProgress?.(`Baixando e validando ${m.short}…`);
         try {
           const doc = await fetchCorpusJson<LawDoc>(`./data/laws/${m.id}.json`, 'Norma indisponível');
-          if (doc.id !== m.id || doc.provenance?.sha256 !== m.provenance?.sha256 || !Array.isArray(doc.articles)) return false;
+          if (doc?.id !== m.id || !matchesRevision(doc, revision) || !Array.isArray(doc.articles)) return false;
           if (storedRows.get(id)?.method === 'manual') return false;
           let row: StoredLaw = { id: doc.id, doc, sha: doc.provenance.sha256, method: 'automatico', storedAt: new Date().toISOString() };
           try {

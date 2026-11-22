@@ -1,7 +1,7 @@
 import { liveQuery } from 'dexie';
 import { TucaLoading } from '../ui/TucaLoading';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { PageHeader, Progress, Segmented, Sheet, CType, toast, useAsync } from '../ui/primitives';
+import { PageHeader, Progress, Segmented, Sheet, CType, toast, useLiveAsync } from '../ui/primitives';
 import { nav } from '../ui/nav';
 import { haptic, reducedMotion, setSettings, useSettings } from '../ui/settings';
 import { IChevR, IClock, ICheck, IClose, IX, IPlay } from '../ui/icons';
@@ -89,7 +89,7 @@ export function SimuladoFields({ setup }: { setup: ReturnType<typeof useSimulado
 }
 
 export function SimuladoHistory({ collapsed = true }: { collapsed?: boolean }) {
-  const hist = useAsync(listSimulados, []);
+  const hist = useLiveAsync(listSimulados, []);
   if (!hist?.length) return null;
   const list = (
     <div className="list">

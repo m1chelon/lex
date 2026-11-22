@@ -138,6 +138,10 @@ export function App() {
   useEffect(() => {
     let active = true;
     startAmbient();
+    const downloadActiveArea = () => {
+      void initCorpus().catch((error: unknown) => console.error(error));
+    };
+    window.addEventListener('online', downloadActiveArea);
     void (async () => {
       await Promise.all([
         loadCalibration().catch(() => {}),
@@ -145,9 +149,12 @@ export function App() {
       ]);
       if (!active) return;
       setReady(true);
-      if (navigator.onLine) void initCorpus().catch((error: unknown) => console.error(error));
+      if (navigator.onLine) downloadActiveArea();
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      window.removeEventListener('online', downloadActiveArea);
+    };
   }, []);
 
   const top = stack[stack.length - 1];
