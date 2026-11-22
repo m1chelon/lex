@@ -8,6 +8,7 @@ import { PROFILE_SETTINGS_KEY, profileStorageKey } from './profiles';
 import { backupKey } from './profileBackup';
 import { mergePontos } from '../learn/ponto';
 import { readSavedSimulado } from '../learn/simulado';
+import { readPlannerTask, readStudyPlanner } from '../learn/planner';
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -38,6 +39,8 @@ function parseBackup(value: unknown) {
   const kv = rows(value.kv).map((row) => {
     if (typeof row.key !== 'string' || !('value' in row)) throw new Error('Preferência inválida');
     if (row.key === 'session' && row.value != null && !readSavedSession(row.value)) throw new Error('Treino inválido');
+    if (row.key === 'studyPlanner' && row.value != null && !readStudyPlanner(row.value)) throw new Error('Planner inválido');
+    if (row.key.startsWith('plannerTask:') && row.value != null && !readPlannerTask(row.value, row.key)) throw new Error('Meta inválida');
     if (row.key.startsWith('sim:') && row.value != null && !readSavedSimulado(row.value, row.key.slice(4))) throw new Error('Simulado inválido');
     return row as unknown as KV;
   });
@@ -83,6 +86,8 @@ export async function importBackup(f: Pick<File, 'text'>) {
       if (!current) return true;
       if (key === 'session') return !sessionInProgress(readSavedSession(current.value))
         && sessionInProgress(readSavedSession(value));
+      if (key === 'studyPlanner') return !readStudyPlanner(current.value) && !!readStudyPlanner(value);
+      if (key.startsWith('plannerTask:')) return !readPlannerTask(current.value, key) && !!readPlannerTask(value, key);
       return false;
     });
     data.kv.forEach(({ key, value }, i) => {

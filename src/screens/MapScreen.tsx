@@ -17,7 +17,8 @@ import { SOURCES } from '../core/sources';
 import { useEffect } from 'react';
 import { masteryFor, LEVEL_LABEL, type ArticleMastery } from '../learn/mastery';
 import { DIMS, db, type Dim } from '../data/db';
-import { Ring, Sheet, useAsync } from '../ui/primitives';
+import { Ring, Sheet, useLiveAsync } from '../ui/primitives';
+import { useAmbient } from '../ui/ambient';
 import { nav } from '../ui/nav';
 import { haptic } from '../ui/settings';
 import { IPlay, IBook, IInfo, IProgressChart } from '../ui/icons';
@@ -60,22 +61,33 @@ export function MapScreen() {
 function LawMap() {
   const [law, setLaw] = useState('cf');
   const v = useCorpusVersion();
-  useEffect(() => { void ensureLaws([law]); }, [law]);
+  const [attempt, retry] = useState(0);
+  const [checked, setChecked] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    void ensureLaws([law]).catch(() => {}).finally(() => { if (active) setChecked(law); });
+    return () => { active = false; };
+  }, [law, attempt]);
   const doc = getLaw(law);
   const ids = useMemo(() => doc?.articles.filter((a) => !a.rev).map((a) => a.id) ?? [], [doc, v]); // eslint-disable-line
-  const mastery = useAsync(() => masteryFor(ids), [ids.length, v]);
-  const progress = useAsync(async () => {
+  const mastery = useLiveAsync(() => masteryFor(ids), [ids]);
+  const progress = useLiveAsync(async () => {
     const scope = new Set(ids);
     return courseStats(await loadArticleProgress(scope), scope);
   }, [ids]);
   const [sel, setSel] = useState<string | null>(null);
   return (
     <div className="stack" style={{ gap: 12 }}>
-      <select className="input" value={law} onChange={(e) => setLaw(e.target.value)} aria-label="Lei">
+      <select className="input" value={law} onChange={(e) => { setLaw(e.target.value); setChecked(undefined); }} aria-label="Lei">
         {SOURCES.filter((s) => s.kind !== 'manual' || getLaw(s.id)).map((s) => <option key={s.id} value={s.id}>{s.ramo} · {s.short}</option>)}
       </select>
       {progress && <StudyMetrics seen={progress.seen} total={ids.length} correct={progress.firstCorrect} attempts={progress.firstTotal} label="Cobertura da norma" />}
-      {!doc ? <TucaLoading msg="Baixando a lei" /> : (
+      {!doc ? checked !== law ? <TucaLoading msg="Baixando a lei" /> : (
+        <div className="card stack">
+          <p className="muted" role="status">Esta lei ainda está indisponível no aparelho.</p>
+          <button className="btn btn-quiet" onClick={() => { setChecked(undefined); retry((n) => n + 1); }}>Tentar baixar novamente</button>
+        </div>
+      ) : (
         <div className="card">
           <div className="small muted" style={{ marginBottom: 10 }}>{doc.title} · {ids.length} artigos</div>
           <div className="mapgrid">
@@ -94,8 +106,8 @@ function EditalMap() {
   const cov = coverage(area);
   const [open, setOpen] = useState<Set<string>>(new Set(area === 'tjsp' ? getArea('tjsp').requirements.map((r) => r.id) : []));
   const ids = useMemo(() => [...cov.required], [v, area]); // eslint-disable-line
-  const mastery = useAsync(() => masteryFor(ids), [ids.length, v]);
-  const progress = useAsync(async () => courseStats(await loadArticleProgress(cov.required), cov.required), [cov]);
+  const mastery = useLiveAsync(() => masteryFor(ids), [ids]);
+  const progress = useLiveAsync(async () => courseStats(await loadArticleProgress(cov.required), cov.required), [cov]);
   const [view, setView] = useState<View>('geral');
   const [sel, setSel] = useState<string | null>(null);
   const manifest = getManifest();
@@ -223,8 +235,9 @@ function GrowthRing({ value, color, label }: { value: number; color: string; lab
 
 function ProgressTop() {
   const v = useCorpusVersion();
-  const stats = useAsync(getStats, [v]);
-  const dims = useAsync(async () => {
+  const minute = Math.floor(useAmbient().now.getTime() / 60_000);
+  const stats = useLiveAsync(getStats, [minute]);
+  const dims = useLiveAsync(async () => {
     const cards = await db.cards.toArray().catch(() => []);
     const ids = [...new Set(cards.map((c) => c.articleId).filter((x): x is string => !!x))];
     const m = await masteryFor(ids);
@@ -236,7 +249,7 @@ function ProgressTop() {
     return out;
   }, [v]);
   const totalMin = Math.round((stats?.days ?? []).reduce((s, d) => s + d.ms, 0) / 60000);
-  const career = useAsync(getCareer, [v]);
+  const career = useLiveAsync(getCareer, []);
   const [mood, setMood] = useState(false);
   const { wellbeing } = useSettings();
   return (

@@ -3,20 +3,16 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { profileStorageKey } from '../data/profiles';
+import { advancePomodoro, pomodoroMinutes as mins, readPomodoro, type Plan, type Pomo } from '../learn/pomodoro';
 import { Mascot } from './Mascot';
 import { Breathing } from './Wellbeing';
 import { ITomato, IClose, IPlay } from './icons';
 import { Sheet, spring, toast } from './primitives';
 import { haptic, reducedMotion } from './settings';
 
-export type Plan = '50/10' | '25/5';
-type Phase = 'focus' | 'break';
-interface Pomo { plan: Plan; phase: Phase; endsAt: number; paused?: number; cycles: number }
-
 const KEY = profileStorageKey('lex.pomodoro');
-const mins = (p: Plan, ph: Phase) => (p === '50/10' ? (ph === 'focus' ? 50 : 10) : ph === 'focus' ? 25 : 5);
 let state: Pomo | null = null;
-try { state = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { /* sem armazenamento */ }
+try { state = readPomodoro(JSON.parse(localStorage.getItem(KEY) || 'null'), Date.now()); } catch { /* sem armazenamento */ }
 const subs = new Set<() => void>();
 function set(n: Pomo | null) { state = n; try { if (n) localStorage.setItem(KEY, JSON.stringify(n)); else localStorage.removeItem(KEY); } catch { /* ok */ } subs.forEach((f) => f()); }
 const usePomo = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => state, () => state);
@@ -37,10 +33,13 @@ export function PomodoroIsland() {
   useEffect(() => {
     if (!p || p.paused) return;
     const i = setInterval(() => {
+      if (state !== p) return;
       tick((x) => x + 1);
-      if (Date.now() < p.endsAt) return;
-      if (p.phase === 'focus') { haptic('ok'); set({ ...p, phase: 'break', endsAt: Date.now() + mins(p.plan, 'break') * 60000, cycles: p.cycles + 1 }); }
-      else { haptic('ok'); toast('Pausa encerrada. Bora voltar para a lei!'); set({ ...p, phase: 'focus', endsAt: Date.now() + mins(p.plan, 'focus') * 60000 }); }
+      const next = advancePomodoro(p, Date.now());
+      if (next === p) return;
+      haptic('ok');
+      if (p.phase === 'break' && next.phase === 'focus') toast('Pausa encerrada. Bora voltar para a lei!');
+      set(next);
     }, 1000);
     return () => clearInterval(i);
   }, [p]);
@@ -86,7 +85,10 @@ export function PomodoroIsland() {
         <div className="row" style={{ gap: 8, marginTop: 16 }}>
           {p.paused
             ? <button className="btn btn-primary grow" onClick={() => { set({ ...p, endsAt: Date.now() + p.paused! * 1000, paused: undefined }); setOpen(false); }}><IPlay size={16} /> Retomar</button>
-            : <button className="btn btn-quiet grow" onClick={() => set({ ...p, paused: s })}>Pausar</button>}
+            : <button className="btn btn-quiet grow" onClick={() => {
+              const current = advancePomodoro(p, Date.now());
+              set({ ...current, paused: left(current) });
+            }}>Pausar</button>}
           <button className="btn btn-ghost grow" onClick={() => { stopPomodoro(); setOpen(false); toast('Pomodoro encerrado'); }}><IClose size={16} /> Encerrar</button>
         </div>
       </Sheet>

@@ -22,15 +22,20 @@ export const MODE_INFO: Record<PlanMode, { label: string; desc: string }> = {
   simulado: { label: 'Simulado', desc: 'Questões de Direito com tempo e nota, no formato escolhido.' },
 };
 
-export function isPlan(value: unknown): value is Plan {
+export function isPlanScope(value: unknown): value is PlanScope {
   if (!value || typeof value !== 'object') return false;
-  const { scope, mode, minutes, order } = value as Partial<Plan>;
-  if (!scope || typeof scope !== 'object' || !mode || !Object.hasOwn(MODE_INFO, mode)) return false;
-  if (minutes !== 'inf' && (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0 || minutes > 240)) return false;
-  if (order !== undefined && order !== 'linear' && order !== 'misturado') return false;
+  const scope = value as PlanScope;
   if (scope.law !== undefined && !SOURCES.some((source) => source.id === scope.law)) return false;
   if (scope.kind === 'geral') return RAMOS.includes(scope.ramo);
   return scope.kind === 'curso' && (scope.area === 'tjsp' || scope.area === 'tjms') && (scope.topico === undefined || typeof scope.topico === 'string');
+}
+
+export function isPlan(value: unknown): value is Plan {
+  if (!value || typeof value !== 'object') return false;
+  const { scope, mode, minutes, order } = value as Partial<Plan>;
+  if (!isPlanScope(scope) || !mode || !Object.hasOwn(MODE_INFO, mode)) return false;
+  if (minutes !== 'inf' && (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0 || minutes > 240)) return false;
+  return order === undefined || order === 'linear' || order === 'misturado';
 }
 
 const KEY = profileStorageKey(PROFILE_PLAN_KEY);

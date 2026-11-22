@@ -13,6 +13,7 @@ import { buildSession, canConsultStudySource, exerciseForCard, extendSession, fi
 import { planToConfig } from '../src/learn/plan';
 import { buildOrder, buildRubric, buildWhich, shuffledOrderItems } from '../src/learn/generators';
 import { normAnswer } from '../src/learn/text';
+import { getStats } from '../src/learn/stats';
 
 const config: SessionConfig = { area: 'geral', focus: 'law:cpp', mode: 'memorizar', minutes: 5 };
 
@@ -44,6 +45,22 @@ it('faz os blocos contarem apenas questões, inclusive o último bloco curto', (
   expect(questionCheckpoint(51, 52, false)).toEqual({ block: 11, remaining: 2 });
   expect(questionCheckpoint(52, 52, true)).toEqual({ block: 11, remaining: 0 });
   expect(questionCheckpoint(21, undefined, false)).toEqual({ block: 5, remaining: 5 });
+});
+
+it('usa os mesmos sete dias no gráfico e na taxa de acertos e ignora registros futuros', async () => {
+  const now = new Date(2020, 5, 14, 15);
+  const row = { cardId: 'audit-stats', dim: 'literal', type: 'cloze-mc', rating: 3, ms: 30_000, mode: 'memorizar' } as const;
+  await db.reviews.bulkAdd([
+    { ...row, at: +new Date(2020, 5, 7, 16), correct: false },
+    { ...row, at: +new Date(2020, 5, 8, 0), correct: true },
+    { ...row, at: +new Date(2020, 5, 13, 12), correct: true },
+    { ...row, at: +new Date(2020, 5, 14, 16), correct: false },
+  ]);
+  try {
+    expect(await getStats(now)).toMatchObject({ todayCount: 0, todayMs: 0, streak: 1, accuracy7: 1,
+      lastPracticeAt: +new Date(2020, 5, 13, 12) });
+    expect((await getStats(now)).days.map(({ ms }) => ms)).toEqual([30_000, 0, 0, 0, 0, 30_000, 0]);
+  } finally { await db.reviews.where('cardId').equals(row.cardId).delete(); }
 });
 
 it('recomeça um treino infinito de um único exercício, mesmo com a revisão agendada', async () => {

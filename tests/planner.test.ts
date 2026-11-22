@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { initCorpus } from '../src/data/corpus';
 import { db } from '../src/data/db';
+import { importBackup } from '../src/data/backup';
 import {
   getPlanner, getPlannerTask, plannerConfig, plannerGoalOn, plannerProgress, plannerTaskKey,
   recordPlannerExercise, redistribution, savePlanner, type PlannerTask, type StudyGoal,
@@ -87,6 +88,19 @@ it('troca uma questão retirada sem zerar o que já foi feito na meta', async ()
 it('mantém a área e a disciplina do edital nas sessões do Planner', () => {
   const goal: StudyGoal = { kind: 'law', target: 10, scope: { kind: 'curso', area: 'tjsp', topico: '6. Legislação Interna' } };
   expect(plannerConfig('2026-11-22', goal)).toMatchObject({ area: 'tjsp', focus: 'topico:6. Legislação Interna' });
+});
+
+it('recusa a meta zero e permite restaurar uma semana válida sobre um Planner danificado', async () => {
+  const saved = { since: '2026-11-22', days: [civilLaw, null, null, null, null, null, null], carry: {} };
+  const invalid = { ...saved, days: [{ ...civilLaw, target: 0 }, ...saved.days.slice(1)] };
+  const restore = (value: unknown) => importBackup({ text: async () => JSON.stringify({
+    app: 'LEX', version: 3, kv: [{ key: 'studyPlanner', value }],
+  }) });
+  await expect(restore(invalid)).rejects.toThrow('Planner inválido');
+  await db.kv.put({ key: 'studyPlanner', value: invalid });
+  expect(await getPlanner()).toBeNull();
+  await restore(saved);
+  expect(await getPlanner()).toEqual(saved);
 });
 
 it('acompanha todos os itens do módulo de doutrina escolhido para a meta', async () => {

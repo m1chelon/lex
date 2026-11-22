@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Progress, Segmented, Sheet, useAsync } from '../ui/primitives';
+import { Progress, Segmented, Sheet, useLiveAsync } from '../ui/primitives';
 import { nav } from '../ui/nav';
 import { haptic, setSettings, useSettings } from '../ui/settings';
 import { ISliders, IPunch, ICheck, IChevR, IClock, IFlame, IPlay, ITarget, IHistory, IInfo, ILayers, IBell, IStudy, IBrain, IPuzzle, ITrophy, ICompare, IMap, IBolt, ITomato, ISearch, IClipboard, IBook, ICalendar, ICart } from '../ui/icons';
@@ -95,7 +95,7 @@ export function Home() {
   const settings = useSettings();
   const plan = usePlan();
   const planConfig = useMemo(() => plan ? planToConfig(plan) : null, [plan, settings.provarMix]);
-  const recentPlans = useAsync(recentSequences, []) ?? [];
+  const recentPlans = useLiveAsync(recentSequences, []) ?? [];
   const sequence = planConfig && !planConfig.blitz && plan?.mode !== 'simulado' && planConfig.order !== 'misturado'
     ? recentPlans.find(({ config }) => config.area === planConfig.area && config.focus === planConfig.focus
       && config.mode === planConfig.mode && (config.mode !== 'provar' || config.mix === planConfig.mix))
@@ -107,16 +107,16 @@ export function Home() {
   const goalProgress = goal && planner.task ? plannerProgress(planner.task, goal.target) : null;
   const goalDone = !!goal && (goalProgress?.completed ?? 0) >= goal.target;
   const reviewMinute = Math.floor(now.getTime() / 60_000);
-  const reviews = useAsync(() => reviewQueue().catch(() => null), [reviewMinute]);
+  const reviews = useLiveAsync(() => reviewQueue().catch(() => null), [reviewMinute]);
   const [shelf, setShelf] = useState<'continue' | 'review'>();
   const [reviewLimit, setReviewLimit] = useState(24);
   const dailyConfig = useMemo<SessionConfig>(() => ({
     ...(plan ? planToConfig(plan) : { area: settings.area, focus: settings.area === 'geral' ? 'law:cf' : 'auto' }),
     mode: 'memorizar', minutes: 7, infinite: false, blitz: false, activity: 'daily', title: 'Treino de hoje',
   }), [plan, settings.area]);
-  const stats = useAsync(getStats, [v]);
-  const career = useAsync(getCareer, [v]);
-  const pending = useAsync(() => loadSession().catch(() => null), []);
+  const stats = useLiveAsync(getStats, [reviewMinute]);
+  const career = useLiveAsync(getCareer, []);
+  const pending = useLiveAsync(() => loadSession().catch(() => null), []);
   const unfinished = pending && pending.index < pending.items.length && !pending.finishedAt ? pending : null;
   const answeredCount = unfinished?.results.filter((r) => r.correct !== null).length ?? 0;
   const questionCount = unfinished?.items.filter(isStudyQuestion).length ?? 0;
@@ -130,15 +130,23 @@ export function Home() {
   const [moodOpen, setMoodOpen] = useState(false);
   const [pomo, setPomo] = useState(false);
   const [pv, setPv] = useState(0);
-  const todo = useAsync(() => getPending(stats), [stats, v, pv]) ?? [];
+  const todo = useLiveAsync(() => getPending(stats), [stats, v, pv, reviewMinute, settings]) ?? [];
   useEffect(() => { updateAppBadge(todo.filter((p) => p.id !== 'tour' && p.id !== 'weather').length); }, [todo]);
   // check-in do fim do dia: abre sozinho no máximo uma vez por dia, a partir das 19h
+  const moodDue = now.getHours() >= 19 && todo.some((p) => p.id === 'mood');
   useEffect(() => {
-    if (new Date().getHours() < 19 || !todo.some((p) => p.id === 'mood')) return;
+    if (!moodDue) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     void Promise.all([kvGet('moodAsked', ''), kvGet('tourDone', false)]).then(([d, tourDone]) => {
-      if (d !== dayKey() && tourDone && !document.querySelector('.tour')) { void kvSet('moodAsked', dayKey()); setTimeout(() => setMoodOpen(true), 900); }
+      if (!active || d === calendarDay || !tourDone || document.querySelector('.tour')) return;
+      timer = setTimeout(() => {
+        void kvSet('moodAsked', calendarDay);
+        setMoodOpen(true);
+      }, 900);
     });
-  }, [todo.length]); // eslint-disable-line
+    return () => { active = false; clearTimeout(timer); };
+  }, [moodDue, calendarDay]);
 
   /** Começa com o plano atual (com ajustes); sem plano, abre a configuração do treino. */
   const play = (over: Partial<SessionConfig> = {}) => {

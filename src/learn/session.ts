@@ -16,7 +16,7 @@ import { buildPairDrill } from './pairDrills';
 import { latestReviews, reviewQueue } from './reviewQueue';
 import { buildDoctrineSession, doctrineExercise, doctrinePlannerGroups, isCurrentDoctrineQuestion, type DoctrineScope } from './doctrineCourses';
 import { dayKey } from './mood';
-import { getPlannerTask, plannerProgress, plannerTaskKey, type PlannerTask, type StudyGoal } from './planner';
+import { getPlannerTask, isPlannedSession, plannerProgress, plannerTaskKey, type PlannerTask, type StudyGoal } from './planner';
 import { scopeToFocus } from './plan';
 
 export type Mode = 'aprender' | 'memorizar' | 'casos' | 'provar';
@@ -677,6 +677,7 @@ export function readSavedSession(value: unknown): SessionState | null {
   const saved = value as SessionState | null;
   if (!saved?.config || typeof saved.id !== 'string' || !Number.isFinite(saved.startedAt)
     || typeof saved.config.focus !== 'string' || !['aprender', 'memorizar', 'casos', 'provar'].includes(saved.config.mode)
+    || (saved.config.activity === 'planner' && !isPlannedSession(saved.config.planner))
     || !Array.isArray(saved.items) || !Array.isArray(saved.results)
     || !Number.isInteger(saved.index) || saved.index < 0 || saved.index > saved.items.length
     || (saved.draft != null && (!Array.isArray(saved.draft) || !saved.draft.every((id) => typeof id === 'string')))

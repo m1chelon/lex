@@ -1,3 +1,4 @@
+import { liveQuery } from 'dexie';
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -129,4 +130,14 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]): T | undefine
   const [v, setV] = useState<T>();
   useEffect(() => { let alive = true; fn().then((x) => alive && setV(x)).catch(() => {}); return () => { alive = false; }; }, deps); // eslint-disable-line
   return v;
+}
+
+/** Atualiza as consultas de progresso quando o IndexedDB muda, inclusive em outra aba. */
+export function useLiveAsync<T>(fn: () => Promise<T>, deps: unknown[]): T | undefined {
+  const [value, setValue] = useState<T>();
+  useEffect(() => {
+    const subscription = liveQuery(fn).subscribe({ next: setValue, error: () => setValue(undefined) });
+    return () => subscription.unsubscribe();
+  }, deps);
+  return value;
 }

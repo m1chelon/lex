@@ -1,9 +1,9 @@
 import { liveQuery } from 'dexie';
 import { useEffect, useState } from 'react';
 import { PUBLISHED_DOCTRINE_COURSES } from '../content/doctrineCatalog';
-import { db, kvGet } from '../data/db';
+import { db } from '../data/db';
 import { dayKey } from './mood';
-import { scopeLabel, scopeToFocus, type PlanScope } from './plan';
+import { isPlanScope, scopeLabel, scopeToFocus, type PlanScope } from './plan';
 import type { SessionConfig } from './session';
 
 export type StudyGoal =
@@ -38,7 +38,33 @@ export function plannerDate(day: string, offset = 0) {
 export const weekday = (date: Date) => (date.getDay() + 6) % 7;
 export const plannerDateKey = (day: string, offset: number) => dayKey(plannerDate(day, offset));
 export const weekStart = (day: string) => plannerDateKey(day, -weekday(plannerDate(day)));
-export const getPlanner = () => kvGet<StudyPlanner | null>(KEY, null);
+function isPlannerDay(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && plannerDateKey(value, 0) === value;
+}
+
+function isStudyGoal(value: unknown): value is StudyGoal {
+  const goal = value as StudyGoal | null;
+  if (!goal || !Number.isSafeInteger(goal.target) || goal.target < 1) return false;
+  if (goal.kind === 'law') return isPlanScope(goal.scope);
+  if (goal.kind === 'doctrine') return typeof goal.courseId === 'string' && (goal.unit === 'questions' || goal.unit === 'modules');
+  return goal.kind === 'review';
+}
+
+const validWeek = (days: unknown) => Array.isArray(days) && days.length === 7 && days.every((goal) => goal === null || isStudyGoal(goal));
+
+export function readStudyPlanner(value: unknown): StudyPlanner | null {
+  const saved = value as StudyPlanner | null;
+  if (!saved || !isPlannerDay(saved.since) || !validWeek(saved.days)
+    || (saved.movedThrough !== undefined && !isPlannerDay(saved.movedThrough))) return null;
+  if (saved.past !== undefined && (!Array.isArray(saved.past) || !saved.past.every((entry) => entry
+    && isPlannerDay(entry.from) && isPlannerDay(entry.to) && entry.from <= entry.to && validWeek(entry.days)))) return null;
+  const carry = saved.carry ?? {};
+  if (typeof carry !== 'object' || Array.isArray(carry)
+    || Object.entries(carry).some(([day, count]) => !isPlannerDay(day) || !Number.isSafeInteger(count) || count < 0)) return null;
+  return saved.carry ? saved : { ...saved, carry };
+}
+
+export const getPlanner = () => db.kv.get(KEY).then((row) => readStudyPlanner(row?.value)).catch(() => null);
 
 export function plannerGoalOn(planner: StudyPlanner, day: string) {
   const days = day >= planner.since ? planner.days : planner.past?.find(({ from, to }) => from <= day && day <= to)?.days;
@@ -67,7 +93,20 @@ function goalKey(goal: StudyGoal) {
 }
 
 export const plannerTaskKey = (day: string, goal: StudyGoal) => TASK_PREFIX + day + ':' + goalKey(goal);
-export const getPlannerTask = (key: string) => kvGet<PlannerTask | null>(key, null);
+export function readPlannerTask(value: unknown, key: string): PlannerTask | null {
+  const task = value as PlannerTask | null;
+  if (!task || !isPlannerDay(task.day) || !isStudyGoal(task.goal) || plannerTaskKey(task.day, task.goal) !== key
+    || !Array.isArray(task.groups) || !Array.isArray(task.done)) return null;
+  if (!task.done.every((id) => typeof id === 'string') || !task.groups.every((group) => group
+    && typeof group.id === 'string' && Array.isArray(group.keys) && group.keys.length > 0
+    && group.keys.every((id) => typeof id === 'string'))) return null;
+  return task;
+}
+export function isPlannedSession(value: unknown): boolean {
+  const config = value as NonNullable<SessionConfig['planner']> | null;
+  return !!config && isPlannerDay(config.day) && isStudyGoal(config.goal);
+}
+export const getPlannerTask = (key: string) => db.kv.get(key).then((row) => readPlannerTask(row?.value, key)).catch(() => null);
 
 export async function savePlanner(days: StudyPlanner['days'], today: string) {
   await db.transaction('rw', db.kv, async () => {
@@ -95,7 +134,7 @@ function taskCounts(task: PlannerTask, limit: number) {
 export const plannerProgress = (task: PlannerTask, limit = task.goal.target) => taskCounts(task, limit);
 
 export async function recordPlannerExercise(taskId: string, key: string) {
-  const task = (await db.kv.get(taskId))?.value as PlannerTask | undefined;
+  const task = readPlannerTask((await db.kv.get(taskId))?.value, taskId);
   if (task && !task.done.includes(key)) {
     await db.kv.put({ key: taskId, value: { ...task, done: [...task.done, key] } satisfies PlannerTask });
   }
@@ -153,7 +192,12 @@ export async function applyRedistribution(plan: StudyPlanner, today: string) {
 
 async function readPlannerTasks() {
   const rows = await db.kv.where('key').startsWith(TASK_PREFIX).toArray();
-  return new Map(rows.map(({ key, value }) => [key, value as PlannerTask]));
+  const tasks = new Map<string, PlannerTask>();
+  for (const { key, value } of rows) {
+    const task = readPlannerTask(value, key);
+    if (task) tasks.set(key, task);
+  }
+  return tasks;
 }
 
 export function usePlanner(today: string, history = false) {
