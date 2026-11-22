@@ -13,9 +13,7 @@ Aplicação web (feita para o navegador do celular, com funcionamento offline) q
 | `npm run build` | Tipagem + validação + build (pasta `dist/`, arquivos estáticos) |
 | `npm run dev` | Servidor de desenvolvimento |
 | `npm run doutrina` | Indexa o acervo doutrinário por artigo e gera o arquivo pessoal `lex-doutrina.json` (para importar no app em Você → Doutrina) |
-| `npm run build:public` | Entrada do GitHub Pages (`dist-public/`), com link para o jogo privado e exportação do progresso local |
-
-O jogo usa `VITE_LEX_PIN_SALT` e `VITE_LEX_PIN_HASH` nos builds privados. Use um sal hexadecimal com 32 caracteres e o SHA-256 hexadecimal de `sal:PIN`, gravados em um arquivo de ambiente local. O controle de acesso por conta é feito pela hospedagem da versão privada.
+| `npm run build:public` | Compila o jogo para o GitHub Pages (`dist-public/`). Os acervos doutrinários pessoais são importados no aparelho em Perfil → Doutrina |
 
 ## Áreas e modos (versão atual)
 

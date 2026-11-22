@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { eraseProfileData, importBackup } from '../data/backup';
 import { exportBackup } from '../data/profileBackup';
-import { lockLex } from '../data/access';
 import { activeProfile } from '../data/profiles';
 import { Segmented, Sheet, toast, useAsync } from '../ui/primitives';
 import { setSettings, useSettings, haptic } from '../ui/settings';
@@ -139,7 +138,6 @@ export function Me() {
 
       <div className="caps" style={{ margin: '8px 4px 0' }}>Dados</div>
       <div className="list">
-        <button className="list-item" onClick={lockLex}><IShieldLock /><div className="grow">Bloquear o LEX</div></button>
         <button className="list-item" onClick={() => nav.push({ name: 'admin' })}><IShield style={{ color: 'var(--gold)' }} /><div className="grow"><div style={{ fontWeight: 620 }}>Fontes, cobertura e integridade</div><div className="xsmall muted">Painel administrativo de importação</div></div><IChevR className="chev" /></button>
         <button className="list-item" onClick={exportData}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#5fd3c4,#2bb5a8)' }}><IDownload size={18} /></span><div className="grow">Exportar backup do progresso</div></button>
         <button className="list-item" type="button" onClick={() => backupInput.current?.click()}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#8fd16a,#4fae3c)' }}><IUpload size={18} /></span><div className="grow">Restaurar backup</div></button>

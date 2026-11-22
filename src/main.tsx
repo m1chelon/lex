@@ -10,10 +10,9 @@ import './styles/atmosphere.css';
 import './styles/capi-shop.css';
 import { App } from './App';
 import { CapiWardrobe } from './ui/CapiWardrobe';
-import { AccessGate } from './ui/AccessGate';
 
 try { if (window.self !== window.top) document.documentElement.dataset.framed = '1'; } catch { document.documentElement.dataset.framed = '1'; }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><AccessGate><CapiWardrobe><App /></CapiWardrobe></AccessGate></StrictMode>,
+  <StrictMode><CapiWardrobe><App /></CapiWardrobe></StrictMode>,
 );
