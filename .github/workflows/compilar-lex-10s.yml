@@ -1,0 +1,29 @@
+name: Compilar Memorização Guiada
+on:
+  pull_request:
+    branches: [codigo-fonte]
+    types: [opened]
+    paths: [.github/workflows/compilar-lex-10s.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.head_ref == 'compilacao-memorizacao-10s' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run build:public
+      - name: Recuperar o JavaScript público já verificado
+        run: |
+          file=dist-public/assets/index-DUDmGCQn.js
+          test "$(git hash-object "$file")" = 54c4e1259e0fa8e67b278d44bb25191f1406cd02
+          base64 -w 4096 "$file" | sed 's/^/LEX-DATA /'
+          printf '\n'
