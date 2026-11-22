@@ -5,10 +5,10 @@ import { trapNote } from '../content/traps';
 import { isDue, regradeAsGuess } from '../learn/scheduler';
 import { getCareer, careerFor, xpFor } from '../learn/career';
 import { motion } from 'motion/react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { BLITZ_SECONDS, blitzDeadline, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, pendingSessionErrors, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, sessionDeadline, sessionInProgress, type SessionConfig, type SessionState } from '../learn/session';
 import { findTargets, shuffledOrderItems, type Exercise, type Seg } from '../learn/generators';
-import { savePlan, type Plan } from '../learn/plan';
+import { GUIDED_MEMORY_SECONDS, savePlan, type Plan } from '../learn/plan';
 import { recordAnswer, markSeen } from '../learn/scheduler';
 import { checkTyped, shuffle, rng, fold } from '../learn/text';
 import { db, kvGet, kvSet, type CardRow } from '../data/db';
@@ -513,7 +513,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
   const [preview, setPreview] = useState<{ key: string; second: number } | null>(null);
   const previewSecond = preview && preview.key === previewKey ? preview.second : 1;
   const previewArticle = previewKey && ex?.articleId ? getArticle(ex.articleId)?.art : undefined;
-  const readingPreview = !!previewArticle && previewSecond <= 3;
+  const readingPreview = !!previewArticle && previewSecond <= GUIDED_MEMORY_SECONDS;
   useEffect(() => {
     if (!active || !readingPreview || !previewKey) return;
     const started = performance.now();
@@ -521,10 +521,10 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
     const tick = () => {
       const elapsed = performance.now() - started;
       const second = Math.floor(elapsed / 1000) + 1;
-      if (second > 3) {
+      if (second > GUIDED_MEMORY_SECONDS) {
         shownAt.current = Date.now();
         questionBody.current?.scrollTo({ top: 0 });
-        setPreview({ key: previewKey, second: 4 });
+        setPreview({ key: previewKey, second: GUIDED_MEMORY_SECONDS + 1 });
       } else {
         setPreview({ key: previewKey, second });
         timer = window.setTimeout(tick, second * 1000 - elapsed);
@@ -775,7 +775,8 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
         </div>
         {readingPreview && (
           <div className="row memory-clock">
-            <span className="memory-clock-face" data-second={previewSecond} role="timer" aria-label={`Segundo ${previewSecond} de 3`}>
+            <span className="memory-clock-face" role="timer" aria-label={`Segundo ${previewSecond} de ${GUIDED_MEMORY_SECONDS}`}
+              style={{ '--clock-fill': `${previewSecond * 100 / GUIDED_MEMORY_SECONDS}%` } as CSSProperties}>
               <span aria-hidden="true">{previewSecond}</span>
             </span>
             <span className="small"><ITimer size={16} /> Memorize o artigo</span>

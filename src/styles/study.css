@@ -242,7 +242,6 @@
 .memory-clock { margin-top: 8px; gap: 9px; }
 .memory-clock .small { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); }
 .memory-clock-face {
-  --clock-fill: 33.333%;
   flex: none;
   display: grid;
   place-items: center;
@@ -255,8 +254,6 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.memory-clock-face[data-second="2"] { --clock-fill: 66.667%; }
-.memory-clock-face[data-second="3"] { --clock-fill: 100%; }
 .memory-clock-face span {
   display: grid;
   place-items: center;

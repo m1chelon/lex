@@ -13,10 +13,12 @@ export type PlanScope =
   | { kind: 'curso'; area: Exclude<AreaId, 'geral'>; topico?: string; law?: string };
 export interface Plan { scope: PlanScope; mode: PlanMode; minutes: number | 'inf'; order?: Order }
 
+export const GUIDED_MEMORY_SECONDS = 10;
+
 export const MODE_INFO: Record<PlanMode, { label: string; desc: string }> = {
   aprender: { label: 'Leitura Guiada', desc: 'Leia a lei com os trechos essenciais destacados.' },
   memorizar: { label: 'Memorizar', desc: 'Complete duas ou três lacunas curtas no dispositivo.' },
-  'memorizar-guiada': { label: 'Memorizar Guiada', desc: 'Leia o artigo completo por três segundos e preencha as lacunas.' },
+  'memorizar-guiada': { label: 'Memorizar Guiada', desc: `Leia o artigo completo por ${GUIDED_MEMORY_SECONDS} segundos e preencha as lacunas.` },
   casos: { label: 'Casos', desc: 'Situações práticas: identifique o instituto, o crime ou a consequência.' },
   provar: { label: 'Provar', desc: 'Nível de prova: digite as lacunas da lei seca e pratique com casos.' },
   relampago: { label: 'Relâmpago', desc: '20 questões, 10 segundos cada. Treino sob pressão.' },

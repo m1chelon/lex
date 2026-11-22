@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { RAMOS, areaLaws, lawsByRamo, type AreaId } from '../core/areas';
 import { SOURCES, type Ramo } from '../core/sources';
 import { getLaw, getManifest } from '../data/corpus';
-import { COURSE_NAME, MODE_INFO, courseTopics, getPlan, planLabel, planToConfig, savePlan, scopeToFocus, topicoLabel, type Plan, type PlanMode, type PlanScope } from '../learn/plan';
+import { COURSE_NAME, GUIDED_MEMORY_SECONDS, MODE_INFO, courseTopics, getPlan, planLabel, planToConfig, savePlan, scopeToFocus, topicoLabel, type Plan, type PlanMode, type PlanScope } from '../learn/plan';
 import { DEFAULT_ARTICLE_ORDER, loadSession } from '../learn/session';
 import { Flag } from '../ui/Flags';
 import { TINT } from '../ui/IconTile';
@@ -17,7 +17,7 @@ import { SimuladoFields, SimuladoHistory, useSimuladoSetup } from './Simulado';
 const MODES = {
   aprender: { Icon: IStudy, tint: TINT.teal, label: 'Artigos com pontos-chave destacados' },
   memorizar: { Icon: IBrain, tint: TINT.violet, label: 'Duas ou três lacunas por questão' },
-  'memorizar-guiada': { Icon: IBrain, tint: TINT.teal, label: 'Artigo completo por 3 s antes das lacunas' },
+  'memorizar-guiada': { Icon: IBrain, tint: TINT.teal, label: `Artigo completo por ${GUIDED_MEMORY_SECONDS} s antes das lacunas` },
   casos: { Icon: IPuzzle, tint: TINT.orange, label: 'Situações práticas' },
   provar: { Icon: ITarget, tint: TINT.rose, label: 'Digite a resposta da lei seca' },
   relampago: { Icon: IBolt, tint: TINT.gold, label: '20 questões rápidas' },
