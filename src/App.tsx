@@ -62,7 +62,7 @@ function RouteScreen({ r, active }: { r: Route; active: boolean }) {
     case 'ramo': return <RamoScreen ramo={r.ramo} />;
     case 'biblioteca': return <LawLibraryScreen />;
     case 'article': return <ArticleScreen id={r.id} unitId={r.unitId} />;
-    case 'session': return <SessionScreen active={active} resume={r.resume} config={r.config} plan={r.plan} />;
+    case 'session': return <SessionScreen active={active} resume={r.resume} config={r.config} plan={r.plan} retryItems={r.retryItems} />;
     case 'lesson': return <LessonScreen id={r.id} />;
     case 'compare': return <CompareScreen id={r.id} />;
     case 'glossary': return <GlossaryScreen />;

@@ -1,25 +1,25 @@
 // Simulados: lei seca (5 alternativas), Certo/Errado (estilo CEBRASPE) e casos (estilo FGV).
 import type { Article, LawDoc, Unit } from '../core/types';
 import { coverage, ensureLaws, getArticle } from '../data/corpus';
-import { db, kvGet } from '../data/db';
-import { buildLiteral, canTrainArticle, unitPath } from './generators';
+import { db, DIMS, kvGet, type Dim } from '../data/db';
+import { buildLiteral, canTrainArticle, findTargets, unitContext, unitPath, type Exercise } from './generators';
 import { buildCaseIdentify, buildCasePena } from './cases';
-import { literalMutations, meaningMutations, type Mutation } from './mutations';
+import { meaningMutations, type Mutation } from './mutations';
 import { scopeArticles, scopeLaws, conceptExercise, conceptInScope, type SessionConfig } from './session';
 import { areaLaws, EDITAL_TJMS, type AreaId } from '../core/areas';
 import { EDITAL } from '../core/sources';
 import { topicoLabel } from './plan';
 import { CONCEPTS } from '../content/concepts';
 import { loadCalibration, recordAnswer } from './scheduler';
-import { hashStr, normAnswer, rng, shuffle } from './text';
+import { hashStr, rng, shuffle } from './text';
 
 export type Estilo = 'leiseca' | 'cebraspe' | 'fgv';
 export interface SimOption { id: string; text: string; correct: boolean; why?: string }
 export interface Questao {
   id: string; estilo: Estilo; lawId?: string; articleId?: string; unitId?: string; conceptId?: string;
-  where?: string; enunciado: string; contexto?: string; texto?: string;
+  where?: string; enunciado: string; contexto?: string; contextoLegal?: string; texto?: string;
   disciplina?: string; bloco?: string;
-  options?: SimOption[]; ce?: 'C' | 'E'; mutation?: Mutation; officialText?: string;
+  options?: SimOption[]; ce?: 'C' | 'E'; mutation?: Mutation; officialText?: string; target?: string; dim?: Dim;
 }
 export interface Simulado {
   id: string; estilo: Estilo; area?: AreaId; edital?: 'tjsp' | 'tjms'; n: number; tempoMin: number | null; createdAt: number; title: string;
@@ -48,31 +48,25 @@ export const editalQuestionCount = (area: 'tjsp' | 'tjms') => EDITAL_SIMULADO[ar
 
 const L = 'ABCDE';
 
-function unitsOf(art: Article): Unit[] { return art.units.filter((u) => u.t && !u.rev && u.t.length > 25); }
+function unitsOf(art: Article): Unit[] { return art.units.filter((u) => !u.rev && findTargets(u).length); }
 
 function qLeiSeca(law: LawDoc, art: Article, u: Unit, seed: string): Questao | null {
   const r = rng(seed);
   const where = `${law.short}, ${unitPath(art, u)}`;
-  const lacuna = () => {
-    for (const dim of ['prazos', 'penas', 'excecoes', 'literal'] as const) {
-      const ex = buildLiteral(law, art, u, dim, 1, 'memorizar', seed, 5);
-      if (ex?.kind !== 'cloze-mc' || !ex.options) continue;
-      const texto = ex.stem.map((part) => part.blank ? '________' : part.t).join('');
-      const options = ex.options.map((o) => ({ ...o, why: o.correct ? 'É a expressão exata da lei.' : `A lei não usa “${o.text}” neste ponto.` }));
-      return { id: `S:${u.id}:B:${dim}`, estilo: 'leiseca' as const, lawId: law.id, articleId: art.id, unitId: u.id, where, enunciado: 'Assinale a alternativa que preenche corretamente a lacuna.', texto, options, officialText: u.t };
-    }
-    return null;
-  };
-
-  const textoIntegral = () => {
-    const candidates = [...meaningMutations(law, u, seed), ...literalMutations(u)];
-    const mutations = [...new Map(candidates.map((change) => [normAnswer(change.text), change])).values()];
-    if (mutations.length < 4) return null;
-    const wrong = shuffle(mutations, r).slice(0, 4).map((change, i) => ({ id: `m${i}`, text: change.text, correct: false, why: change.note }));
-    const options = shuffle([{ id: 'ok', text: u.t, correct: true, why: 'Reproduz exatamente o texto oficial.' }, ...wrong], r);
-    return { id: `S:${u.id}:A`, estilo: 'leiseca' as const, lawId: law.id, articleId: art.id, unitId: u.id, where, enunciado: `Qual alternativa reproduz a redação oficial? (${where})`, options, officialText: u.t };
-  };
-  return r() < 0.6 ? textoIntegral() ?? lacuna() : lacuna() ?? textoIntegral();
+  const base = { estilo: 'leiseca' as const, lawId: law.id, articleId: art.id, unitId: u.id, where, officialText: u.t,
+    contextoLegal: unitContext(art, u).map(({ t }) => t).join('').trim() || undefined };
+  for (const target of findTargets(u)) {
+    const ex = buildLiteral(law, art, u, target.dim, 1, 'memorizar', seed, 5, target.text);
+    if (!ex?.options) continue;
+    const texto = ex.stem.slice(1).map((part) => part.blank ? '________' : part.t).join('');
+    const options = ex.options.map((o) => ({ ...o, why: o.why ?? (o.correct ? 'É a regra expressa nesse dispositivo.' : `O dispositivo estabelece “${ex.answer}”.`) }));
+    return { ...base, id: `S:${u.id}:B:${ex.dim}`, enunciado: ex.prompt, texto, options, target: ex.answer, dim: ex.dim };
+  }
+  const mutations = meaningMutations(law, u, seed).slice(0, 4);
+  if (mutations.length < 4) return null;
+  const wrong = mutations.map((change, i) => ({ id: `m${i}`, text: change.text, correct: false, why: change.note }));
+  const options = shuffle([{ id: 'ok', text: u.t, correct: true, why: 'Reproduz exatamente o texto oficial.' }, ...wrong], r);
+  return { ...base, id: `S:${u.id}:A`, enunciado: 'Qual alternativa reproduz a regra deste dispositivo?', options };
 }
 
 function qCebraspe(law: LawDoc, art: Article, u: Unit, seed: string): Questao | null {
@@ -81,9 +75,14 @@ function qCebraspe(law: LawDoc, art: Article, u: Unit, seed: string): Questao | 
   const muts = meaningMutations(law, u, seed);
   if (!muts.length) return null;
   const alter = r() < 0.5;
-  const m = alter ? muts[Math.floor(r() * muts.length)] : undefined;
+  const mostRelevant = muts.filter((mutation) => mutation.priority === muts[0].priority);
+  const m = alter ? mostRelevant[Math.floor(r() * mostRelevant.length)] : undefined;
   const text = m ? m.text : u.t;
-  return { id: `S:${u.id}:CE`, estilo: 'cebraspe', lawId: law.id, articleId: art.id, unitId: u.id, where, enunciado: 'Julgue o item com base no dispositivo indicado.', texto: `Segundo o ${unitPath(art, u)}, ${text.charAt(0).toLowerCase()}${text.slice(1)}`, ce: m ? 'E' : 'C', mutation: m, officialText: u.t };
+  return { id: `S:${u.id}:CE`, estilo: 'cebraspe', lawId: law.id, articleId: art.id, unitId: u.id, where,
+    enunciado: 'Julgue a regra apresentada para o dispositivo indicado.', texto: text, ce: m ? 'E' : 'C',
+    contextoLegal: unitContext(art, u).map(({ t }) => t).join('').trim() || undefined,
+    mutation: m, officialText: u.t, target: (m ?? mostRelevant[0]).from, dim: (m ?? mostRelevant[0]).dim,
+  };
 }
 
 async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, seed: number, excluded = new Set<string>(), fiveChoices = false) {
@@ -119,7 +118,8 @@ async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, s
         const ex = (pass % 2 === 0 ? buildCaseIdentify : buildCasePena)(hit.law, hit.art, s) ?? buildCaseIdentify(hit.law, hit.art, s);
         if (ex) q = { id: `S:${ex.key}`, estilo, lawId: hit.law.id, articleId: id, where: ex.where, enunciado: ex.prompt, contexto: ex.context?.map((c) => c.t).join(' '), texto: ex.stem.map((c) => c.t).join(''), options: ex.options!.map((o) => ({ ...o })) };
       } else {
-        const us = shuffle(unitsOf(hit.art), rng(s));
+        const us = shuffle(unitsOf(hit.art), rng(s)).sort((a, b) =>
+          (findTargets(b)[0]?.priority ?? 0) - (findTargets(a)[0]?.priority ?? 0));
         for (const u of us) { q = estilo === 'leiseca' ? qLeiSeca(hit.law, hit.art, u, s) : qCebraspe(hit.law, hit.art, u, s); if (q && !used.has(q.id) && (!fiveChoices || q.options?.length === 5)) break; q = null; }
       }
       if (q && add(q)) usedArt.set(id, (usedArt.get(id) ?? 0) + 1);
@@ -203,7 +203,7 @@ export function desempenhoDisciplinas(s: Simulado) {
     if (!q.disciplina) continue;
     const group = groups.get(q.disciplina) ?? { topic: q.disciplina, label: topicoLabel(q.disciplina), certas: 0, erradas: 0, branco: 0, total: 0 };
     const answer = s.respostas[q.id];
-    const correct = q.estilo === 'cebraspe' ? answer === q.ce : q.options?.some((option) => option.id === answer && option.correct);
+    const correct = isSimuladoAnswerCorrect(q, answer);
     group.total++;
     if (!answer) group.branco++;
     else if (correct) group.certas++;
@@ -212,6 +212,50 @@ export function desempenhoDisciplinas(s: Simulado) {
   }
   const loss = (group: { erradas: number; branco: number }) => group.erradas * (s.estilo === 'cebraspe' ? 2 : 1) + group.branco;
   return [...groups.values()].sort((a, b) => loss(b) - loss(a) || a.certas / a.total - b.certas / b.total);
+}
+
+export function isSimuladoAnswerCorrect(question: Questao, answer: string | undefined) {
+  if (!answer) return false;
+  return question.estilo === 'cebraspe' ? answer === question.ce
+    : !!question.options?.some((option) => option.id === answer && option.correct);
+}
+
+function simuladoDimension(question: Questao): Dim {
+  if (question.dim) return question.dim;
+  if (question.conceptId) return 'conceitual';
+  if (question.estilo === 'fgv') return 'aplicacao';
+  const [, , format, dimension] = question.id.split(':');
+  return format === 'B' && (dimension === 'prazos' || dimension === 'penas' || dimension === 'excecoes') ? dimension : 'literal';
+}
+
+export function simuladoErrors(s: Simulado): Exercise[] {
+  return s.questoes.flatMap((question) => {
+    const given = s.respostas[question.id];
+    if (!given || isSimuladoAnswerCorrect(question, given)) return [];
+    const ce = question.estilo === 'cebraspe';
+    const options = ce ? (['C', 'E'] as const).map((id) => ({
+      id, text: id === 'C' ? 'Certo' : 'Errado', correct: id === question.ce,
+      why: question.mutation?.note,
+    })) : question.options ?? [];
+    const correct = options.find((option) => option.correct);
+    if (!correct) return [];
+    const expected = question.target ?? correct.text;
+    const text = question.texto ?? '';
+    const blank = text.indexOf('________');
+    const cloze = question.estilo === 'leiseca' && blank >= 0 && question.id.split(':')[2] === 'B';
+    const context = question.contextoLegal ?? question.contexto;
+    return [{
+      key: question.conceptId ? `C:${question.conceptId}` : question.id,
+      kind: ce ? 'ce' : cloze ? 'cloze-mc' : question.estilo === 'fgv' && question.contexto ? 'case' : 'mc5',
+      dim: simuladoDimension(question), family: question.estilo === 'fgv' ? 'interpretacao' : 'literal',
+      lawId: question.lawId, articleId: question.articleId, unitId: question.unitId, conceptId: question.conceptId,
+      where: question.estilo === 'fgv' ? undefined : question.where,
+      prompt: question.enunciado, context: context ? [{ t: context }] : undefined,
+      stem: cloze ? [{ t: text.slice(0, blank) }, { t: expected, blank: true }, { t: text.slice(blank + 8) }] : text ? [{ t: text }] : [],
+      answer: ce ? correct.text : expected, options, altered: question.mutation,
+      expectedMs: 30_000, stage: 1,
+    } satisfies Exercise];
+  });
 }
 
 
@@ -273,16 +317,14 @@ export async function finishSimulado(id: string): Promise<Simulado> {
         const given = result.respostas[question.id];
         if (!given) continue;
         const answer = question.options?.find((option) => option.correct);
-        const [, , format, dimension] = question.id.split(':');
-        const dim = question.conceptId ? 'conceitual' : question.estilo === 'fgv' ? 'aplicacao'
-          : format === 'B' && (dimension === 'prazos' || dimension === 'penas' || dimension === 'excecoes') ? dimension : 'literal';
+        const [, , format] = question.id.split(':');
         await recordAnswer({
           cardId: question.conceptId ? `C:${question.conceptId}` : question.id,
-          base: { articleId: question.articleId, unitId: question.unitId, conceptId: question.conceptId, dim, type: 'simulado' },
-          correct: question.estilo === 'cebraspe' ? given === question.ce : given === answer?.id,
+          base: { articleId: question.articleId, unitId: question.unitId, conceptId: question.conceptId, dim: simuladoDimension(question), type: 'simulado' },
+          correct: isSimuladoAnswerCorrect(question, given),
           ms: 30000, expectedMs: 60000, mode: 'simulado', type: 'simulado',
           given: question.estilo === 'cebraspe' ? given : question.options?.find((option) => option.id === given)?.text,
-          expected: answer?.text, target: question.mutation?.from ?? (format === 'B' ? answer?.text : undefined),
+          expected: answer?.text, target: question.target ?? question.mutation?.from ?? (format === 'B' ? answer?.text : undefined),
         });
       }
       await db.kv.put({ key: `sim:${id}`, value: result });
@@ -305,8 +347,10 @@ export function readSavedSimulado(value: unknown, id: string): Simulado | null {
   const respostas: [string, string][] = [];
   for (const question of saved.questoes) {
     if (!question || typeof question.id !== 'string' || typeof question.enunciado !== 'string' || ids.has(question.id)) return null;
-    if (![question.contexto, question.texto, question.disciplina, question.officialText, question.mutation?.note]
+    if (![question.contexto, question.contextoLegal, question.texto, question.disciplina, question.officialText, question.target,
+      question.mutation?.note, question.mutation?.from, question.mutation?.to]
       .every((text) => text == null || typeof text === 'string')) return null;
+    if (question.dim != null && !DIMS.some(({ id }) => id === question.dim)) return null;
     if (question.estilo === 'cebraspe') {
       if (question.ce !== 'C' && question.ce !== 'E') return null;
     } else if ((question.estilo !== 'leiseca' && question.estilo !== 'fgv') || !Array.isArray(question.options)
@@ -332,7 +376,7 @@ export function corrigir(s: Simulado) {
   for (const q of s.questoes) {
     const a = s.respostas[q.id];
     if (!a) { branco++; continue; }
-    const ok = q.estilo === 'cebraspe' ? a === q.ce : q.options?.find((o) => o.id === a)?.correct;
+    const ok = isSimuladoAnswerCorrect(q, a);
     if (ok) certas++; else erradas++;
   }
   const liquida = s.estilo === 'cebraspe' ? certas - erradas : certas;

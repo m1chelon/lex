@@ -3,7 +3,8 @@
 import type { Article, LawDoc, Unit } from '../core/types';
 import type { Dim } from '../data/db';
 import { fold, normAnswer, rng, shuffle } from './text';
-import { hasSynonyms, isTrapWord, synonymsOf } from './synonyms';
+import { legalContrastsOf } from './synonyms';
+import { amountAlternatives, findLegalAmounts, type LegalAmount } from './thresholds';
 
 export type ExKind = 'read' | 'cloze-mc' | 'cloze-type' | 'tf' | 'order' | 'which-article' | 'rubric' | 'concept' | 'doctrine' | 'case' | 'lesson' | 'term' | 'mc5' | 'ce' | 'spot' | 'cloze-multi';
 
@@ -34,181 +35,217 @@ export interface Exercise {
   expectedMs: number;
   stage: number;
   practice?: 'revisao' | 'revanche' | 'nova';
+  priority?: number;
   where?: string; // localização do dispositivo: "EFP-SP · Artigo 241, inciso II"
   /** 'cloze-multi': lacunas na ordem do texto, cada uma com suas alternativas. */
   blanks?: { answer: string; options: string[] }[];
 }
 
 // ---------- extração de alvos ----------
-export const RE_PRAZO = /\b\d{1,4}\s*\((?:[a-zà-ú]+(?:[\s-]e?[\s-]?[a-zà-ú]+)*)\)\s*(?:dias?|horas?|meses|m[eê]s|anos?|minutos|sess[õo]es)(?:\s+(?:úteis|corridos|consecutivos|ininterruptos))?|\b(?:(?:vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cento(?:\s+e\s+(?:vinte|oitenta))?)\s+e\s+)?(?:um|uma|dois|duas|três|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cento e vinte|cento e oitenta|cem|trezentos e sessenta e cinco)\s+(?:dias?|horas?|meses|m[eê]s|anos?)(?:\s+(?:úteis|corridos|consecutivos))?/gi;
-const RE_EXC = /\b(salvo|exceto|ressalvad[oa]s?|excetuad[oa]s?|n[ãa]o se aplica(?:m)?|sem preju[íi]zo|independentemente|a menos que|desde que|ainda que)\b/gi;
-const RE_PENA_CORE = /(reclus[ãa]o|deten[çc][ãa]o|multa)(?:(?<=\d)\.(?=\d)|[^.])*/i;
+const RE_PENA_CORE = /(?:reclusão|detenção|prisão simples|multa)[^;\n]*/iu;
+const RE_EXC = /(?<![\p{L}-])(?:ainda que informalmente|exceção feita|com exceção|não se aplicam?|somente se|a menos que|desde que|ainda que|exceto|salvo|ressalvad[oa]s?|excetuad[oa]s?)(?![\p{L}-])/giu;
 
-export const SWAPS: string[][] = [
+// Cada troca testa uma diferença jurídica identificável e conserva a função sintática.
+const RULE_GROUPS = [
   ['poderá', 'deverá'], ['poderão', 'deverão'], ['pode', 'deve'], ['podem', 'devem'],
-  ['é vedado', 'é permitido'], ['é vedada', 'é permitida'], ['vedado', 'permitido'], ['vedada', 'permitida'],
-  ['reclusão', 'detenção'], ['dolo', 'culpa'], ['dolosa', 'culposa'], ['doloso', 'culposo'],
-  ['maioria absoluta', 'maioria simples', 'dois terços', 'três quintos'],
-  ['dias úteis', 'dias corridos'], ['exclusivamente', 'preferencialmente'], ['obrigatoriamente', 'facultativamente'],
-  ['anterior', 'posterior'], ['máximo', 'mínimo'], ['superior', 'inferior'], ['privativamente', 'concorrentemente'],
-  ['imediatamente', 'oportunamente'], ['sempre', 'excepcionalmente'], ['Presidente do Tribunal', 'Corregedor Geral da Justiça'],
-  ['escrivão judicial', 'oficial de justiça'], ['juiz', 'escrivão'], ['citação', 'intimação'], ['citado', 'intimado'],
-  ['exoneração', 'demissão'], ['posse', 'exercício'], ['suspensão', 'repreensão'], ['advertência', 'repreensão'],
+  ['vedado', 'permitido'], ['vedada', 'permitida'], ['vedados', 'permitidos'], ['vedadas', 'permitidas'],
+  ['reclusão', 'detenção', 'prisão simples'],
+  ['dolo', 'culpa'], ['dolosa', 'culposa', 'preterdolosa'], ['doloso', 'culposo', 'preterdoloso'],
+  ['maioria absoluta', 'maioria simples', 'unanimidade'],
+  ['dia útil', 'dia corrido'], ['dias úteis', 'dias corridos'],
+  ['exclusivamente', 'preferencialmente'], ['obrigatoriamente', 'facultativamente'],
+  ['anterior', 'posterior'], ['anteriores', 'posteriores'], ['máximo', 'mínimo'], ['máxima', 'mínima'],
+  ['superior', 'inferior'], ['superiores', 'inferiores'], ['privativamente', 'concorrentemente'],
+  ['cumulativamente', 'alternativamente'], ['incluindo', 'excluindo'], ['incluído', 'excluído'], ['incluída', 'excluída'],
+  ['incluídos', 'excluídos'], ['imediatamente superior', 'imediatamente inferior'],
+  ['Presidente do Tribunal de Justiça', 'Vice-Presidente do Tribunal de Justiça', 'Corregedor Geral da Justiça'],
+  ['Presidência do Tribunal de Justiça', 'Corregedoria Geral da Justiça', 'Vice-Presidência do Tribunal de Justiça'],
+  ['Órgão Especial', 'Tribunal Pleno', 'Conselho Superior da Magistratura'],
+  ['escrivão judicial', 'oficial de justiça'],
+  ['interpretação extensiva', 'interpretação restritiva', 'interpretação literal'],
+  ['aplicação analógica', 'aplicação subsidiária', 'aplicação direta'],
+  ['ação penal pública incondicionada', 'ação penal pública condicionada à representação', 'ação penal privada'],
+  ['decisão interlocutória', 'sentença de mérito', 'decisão monocrática'],
+  ['tutela antecipada', 'tutela cautelar', 'tutela da evidência'],
+  ['tutelas provisórias', 'tutelas definitivas'],
+  ['recurso ordinário', 'recurso especial', 'recurso extraordinário'],
+  ['agravo de instrumento', 'agravo interno', 'recurso de apelação', 'recurso especial'],
+  ['citação', 'intimação'], ['citado', 'intimado'], ['citada', 'intimada'], ['citados', 'intimados'],
+  ['exoneração', 'demissão'], ['suspensão', 'repreensão', 'advertência'],
+  ['trânsito em julgado', 'julgamento em primeira instância', 'julgamento em segunda instância'],
+  ['dia do começo', 'dia do vencimento'],
+  ['auxílio-alimentação', 'auxílio-transporte'],
+  ['direta ou indiretamente', 'apenas diretamente', 'apenas indiretamente'],
+  ['primeiro ano do estágio probatório', 'segundo ano do estágio probatório', 'terceiro ano do estágio probatório'],
+  ['mensal', 'quinzenal', 'bimestral', 'trimestral', 'semestral'],
 ];
+const SWAPS = new Map<string, string[]>();
+for (const group of RULE_GROUPS) for (const term of group) {
+  const key = fold(term);
+  SWAPS.set(key, [...new Set([...(SWAPS.get(key) ?? []), ...group.filter((other) => fold(other) !== key)])]);
+}
 
-const KEY_WORDS = /\b(poder[áa]o?|dever[áa]o?|ser[áa]o?|n[ãa]o ser[áa]o?|vedad[oa]s?|compete|competir[áa]|cabe|caber[áa]|privativamente|exclusivamente|obrigatoriamente|preferencialmente|independentemente|maioria absoluta|maioria simples|dois ter[çc]os|tr[êe]s quintos|reclus[ãa]o|deten[çc][ãa]o|dolo|culpa|posse|exerc[íi]cio|exonera[çc][ãa]o|demiss[ãa]o|cita[çc][ãa]o|intima[çc][ãa]o)\b/gi;
-const STOP = new Set(fold('para pelo pela pelos pelas como mais quando onde sobre entre desde contra durante mediante perante segundo conforme quanto qualquer quaisquer outro outra outros outras mesmo mesma seus suas este esta estes estas esse essa aquele aquela isso deste desta neste nesta dele dela sendo será serão tiver tenha forem houver respectivo respectiva artigo inciso alínea parágrafo pelo pela dos das nos nas aos com sem que sua seu não ser ter for são está esta este').split(' '));
+// Substantivos do mesmo domínio cujo grupo do banco representa institutos diferentes.
+const LEGAL_TERMS = new Set(fold('soberania impedimento suspeição penhora arresto guarda tutela curatela nulidade domicílio testamento legado testemunhas relator competência jurisdição definitivo provisório solidário subsidiário penal civil administrativo federal estadual municipal distrital').split(' '));
+const gender = new Map([
+  ['dolo', 'm'], ['culpa', 'f'], ['detenção', 'f'], ['reclusão', 'f'], ['prisão simples', 'f'],
+  ['impedimento', 'm'], ['suspeição', 'f'], ['incompatibilidade', 'f'], ['incapacidade', 'f'], ['parcialidade', 'f'],
+  ['penhora', 'f'], ['arresto', 'm'], ['sequestro', 'm'], ['depósito', 'm'], ['bloqueio', 'm'],
+  ['testamento', 'm'], ['codicilo', 'm'], ['legado', 'm'], ['inventário', 'm'], ['herança', 'f'], ['espólio', 'm'], ['doação', 'f'],
+  ['domicílio', 'm'], ['residência', 'f'], ['moradia', 'f'], ['endereço', 'm'],
+  ['jurisdição', 'f'], ['competência', 'f'], ['atribuição', 'f'], ['alçada', 'f'],
+].map(([term, value]) => [fold(term), value]));
+const lexicalPhrases = RULE_GROUPS.flat().filter((term) => /[ -]/.test(term))
+  .sort((a, b) => b.length - a.length).map((term) => term.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&'));
+const lexicalPattern = new RegExp('(?<![\\p{L}-])(?:' + lexicalPhrases.join('|') + '|[\\p{L}]+)(?![\\p{L}-])', 'giu');
 
-export interface Target { text: string; start: number; dim: Dim }
+type TargetKind = 'regra' | 'excecao' | 'pena' | 'limite-pena' | 'idade';
+export interface Target {
+  text: string;
+  start: number;
+  dim: Dim;
+  priority?: number;
+  kind?: TargetKind;
+  amount?: LegalAmount;
+  choices?: string[];
+}
 
 export function canTrainArticle(art: Article) {
   return !art.rev && !art.noCurrent && !art.outdated?.length;
 }
 
+function matchCase(src: string, replacement: string) {
+  return /^\p{Lu}/u.test(src) ? replacement.charAt(0).toUpperCase() + replacement.slice(1) : replacement;
+}
+
+function ruleChoices(text: string, preceding: string) {
+  const source = fold(text);
+  const choices = SWAPS.get(source) ?? (LEGAL_TERMS.has(source) ? legalContrastsOf(text) : []);
+  const hasArticle = /\b(?:o|a|os|as|do|da|dos|das|no|na|nos|nas|ao|aos|uma?|pelo|pela|pelos|pelas)\s+$/iu.test(preceding) || /à\s+$/iu.test(preceding);
+  return choices.filter((choice) => {
+    const targetGender = gender.get(fold(choice));
+    return !hasArticle || !gender.has(source) || !targetGender || targetGender === gender.get(source);
+  }).map((choice) => matchCase(text, choice));
+}
+
+function exceptionChoices(text: string, following: string) {
+  const expression = fold(text);
+  const plural = expression.endsWith('aplicam');
+  const options = expression.startsWith('nao se aplica')
+    ? ['também se ' + (plural ? 'aplicam' : 'aplica')]
+    : expression === 'ainda que informalmente' ? ['desde que formalmente']
+      : expression === 'excecao feita' ? ['inclusive quanto']
+        : expression === 'com excecao' ? ['com inclusão']
+          : /^(?:ressalvad|excetuad)/.test(expression) ? [text.replace(/^(?:ressalvad|excetuad)/i, 'incluíd')]
+            : expression === 'ainda que' ? ['somente se']
+              : ['desde que', 'somente se', 'a menos que'].includes(expression) ? ['ainda que']
+                : /^\s+(?:quando|se|em|por|no|na|nos|nas|para)\b/iu.test(following) ? ['inclusive'] : ['inclusive', 'somente em caso de'];
+  return options.map((choice) => matchCase(text, choice));
+}
+
+const targetsCache = new WeakMap<Unit, Target[]>();
 export function findTargets(u: Unit): Target[] {
-  const t = u.t;
+  const cached = targetsCache.get(u);
+  if (cached) return cached;
   const out: Target[] = [];
-  if (!t || u.rev) return out;
+  if (!u.t || u.rev) return out;
+
   if (u.k === 'pena') {
-    const m = t.match(RE_PENA_CORE);
-    if (m) out.push({ text: m[0].replace(/[.;\s]+$/, ''), start: m.index!, dim: 'penas' });
+    const match = RE_PENA_CORE.exec(u.t);
+    if (match) {
+      const text = match[0].split(/,\s+sem prejuízo\b/iu)[0].replace(/[.;\s]+$/, '');
+      out.push({ text, start: match.index, dim: 'penas', kind: 'pena', priority: 4 });
+    }
   }
-  for (const m of t.matchAll(RE_PRAZO)) out.push({ text: m[0], start: m.index!, dim: 'prazos' });
-  for (const m of t.matchAll(RE_EXC)) out.push({ text: m[0], start: m.index!, dim: 'excecoes' });
-  // literalidade: todas as palavras com sinônimos jurídicos + palavras-chave; lacuna varia a cada revisão
-  const lit = new Map<number, string>();
-  for (const w of t.matchAll(/(?<![\p{L}])[a-zà-ú][\p{L}]{2,}(?![\p{L}-])/gu)) if (hasSynonyms(w[0]) && !STOP.has(fold(w[0]))) lit.set(w.index!, w[0]);
-  for (const k of t.matchAll(KEY_WORDS)) if (!lit.has(k.index!)) lit.set(k.index!, k[0]);
-  if (!lit.size) {
-    // dispositivo curto ou sem palavra-chave: a palavra de conteúdo mais longa (garante cobertura integral)
-    const words = [...t.matchAll(/(?<![\p{L}])[a-zà-ú][\p{L}]{3,}(?![\p{L}-])/gu)].filter((w) => !STOP.has(fold(w[0])));
-    words.sort((a, b) => b[0].length - a[0].length);
-    if (words[0]) lit.set(words[0].index!, words[0][0]);
+  for (const amount of findLegalAmounts(u.t)) {
+    const prefix = fold(u.t.slice(Math.max(0, amount.start - 65), amount.start));
+    const penaltyLimit = amount.kind === 'prazo' && /\bpenas? (?:maximas?|minimas?) [^,.;]+$/u.test(prefix);
+    const age = amount.kind === 'prazo' && /\b(?:idade|etaria|etario|anos de idade)\b[^,.;]*$/u.test(prefix);
+    const dim = penaltyLimit || u.k === 'pena' ? 'penas' : amount.kind === 'prazo' && !age ? 'prazos' : 'literal';
+    if (u.k !== 'pena' || !out.length) {
+      out.push({ text: amount.text, start: amount.start, amount, dim, kind: penaltyLimit ? 'limite-pena' : age ? 'idade' : undefined, priority: 4 });
+    }
   }
-  for (const [start, text] of lit) out.push({ text, start, dim: 'literal' });
+  for (const match of u.t.matchAll(RE_EXC)) {
+    const choices = exceptionChoices(match[0], u.t.slice(match.index + match[0].length));
+    out.push({ text: match[0], start: match.index, dim: 'excecoes', kind: 'excecao', priority: 3, choices });
+  }
+  for (const match of u.t.matchAll(lexicalPattern)) {
+    const choices = ruleChoices(match[0], u.t.slice(Math.max(0, match.index - 16), match.index));
+    if (!choices.length || out.some((target) => match.index < target.start + target.text.length && target.start < match.index + match[0].length)) continue;
+    out.push({ text: match[0], start: match.index, dim: 'literal', kind: 'regra', priority: 2, choices });
+  }
+  out.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.start - b.start);
+  targetsCache.set(u, out);
   return out;
 }
 
-export function unitDims(u: Unit): Dim[] {
-  const dims = new Set<Dim>();
-  for (const t of findTargets(u)) dims.add(t.dim);
-  return [...dims];
-}
-
-// ---------- pools de distratores (por lei) ----------
-const poolCache = new WeakMap<LawDoc, { prazos: string[]; penas: string[] }>();
-export function pools(law: LawDoc) {
-  let p = poolCache.get(law);
-  if (p) return p;
-  const prazos = new Set<string>(), penas = new Set<string>();
-  for (const a of law.articles) for (const u of a.units) {
-    if (!canTrainArticle(a) || u.rev) continue;
-    for (const tg of findTargets(u)) {
-      if (tg.dim === 'prazos') prazos.add(tg.text);
-      else if (tg.dim === 'penas') penas.add(tg.text);
+const amountPools = new WeakMap<LawDoc, Map<string, Set<number>>>();
+function amountPool(law: LawDoc, group: string) {
+  let pool = amountPools.get(law);
+  if (!pool) {
+    pool = new Map();
+    for (const article of law.articles) {
+      if (!canTrainArticle(article)) continue;
+      for (const unit of article.units) for (const { amount } of findTargets(unit)) {
+        if (!amount) continue;
+        const numbers = pool.get(amount.group) ?? new Set<number>();
+        numbers.add(amount.value);
+        pool.set(amount.group, numbers);
+      }
     }
+    amountPools.set(law, pool);
   }
-  p = { prazos: [...prazos], penas: [...penas] };
-  poolCache.set(law, p);
-  return p;
+  return [...pool.get(group) ?? []];
 }
 
-const EXT: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, sessenta: 60, noventa: 90, 'cento e vinte': 120, 'cento e oitenta': 180 };
-/** Valor normalizado de um prazo ("2 (dois) anos" e "dois anos" -> "2 anos"). */
-export function prazoKey(s: string): string {
-  const f = fold(s);
-  const unit = (f.match(/(dias?|horas?|meses|mes|anos?|minutos|sessoes)/)?.[1] || '').replace(/s$/, '').replace(/^mese$/, 'mes');
-  const d = f.match(/^\s*(\d+)/)?.[1];
-  const w = Object.keys(EXT).sort((a, b) => b.length - a.length).find((k) => f.startsWith(k + ' '));
-  const extra = /uteis/.test(f) ? ' uteis' : /corridos/.test(f) ? ' corridos' : '';
-  return `${d ?? (w ? EXT[w] : f)} ${unit}${extra}`;
-}
-
-export function swapGroup(tok: string): string[] | undefined {
-  const f = fold(tok);
-  return SWAPS.find((g) => g.some((x) => fold(x) === f));
-}
-
-export function matchCase(src: string, repl: string) {
-  return /^[A-ZÀ-Ú]/.test(src) ? repl[0].toUpperCase() + repl.slice(1) : repl;
-}
-
-/** Trocas lexicais de mesma flexão ou pares jurídicos cadastrados. */
-const gender: Record<string, 'f' | 'm'> = { dolo: 'm', culpa: 'f', posse: 'f', exercicio: 'm', detencao: 'f', propriedade: 'f', dominio: 'm' };
-
-export function lexicalAlternatives(text: string, meaningOnly = false, before = ''): string[] {
-  const from = fold(text);
-  const pair = swapGroup(text) ?? [];
-  const afterArticle = /\b(?:o|a|os|as|do|da|dos|das|no|na|nos|nas|ao|aos|uma?|pelo|pela)\s+$/i.test(fold(before));
-  const synonyms = !meaningOnly || isTrapWord(text) ? synonymsOf(text) : [];
-  return [...new Map([...pair, ...synonyms]
-    .filter((choice) => fold(choice) !== from && (!afterArticle || !gender[from] || !gender[fold(choice)] || gender[from] === gender[fold(choice)]))
-    .map((choice) => [fold(choice), matchCase(text, choice)])).values()];
-}
-
-// Expressões dos pares jurídicos vêm antes dos tokens isolados.
-const swapPhrases = SWAPS.flat().filter((item) => item.includes(' ')).sort((a, b) => b.length - a.length);
-const lexicalPattern = new RegExp(`(?<![\\p{L}-])(?:${swapPhrases.join('|')}|[\\p{L}]+)(?![\\p{L}-])`, 'giu');
-
-export function lexicalChanges(text: string, meaningOnly = false) {
-  const changes: { text: string; from: string; to: string }[] = [];
-  for (const match of text.matchAll(lexicalPattern)) {
-    const from = match[0];
-    const start = match.index!;
-    for (const to of lexicalAlternatives(from, meaningOnly, text.slice(0, start))) {
-      changes.push({ from, to, text: text.slice(0, start) + to + text.slice(start + from.length) });
-    }
+function penaltyAlternatives(law: LawDoc, text: string) {
+  const out: string[] = [];
+  const species = /^(?:reclusão|detenção|prisão simples)\b/iu.exec(text)?.[0];
+  const speciesChanges = species ? ruleChoices(species, '').map((choice) => choice + text.slice(species.length)) : [];
+  if (speciesChanges[0]) out.push(speciesChanges[0]);
+  const quantityChanges = findLegalAmounts(text).map((amount) => {
+    const prefix = text.slice(0, amount.start);
+    const suffix = text.slice(amount.start + amount.text.length);
+    return amountAlternatives(amount, amountPool(law, amount.group)).slice(0, 4).map((choice) => prefix + choice + suffix);
+  });
+  for (const [first] of quantityChanges) {
+    if (first) out.push(first);
   }
-  return changes;
+  // A multa cumulativa e a alternativa são consequências distintas.
+  if (species && /\be multa\b/iu.test(text)) out.push(text.replace(/\be multa\b/iu, 'ou multa'));
+  if (species && /\bou multa\b/iu.test(text)) out.push(text.replace(/\bou multa\b/iu, 'e multa'));
+  out.push(...quantityChanges.flatMap((changes) => changes.slice(1)), ...speciesChanges.slice(1));
+  return out;
 }
-
-const prazoFormat = (text: string) => {
-  const unit = fold(text).match(/\b(dias?|horas?|mes(?:es)?|anos?|minutos?|sessoes)\b.*$/)?.[0];
-  const format = /^\d+\s*\(/.test(text) ? 'numero-e-extenso' : /^\d/.test(text) ? 'numero' : 'extenso';
-  return unit ? `${format}:${unit}` : null;
-};
-
-// Mesma estrutura de pena: mantém unidade, fórmula e multa cumulativa/alternativa.
-const penaFormat = (text: string) => fold(text)
-  .replace(/\(\p{L}+(?:[\s-]+\p{L}+)*\)/gu, '(#)')
-  .replace(/\b(?:\d+|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|quinze|vinte|trinta)\b/g, '#')
-  .replace(/\s+/g, ' ').trim();
 
 export function contextualAlternatives(law: LawDoc, target: Target, source = ''): string[] {
-  const { text, dim } = target;
-  if (dim === 'literal') return lexicalAlternatives(text, false, source.slice(0, target.start));
-  if (dim === 'excecoes') {
-    const expression = fold(text);
-    const plural = expression.endsWith('aplicam');
-    const options = expression.startsWith('nao se aplica')
-      ? [`também se ${plural ? 'aplicam' : 'aplica'}`, `somente se ${plural ? 'aplicam' : 'aplica'}`]
-      : expression === 'sem prejuizo' ? ['em substituição', 'em decorrência']
-        : /^(?:ressalvad|excetuad)/.test(expression) ? [text.replace(/^(?:ressalvad|excetuad)/i, 'incluíd')]
-          : expression === 'independentemente' ? ['exclusivamente', 'cumulativamente']
-            : expression === 'ainda que' ? ['somente se', 'desde que']
-              : expression === 'desde que' || expression === 'a menos que' ? ['ainda que', 'sempre que']
-                : ['inclusive', 'somente'];
-    return options.map((choice) => matchCase(text, choice));
-  }
-  if (dim === 'prazos') {
-    const format = prazoFormat(text);
-    if (!format) return [];
-    const key = prazoKey(text);
-    const alternatives = pools(law).prazos.filter((choice) => prazoFormat(choice) === format && prazoKey(choice) !== key);
-    return [...new Map(alternatives.map((choice) => [prazoKey(choice), matchCase(text, choice)])).values()];
-  }
-  if (dim === 'penas') {
-    const format = penaFormat(text);
-    const alternatives = pools(law).penas.filter((choice) => penaFormat(choice) === format && normAnswer(choice) !== normAnswer(text));
-    const kind = /^(reclusão|detenção)\b/i.exec(text)?.[0];
-    if (kind) alternatives.push(...lexicalAlternatives(kind, true).filter((choice) => /^(reclusão|detenção)$/i.test(choice)).map((choice) => choice + text.slice(kind.length)));
-    return [...new Map(alternatives.map((choice) => [normAnswer(choice), matchCase(text, choice)])).values()];
-  }
-  return [];
+  const choices = target.amount ? amountAlternatives(target.amount, amountPool(law, target.amount.group))
+    : target.choices ?? (target.dim === 'penas' ? penaltyAlternatives(law, target.text) : ruleChoices(target.text, source.slice(0, target.start)));
+  const seen = new Set([normAnswer(target.text)]);
+  return choices.filter((choice) => {
+    const key = normAnswer(choice);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((choice) => matchCase(target.text, choice));
 }
 
-function distractors(law: LawDoc, target: Target, seed: string, n = 3, source = ''): string[] {
-  return shuffle(contextualAlternatives(law, target, source), rng(seed)).slice(0, n);
+export function literalPrompt(target: Target) {
+  if (target.kind === 'limite-pena') return 'Qual é o limite de pena previsto neste dispositivo?';
+  if (target.kind === 'idade') return 'Qual é a idade prevista neste dispositivo?';
+  if (target.amount) {
+    return {
+      percentual: 'Qual é o percentual previsto neste dispositivo?',
+      fracao: 'Qual é a fração prevista neste dispositivo?',
+      quantidade: 'Qual é a quantidade prevista neste dispositivo?',
+      prazo: 'Qual é o prazo previsto neste dispositivo?',
+      valor: 'Qual é o valor previsto neste dispositivo?',
+    }[target.amount.kind];
+  }
+  if (target.dim === 'penas') return 'Qual é a pena cominada?';
+  if (target.dim === 'excecoes') return 'Como a lei estabelece a exceção ou condição?';
+  return 'Complete o dispositivo com a regra prevista na lei';
 }
 
 // ---------- construção ----------
@@ -240,52 +277,58 @@ export function unitPathParts(art: Article, u?: Unit): string[] {
 export const unitPath = (art: Article, u?: Unit) => unitPathParts(art, u?.k === 'caput' ? undefined : u).join(', ');
 export const whereOf = (law: LawDoc, art: Article, u?: Unit) => `${law.short} · ${unitPath(art, u)}`;
 
+function clozeStem(art: Article, unit: Unit, targets: Target[]) {
+  const stem: Seg[] = [{ t: labOf(art, unit), strong: true }];
+  let offset = 0;
+  for (const target of targets) {
+    stem.push({ t: unit.t.slice(offset, target.start) }, { t: target.text, blank: true });
+    offset = target.start + target.text.length;
+  }
+  stem.push({ t: unit.t.slice(offset) });
+  return stem;
+}
+
 export function buildLiteral(law: LawDoc, art: Article, u: Unit, dim: Dim, stage: number, mode: 'aprender' | 'memorizar' | 'provar', seedExtra = '', choiceCount?: number, preferredTarget?: string): Exercise | null {
   if (!canTrainArticle(art)) return null;
-  const targets = findTargets(u).filter((x) => x.dim === dim);
-  if (!targets.length) return null;
+  const targets = findTargets(u).filter((target) => target.dim === dim
+    && (!preferredTarget || fold(target.text) === fold(preferredTarget)));
+  const priority = targets[0]?.priority;
+  const typed = mode === 'provar' && !choiceCount;
+  const eligible = targets.filter((target) => target.priority === priority)
+    .map((target) => ({ target, choices: typed ? [] : contextualAlternatives(law, target, u.t) }))
+    .filter(({ choices }) => typed || choices.length >= (choiceCount ?? 2) - 1);
+  if (!eligible.length) return null;
   const seed = `${u.id}:${dim}:${stage}:${seedExtra}`;
   const r = rng(seed);
-  // peso: pegadinhas (sentido jurídico diferente) > sinônimos > palavras-chave > demais
-  const weight = (x: Target) => (dim !== 'literal' ? 1 : isTrapWord(x.text) ? 3 : hasSynonyms(x.text) ? 2 : 1);
-  const totalW = targets.reduce((a, x) => a + weight(x), 0);
-  let pickW = r() * totalW, target = targets[0];
-  for (const x of targets) { pickW -= weight(x); if (pickW <= 0) { target = x; break; } }
-  const minDistractors = (choiceCount ?? 2) - 1;
-  const preferred = preferredTarget && targets.find((candidate) => fold(candidate.text) === fold(preferredTarget));
-  if (preferred) target = preferred;
-  if (!preferred && (choiceCount || mode !== 'provar') && contextualAlternatives(law, target, u.t).length < minDistractors) {
-    target = shuffle(targets, r).find((candidate) => contextualAlternatives(law, candidate, u.t).length >= minDistractors) ?? target;
-  }
-  const before = u.t.slice(0, target.start), after = u.t.slice(target.start + target.text.length);
-  const base = { key: `L:${u.id}:${dim}`, dim, lawId: law.id, articleId: art.id, unitId: u.id, context: unitContext(art, u), stage, where: whereOf(law, art, u) };
-  const prefix: Seg[] = [{ t: labOf(art, u), strong: true }];
-  const dimPrompt: Record<Dim, string> = {
-    literal: 'Complete com a palavra exata da lei', prazos: 'Qual é o prazo previsto?', penas: 'Qual é a pena cominada?',
-    excecoes: 'Complete com a expressão exata que introduz a exceção ou condição', conceitual: '', aplicacao: '',
+  const { target, choices } = eligible[Math.floor(r() * eligible.length)];
+  const prompt = literalPrompt(target);
+  const base = {
+    key: `L:${u.id}:${dim}`, dim, lawId: law.id, articleId: art.id, unitId: u.id, context: unitContext(art, u),
+    stage, where: whereOf(law, art, u), priority, family: 'literal' as const,
   };
-  // Várias lacunas no mesmo dispositivo (degrau 1–2, memorizar): 2 ou 3 palavras com sinônimos
-  if (!preferredTarget && !choiceCount && dim === 'literal' && stage <= 2 && mode !== 'provar' && r() < 0.35) {
-    const cands = targets.filter((x) => lexicalAlternatives(x.text, false, u.t.slice(0, x.start)).length >= 2);
-    const chosen: Target[] = [];
-    for (const c of shuffle(cands, r)) { if (chosen.length >= 3) break; if (chosen.every((x) => x.start + x.text.length <= c.start || c.start + c.text.length <= x.start)) chosen.push(c); }
-    chosen.sort((a, b) => a.start - b.start);
-    if (chosen.length >= 2) {
-      const stem: Seg[] = [...prefix]; let pos = 0;
-      for (const c of chosen) { stem.push({ t: u.t.slice(pos, c.start) }, { t: c.text, blank: true }); pos = c.start + c.text.length; }
-      stem.push({ t: u.t.slice(pos) });
-      const blanks = chosen.map((c, i) => ({ answer: c.text, options: shuffle([c.text, ...distractors(law, c, `${seed}:m${i}`, 3, u.t)], rng(`${seed}:o${i}`)) }));
-      return { ...base, kind: 'cloze-multi', family: 'literal', prompt: `Complete as ${chosen.length} lacunas com as palavras exatas da lei`, stem, blanks, answer: chosen.map((c) => c.text).join(' | '), expectedMs: 14000 * chosen.length };
+  const single = { ...base, stem: clozeStem(art, u, [target]), answer: target.text };
+  if (typed) return { ...single, kind: 'cloze-type', prompt, expectedMs: 25000 };
+  // A lacuna dupla só reúne quantidades distintas, ambas com alternativas plausíveis.
+  if (stage >= 3 && !choiceCount && !preferredTarget && target.amount && choices.length >= 2) {
+    const other = eligible.find((entry) => entry.target.amount && entry.target.amount.value !== target.amount!.value && entry.choices.length >= 2);
+    if (other) {
+      const pair = [{ target, choices }, other].sort((a, b) => a.target.start - b.target.start);
+      const blanks = pair.map((entry) => ({ answer: entry.target.text, options: shuffle([entry.target.text, ...entry.choices.slice(0, 3)], r) }));
+      return { ...base, kind: 'cloze-multi', prompt: 'Complete os dois limites previstos no dispositivo',
+        stem: clozeStem(art, u, pair.map((entry) => entry.target)), blanks, answer: blanks.map((entry) => entry.answer).join(' | '), expectedMs: 32000 };
     }
   }
-
-  if (mode === 'provar' && !choiceCount) {
-    return { ...base, kind: 'cloze-type', family: 'literal', prompt: dimPrompt[dim] + ' — digite', stem: [...prefix, { t: before }, { t: target.text, blank: true }, { t: after }], answer: target.text, expectedMs: 25000 };
-  }
-  const ds = distractors(law, target, seed, choiceCount ? choiceCount - 1 : dim === 'literal' ? 4 : 3, u.t);
-  if (ds.length < minDistractors) return null;
-  const options = shuffle([{ id: 'ok', text: target.text, correct: true }, ...ds.map((d, i) => ({ id: `d${i}`, text: d, correct: false }))], r);
-  return { ...base, kind: 'cloze-mc', family: 'literal', prompt: dimPrompt[dim], stem: [...prefix, { t: before }, { t: target.text, blank: true }, { t: after }], options, answer: target.text, expectedMs: 15000 };
+  const otherValues = target.amount && new Map(art.units.filter((part) => part !== u).flatMap((part) =>
+    findTargets(part).flatMap(({ amount }) => amount?.group === target.amount!.group
+      ? [[target.amount!.format(amount.value), unitPath(art, part)] as const] : [])));
+  const options = shuffle([
+    { id: 'ok', text: target.text, correct: true },
+    ...choices.slice(0, (choiceCount ?? 5) - 1).map((text, index) => {
+      const other = otherValues?.get(text);
+      return { id: `d${index}`, text, correct: false, why: other ? `Esse valor aparece em outra hipótese do mesmo artigo (${other}).` : undefined };
+    }),
+  ], r);
+  return { ...single, kind: 'cloze-mc', prompt, options, expectedMs: 15000 };
 }
 
 /** Ordenação de incisos de um mesmo dispositivo. */

@@ -36,7 +36,7 @@ function lev(a: string, b: string): number {
 
 // Só parênteses que repetem um numeral por extenso são equivalentes.
 const numberWords = /^(?:e|zero|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzent[oa]s|trezent[oa]s|quatrocent[oa]s|quinhent[oa]s|seiscent[oa]s|setecent[oa]s|oitocent[oa]s|novecent[oa]s|mil)$/;
-const typedForm = (s: string) => fold(s)
+const typedForm = (s: string) => fold(s).replace(/(?<=\d)\s*\/\s*(?=\d)/g, '/')
   .split(/((?<=\d)[,./:](?=\d))/)
   .map((part, index) => index % 2 ? part : part.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' '))
   .join('').trim();
@@ -47,18 +47,23 @@ export function checkTyped(given: string, expected: string): { ok: boolean; clos
   if (!g) return { ok: false, close: false };
   if (g === e) return { ok: true, close: false };
   // Marcadores sobrevivem à normalização de pontuação e permitem misturar os formatos em uma mesma resposta.
-  const pairs: { digits: string; words: string }[] = [];
-  const withSlots = expected.replace(/(?<![\p{L}\p{N}.,])\d+(?:[.,]\d+)*\s*\([^()]+\)/gu, (part) => {
-    const match = /^(\d+(?:[.,]\d+)*)\s*\(([^()]+)\)$/.exec(part)!;
-    const words = typedForm(match[2]);
-    if (!words.split(' ').every((word) => numberWords.test(word))) return part;
-    pairs.push({ digits: typedForm(match[1]), words });
+  const pairs: { digits: string; words: string; percent: boolean }[] = [];
+  const withSlots = expected.replace(/(?<![\p{L}\p{N}.,/])(\d+(?:[.,]\d+)*(?:\s*\/\s*\d+|\s*%)?)\s*\(([^()]+)\)/gu, (part, digits: string, written: string) => {
+    const words = typedForm(written);
+    const percent = digits.includes('%');
+    const numericWords = percent ? words.replace(/ por cento$/, '') : words;
+    const ordinal = /^(?:meio|terco|quarto|quinto|sexto|oitavo|decimo)s?$/;
+    const valid = digits.includes('/')
+      ? words === 'metade' || (/^\S+ \S+$/.test(words) && numberWords.test(words.split(' ')[0]) && ordinal.test(words.split(' ')[1]))
+      : numericWords.split(' ').every((word) => numberWords.test(word));
+    if (!valid || (percent && numericWords === words)) return part;
+    pairs.push({ digits: typedForm(digits), words, percent });
     return ` lexnumeralslot${pairs.length} `;
   });
   if (pairs.length) {
     const pattern = escaped(typedForm(withSlots)).replace(/lexnumeralslot(\d+)/g, (_, index: string) => {
-      const { digits, words } = pairs[Number(index) - 1];
-      return `(?:${escaped(digits)}(?: ${escaped(words)})?|${escaped(words)})`;
+      const { digits, words, percent } = pairs[Number(index) - 1];
+      return `(?:${escaped(digits)}(?: ${escaped(words)}${percent ? '| por cento' : ''})?|${escaped(words)})`;
     });
     if (new RegExp(`^${pattern}$`).test(g)) return { ok: true, close: false };
   }

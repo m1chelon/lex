@@ -2,8 +2,8 @@
 // Montadas a partir do texto oficial: o caso descreve a conduta exatamente como no tipo penal,
 // e as alternativas são rubricas/penas REAIS de outros dispositivos do mesmo diploma.
 import type { Article, LawDoc } from '../core/types';
-import { canTrainArticle, contextualAlternatives, type Exercise, type Option } from './generators';
-import { fold, rng, shuffle } from './text';
+import { canTrainArticle, contextualAlternatives, findTargets, type Exercise, type Option } from './generators';
+import { fold, normAnswer, rng, shuffle } from './text';
 
 const NOMES = ['Ana', 'Bruno', 'Carla', 'Diego', 'Elisa', 'Fábio', 'Gabriela', 'Heitor', 'Inês', 'João', 'Larissa', 'Marcos', 'Natália', 'Otávio', 'Paula', 'Rafael', 'Sílvia', 'Tiago'];
 const CONTEXTOS = [
@@ -13,21 +13,27 @@ const CONTEXTOS = [
   'Segundo a denúncia oferecida pelo Ministério Público, {nome} teria praticado esta conduta:',
 ];
 
-function penaOf(art: Article) { return art.units.find((u) => u.k === 'pena' && u.t && !u.rev)?.t.replace(/[.;]\s*$/, ''); }
 function caputOf(art: Article) { return art.units.find((u) => u.k === 'caput' && u.t && !u.rev)?.t; }
 const eligible = (a: Article) => !!a.rub && canTrainArticle(a) && (caputOf(a)?.length ?? 0) > 30;
+
+function legalTerms(art: Article) {
+  return new Set(normAnswer(`${art.rub ?? ''} ${caputOf(art) ?? ''}`).split(' ').filter((term) => term.length >= 6));
+}
 
 /** Identificação do crime/instituto a partir da conduta descrita (5 alternativas). */
 export function buildCaseIdentify(law: LawDoc, art: Article, seed = ''): Exercise | null {
   if (!eligible(art)) return null;
+  const caput = caputOf(art)!;
+  if (normAnswer(caput).includes(normAnswer(art.rub!))) return null;
   const r = rng(`CI:${art.id}:${seed}`);
   const idx = law.articles.indexOf(art);
+  const terms = legalTerms(art);
   const related = law.articles.slice(Math.max(0, idx - 40), idx + 41).filter((a) => eligible(a) && fold(a.rub!) !== fold(art.rub!));
-  const prioritized = [
-    ...shuffle(related.filter((a) => !!art.h && a.h === art.h), r),
-    ...shuffle(related.filter((a) => !art.h || a.h !== art.h), r),
-  ];
-  const ds = [...new Map(prioritized.map((a) => [fold(a.rub!), a.rub!])).values()].slice(0, 4);
+  const prioritized = shuffle(related, r).map((candidate) => ({
+    title: candidate.rub!,
+    score: (art.h && art.h === candidate.h ? 4 : 0) + [...legalTerms(candidate)].filter((term) => terms.has(term)).length,
+  })).sort((a, b) => b.score - a.score);
+  const ds = [...new Map(prioritized.map(({ title }) => [normAnswer(title), title])).values()].slice(0, 4);
   if (ds.length < 4) return null;
   const nome = NOMES[Math.floor(r() * NOMES.length)];
   const ctx = CONTEXTOS[Math.floor(r() * CONTEXTOS.length)].replace('{nome}', nome);
@@ -35,19 +41,20 @@ export function buildCaseIdentify(law: LawDoc, art: Article, seed = ''): Exercis
   return {
     key: `CI:${art.id}`, kind: 'case', dim: 'aplicacao', family: 'interpretacao', lawId: law.id, articleId: art.id, stage: 1,
     prompt: `Considerando o ${law.short}, a conduta de ${nome} corresponde a:`,
-    context: [{ t: ctx }], stem: [{ t: `“${caputOf(art)!.replace(/:\s*$/, '')}”` }], options, answer: art.rub!, expectedMs: 45000,
+    context: [{ t: ctx }], stem: [{ t: `“${caput.replace(/:\s*$/, '')}”` }], options, answer: art.rub!, expectedMs: 45000,
     where: `${law.short} · ${art.lab}`,
   };
 }
 
-/** Pena cominada a uma conduta (5 alternativas, penas reais do mesmo diploma). */
+/** Pena cominada, com alternativas que variam a faixa, a espécie ou a cumulação. */
 export function buildCasePena(law: LawDoc, art: Article, seed = ''): Exercise | null {
   if (!eligible(art)) return null;
-  const pena = penaOf(art);
-  if (!pena) return null;
+  const unit = art.units.find((u) => u.k === 'pena' && u.t && !u.rev);
+  const target = unit && findTargets(unit).find((item) => item.kind === 'pena');
+  if (!target) return null;
+  const pena = target.text;
   const r = rng(`CP:${art.id}:${seed}`);
-  const pool = contextualAlternatives(law, { text: pena, dim: 'penas', start: 0 });
-  const ds = shuffle(pool, r).slice(0, 4);
+  const ds = contextualAlternatives(law, target).slice(0, 4);
   if (ds.length < 4) return null;
   const nome = NOMES[Math.floor(r() * NOMES.length)];
   const options: Option[] = shuffle([{ id: 'ok', text: pena, correct: true, why: `Preceito secundário do ${art.lab} (${art.rub}).` }, ...ds.map((d, i) => ({ id: `d${i}`, text: d, correct: false, why: 'Essa combinação de espécie, faixa ou multa não é a prevista neste dispositivo.' }))], r);

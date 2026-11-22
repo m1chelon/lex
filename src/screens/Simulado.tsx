@@ -9,7 +9,7 @@ import { FocusList, focusLabel } from './Home';
 import { Flag } from '../ui/Flags';
 import { COURSE_NAME, getPlan, scopeToFocus } from '../learn/plan';
 import type { AreaId } from '../core/areas';
-import { corrigir, desempenhoDisciplinas, editalQuestionCount, EDITAL_SIMULADO, finishSimulado, gerarSimulado, gerarSimuladoEdital, letra, listSimulados, loadSimulado, simuladoDeadline, updateSimulado, type Estilo, type Simulado } from '../learn/simulado';
+import { corrigir, desempenhoDisciplinas, editalQuestionCount, EDITAL_SIMULADO, finishSimulado, gerarSimulado, gerarSimuladoEdital, isSimuladoAnswerCorrect, letra, listSimulados, loadSimulado, simuladoDeadline, simuladoErrors, updateSimulado, type Estilo, type Simulado } from '../learn/simulado';
 import { getArticle, articleTitle } from '../data/corpus';
 import { CONCEPTS } from '../content/concepts';
 import { Mascot, MascotQuestion } from '../ui/Mascot';
@@ -18,8 +18,8 @@ import { spring } from '../ui/primitives';
 import { motion } from 'motion/react';
 
 const ESTILOS: { id: Estilo; label: string; desc: string; minPorQ: number }[] = [
-  { id: 'leiseca', label: 'Lei seca', desc: '5 alternativas sobre a redação exata: lacunas com sinônimos, prazos e penas reais, e “qual alternativa reproduz o texto da lei”.', minPorQ: 2.5 },
-  { id: 'cebraspe', label: 'Certo/Errado', desc: 'Estilo CEBRASPE: itens para julgar. As alterações mudam o sentido (prazo, pena, poderá/deverá ou reclusão/detenção). Uma errada anula uma certa.', minPorQ: 1.5 },
+  { id: 'leiseca', label: 'Lei seca', desc: '5 alternativas sobre prazos, limites, requisitos, competências e exceções da legislação.', minPorQ: 2.5 },
+  { id: 'cebraspe', label: 'Certo/Errado', desc: 'Julgue se o item preserva a regra do dispositivo. Uma errada anula uma certa.', minPorQ: 1.5 },
   { id: 'fgv', label: 'Casos (FGV)', desc: 'Estilo FGV: situação-problema com 4–5 alternativas — banco de casos verificados e casos gerados a partir dos tipos penais.', minPorQ: 3 },
 ];
 
@@ -211,6 +211,7 @@ export function SimuladoRun({ id }: { id: string }) {
         <motion.div key={q.id} initial={reducedMotion() ? false : { opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={spring} className="stack question-content">
           {q.contexto && <div className="card elev"><CType k="hipotetico" /><p style={{ marginTop: 8, lineHeight: 1.55 }}>{q.contexto}</p></div>}
           <MascotQuestion text={q.enunciado} />
+          {q.contextoLegal && <div className="law-art law muted" style={{ whiteSpace: 'pre-line' }}>{q.contextoLegal}</div>}
           {q.texto && <div className="law-art law">{q.texto}</div>}
           <div className="study-options" role="group" aria-label="Alternativas">
             {q.estilo === 'cebraspe'
@@ -244,15 +245,13 @@ export function SimuladoRun({ id }: { id: string }) {
 
 function SimuladoResult({ s }: { s: Simulado }) {
   const c = useMemo(() => corrigir(s), [s]);
+  const errors = useMemo(() => simuladoErrors(s), [s]);
   const pct = c.total ? c.certas / c.total : 0;
   const groups = desempenhoDisciplinas(s);
   const weakest = groups.find((group) => group.erradas + group.branco > 0);
   const practiceSubject = (topic: string) => {
     if (!s.area || s.area === 'geral') return;
-    const answers = s.questoes.filter((q) => q.disciplina === topic).filter((q) => {
-      const given = s.respostas[q.id];
-      return !given || (q.estilo === 'cebraspe' ? given !== q.ce : !q.options?.some((o) => o.id === given && o.correct));
-    });
+    const answers = s.questoes.filter((q) => q.disciplina === topic && !isSimuladoAnswerCorrect(q, s.respostas[q.id]));
     const articles = [...new Set(answers.flatMap((q) => q.articleId ? [q.articleId] : []))];
     nav.push({ name: 'session', config: {
       area: s.area, focus: `topico:${topic}`, mode: 'memorizar', minutes: 10, title: 'Treino da disciplina', order: 'linear',
@@ -261,7 +260,7 @@ function SimuladoResult({ s }: { s: Simulado }) {
     } });
   };
   const [only, setOnly] = useState<'todas' | 'erradas'>('erradas');
-  const list = s.questoes.filter((q) => { if (only === 'todas') return true; const a = s.respostas[q.id]; return !a || (q.estilo === 'cebraspe' ? a !== q.ce : !q.options?.find((o) => o.id === a)?.correct); });
+  const list = s.questoes.filter((q) => only === 'todas' || !isSimuladoAnswerCorrect(q, s.respostas[q.id]));
   return (
     <div className="stack" style={{ gap: 14 }}>
       <PageHeader title="Resultado do simulado" sub={`${s.title || ESTILOS.find((x) => x.id === s.estilo)?.label} · ${c.total} questões`} />
@@ -274,6 +273,9 @@ function SimuladoResult({ s }: { s: Simulado }) {
         <div className="card grow" style={{ textAlign: 'center' }}><div className="title-l">{c.erradas}</div><div className="xsmall muted">erros</div></div>
         <div className="card grow" style={{ textAlign: 'center' }}><div className="title-l">{s.estilo === 'cebraspe' ? c.liquida : `${Math.round(pct * 100)}%`}</div><div className="xsmall muted">{s.estilo === 'cebraspe' ? 'nota líquida' : 'aproveitamento'}</div></div>
       </div>
+      {!!errors.length && <button className="btn btn-primary btn-block" onClick={() => nav.push({
+        name: 'session', retryItems: errors, config: { area: s.area, focus: 'auto', mode: 'memorizar', minutes: 0, activity: 'retry', title: 'Revisão dos erros' },
+      })}><IPlay size={17} /> Refazer {errors.length} {errors.length === 1 ? 'erro' : 'erros'} agora</button>}
       {s.edital && (
         <section className="contest-panel" aria-label="Critérios do recorte do edital">
           <h2 className="title-s">Resultado por bloco</h2>
@@ -307,12 +309,13 @@ function SimuladoResult({ s }: { s: Simulado }) {
         const k = s.questoes.indexOf(q);
         const a = s.respostas[q.id];
         const art = q.articleId ? getArticle(q.articleId) : null;
-        const ok = q.estilo === 'cebraspe' ? a === q.ce : !!q.options?.find((o) => o.id === a)?.correct;
+        const ok = isSimuladoAnswerCorrect(q, a);
         return (
           <div key={q.id} className="card stack" style={{ gap: 8 }}>
             <div className="row between"><span className="badge badge-gold">Questão {k + 1}</span>{!a ? <span className="badge badge-muted">em branco</span> : ok ? <span className="badge badge-ok"><ICheck size={12} /> acertou</span> : <span className="badge badge-bad"><IX size={12} /> errou</span>}</div>
             {q.contexto && <p className="small muted">{q.contexto}</p>}
             <p className="small" style={{ fontWeight: 620 }}>{q.enunciado}</p>
+            {q.contextoLegal && <p className="small muted" style={{ whiteSpace: 'pre-line' }}>{q.contextoLegal}</p>}
             {q.texto && <p className="small law" style={{ fontSize: 14.5 }}>{q.texto}</p>}
             {q.estilo === 'cebraspe' ? (
               <p className="small">Gabarito: <strong>{q.ce === 'C' ? 'Certo' : 'Errado'}</strong>{a ? ` · sua resposta: ${a === 'C' ? 'Certo' : 'Errado'}` : ''}{q.mutation && <><br /><CType k="incorreto" /> {q.mutation.note}</>}</p>

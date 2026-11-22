@@ -28,7 +28,7 @@ export interface SessionConfig {
   /** Relâmpago: 10 s por questão, com lacunas e alternativas curtas. */
   blitz?: boolean;
   practiceCardIds?: string[];
-  activity?: 'daily' | 'pairs' | 'review' | 'doctrine' | 'planner';
+  activity?: 'daily' | 'pairs' | 'review' | 'retry' | 'doctrine' | 'planner';
   doctrine?: DoctrineScope;
   planner?: { day: string; goal: StudyGoal; quick?: boolean };
   revenge?: boolean;
@@ -51,10 +51,27 @@ export function pendingSessionErrors({ items, results }: Pick<SessionState, 'ite
   const pending = new Map<string, Exercise>();
   results.forEach((result, index) => {
     const item = items[index];
-    if (result.correct === false && item?.key === result.key) pending.set(result.key, item);
-    else if (result.correct === true) pending.delete(result.key);
+    if (item?.key !== result.key) return;
+    const key = item.kind.startsWith('cloze') ? JSON.stringify([item.key, item.answer]) : item.key;
+    if (result.correct === false) pending.set(key, item);
+    else if (result.correct === true) pending.delete(key);
   });
   return [...pending.values()];
+}
+
+function retryExercise(exercise: Exercise, seed: string): Exercise {
+  const r = rng(seed);
+  const reorder = <T,>(options: T[]) => {
+    const shuffled = shuffle(options, r);
+    return options.length > 1 && shuffled.every((option, index) => option === options[index])
+      ? [...shuffled.slice(1), shuffled[0]] : shuffled;
+  };
+  return {
+    ...exercise, practice: 'revanche',
+    options: exercise.options && (exercise.kind === 'ce' ? exercise.options : reorder(exercise.options)),
+    doctrineParts: exercise.doctrineParts?.map((part) => ({ ...part, options: reorder(part.options) })),
+    blanks: exercise.blanks?.map((blank) => ({ ...blank, options: reorder(blank.options) })),
+  };
 }
 
 export function sessionDeadline(state: SessionState) {
@@ -94,7 +111,7 @@ export function questionCheckpoint(question: number, total: number | undefined, 
   return { block, remaining: end - question + Number(!answered) };
 }
 
-const COST: Record<string, number> = { read: 30, 'cloze-mc': 20, tf: 18, 'cloze-type': 32, order: 38, 'which-article': 18, rubric: 18, concept: 45, case: 45, term: 30, lesson: 0, mc5: 40, ce: 25 };
+const COST: Record<string, number> = { read: 30, 'cloze-mc': 20, 'cloze-multi': 32, tf: 18, 'cloze-type': 32, order: 38, 'which-article': 18, rubric: 18, concept: 45, case: 45, term: 30, lesson: 0, mc5: 40, ce: 25 };
 
 export function conceptExercise(c: Concept, seed: string): Exercise {
   const r = rng(seed);
@@ -169,8 +186,9 @@ function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed:
       if (ex) out.push(ex);
     }
   }
-  if (!linear || mode === 'provar') for (const b of [buildOrder, buildWhich, buildRubric]) { const ex = b(law, art, 1); if (ex) out.push(ex); }
-  return out;
+  const rubric = !out.length && buildRubric(law, art, 1);
+  if (rubric) out.push(rubric);
+  return out.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 }
 
 function caseItems(artId: string, seed: string): Exercise[] {
@@ -223,7 +241,7 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
   // revisões devidas primeiro (misturado), dentro do escopo
   if (!linear && cursor === 0 && cfg.mode !== 'aprender') {
     const due = all.filter((c) => isDue(c.fsrs) && ((c.articleId && articlesInScope.has(c.articleId)) || (c.conceptId && conceptIds.has(c.conceptId))))
-      .filter((c) => (mix === 'literal' ? c.id.startsWith('L:') || c.id.startsWith('O:') || c.id.startsWith('W:') : mix === 'casos' ? c.id.startsWith('C:') || c.id.startsWith('CI:') || c.id.startsWith('CP:') : true))
+      .filter((c) => (mix === 'literal' ? c.id.startsWith('L:') || c.id.startsWith('R:') : mix === 'casos' ? c.id.startsWith('C:') || c.id.startsWith('CI:') || c.id.startsWith('CP:') : !/^[OW]:/.test(c.id)))
       .sort((a, b) => retrievability(a.fsrs) - retrievability(b.fsrs));
     for (const c of due.slice(0, 40)) { const ex = await exerciseForCard(c, cfg.mode, seed); if (ex) push(ex); if (spent > budgetSec * 0.6) break; }
   }
@@ -304,8 +322,7 @@ async function revengeExercise(card: CardRow, last: ReviewRow, seed: string): Pr
   if (hit && unit && ['L', 'S'].includes(card.id.split(':')[0])) {
     const targets = findTargets(unit);
     const remembered = (last.target ?? last.expected)?.split(' | ') ?? [];
-    const target = targets.find((item) => remembered.some((word) => fold(word) === fold(item.text)))
-      ?? targets.find((item) => item.dim === card.dim);
+    const target = targets.find((item) => remembered.some((word) => fold(word) === fold(item.text))) ?? targets.find((item) => item.dim === card.dim);
     if (target) {
       const choices = buildLiteral(hit.law, hit.art, unit, target.dim, 1, 'memorizar', seed, undefined, target.text);
       if (choices) return { ...choices, key: card.id, practice: 'revanche' };
@@ -343,20 +360,17 @@ export async function buildDaily(cfg: SessionConfig, now = new Date()): Promise<
   }
   const seen = new Set(eligible.filter((card) => card.fsrs.reps).map((card) => card.id));
   const newLimit = result.length ? Math.min(result.length + 2, 7) : 7;
-  for (const perArticle of [1, newLimit]) {
+  const additional: Exercise[] = [];
+  for (const id of ids) {
     if (result.length >= newLimit) break;
-    for (const id of ids) {
-      if (result.length >= newLimit) break;
-      const hit = getArticle(id);
-      if (!hit) continue;
-      let added = 0;
-      for (const unit of hit.art.units) {
-        if (result.length >= newLimit || added >= perArticle) break;
-        const key = `L:${unit.id}:literal`;
-        if (seen.has(key) || used.has(key)) continue;
-        if (add(buildLiteral(hit.law, hit.art, unit, 'literal', 1, 'memorizar', seed), 'nova')) added++;
-      }
-    }
+    const firstAndOthers = unitItems(id, 'memorizar', new Map(), seed, true).filter(({ key }) => !seen.has(key) && !used.has(key));
+    const [first, ...others] = firstAndOthers;
+    if (first) add(first, 'nova');
+    if (others.length) additional.push(...others.slice(0, newLimit));
+  }
+  for (const exercise of additional.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))) {
+    if (result.length >= newLimit) break;
+    add(exercise, 'nova');
   }
   return result;
 }
@@ -372,17 +386,14 @@ async function buildBlitz(config: SessionConfig, state: SessionState) {
   const ids = shuffle(await scopeArticles(config, state.seed ?? 1), r);
   for (const id of ids) {
     if (state.items.length >= BLITZ_COUNT) break;
-    const hit = getArticle(id);
-    if (!hit) continue;
-    for (const u of shuffle(hit.art.units.filter((x) => x.t && !x.rev), r).slice(0, 2)) {
-      const dims = [...new Set(findTargets(u).map((t) => t.dim))].filter((d) => d === 'literal' || d === 'prazos' || d === 'penas');
-      if (!dims.length) continue;
-      const dim = dims[Math.floor(r() * dims.length)];
-      for (let k = 0; k < 4; k++) {
-        const e = buildLiteral(hit.law, hit.art, u, dim, r() < 0.55 ? 1 : 2, 'memorizar', `bz${k}`);
-        if (e && e.kind === 'cloze-mc' && words(e) <= 42 && !state.items.some((x) => x.key === e.key)) { state.items.push({ ...e, expectedMs: BLITZ_SECONDS * 1000 }); break; }
-      }
-      if (state.items.length >= BLITZ_COUNT) break;
+    const candidates = unitItems(id, 'memorizar', new Map(), String(state.seed), true)
+      .filter((ex) => ex.kind === 'cloze-mc' && words(ex) <= 42);
+    const units = new Set<string>();
+    for (const exercise of candidates) {
+      if (!exercise.unitId || units.has(exercise.unitId)) continue;
+      state.items.push({ ...exercise, expectedMs: BLITZ_SECONDS * 1000 });
+      units.add(exercise.unitId);
+      if (state.items.length >= BLITZ_COUNT || units.size >= 2) break;
     }
   }
 }
@@ -471,7 +482,7 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
   state.config.infinite = false;
 }
 
-export async function buildSession(cfg: SessionConfig, persist = true): Promise<SessionState> {
+export async function buildSession(cfg: SessionConfig, persist = true, retryItems?: readonly Exercise[]): Promise<SessionState> {
   const area = cfg.area ?? getSettings().area;
   const config: SessionConfig = { ...cfg, area, order: cfg.order ?? DEFAULT_ARTICLE_ORDER, timed: !cfg.infinite && !cfg.blitz, infinite: cfg.blitz ? false : cfg.infinite };
   const now = Date.now();
@@ -484,6 +495,9 @@ export async function buildSession(cfg: SessionConfig, persist = true): Promise<
       await buildPlannedStudy(state, cfg.planner);
     } else if (cfg.activity === 'doctrine' && cfg.doctrine) {
       state.items = await buildDoctrineSession(cfg.doctrine, String(state.seed));
+    } else if (cfg.activity === 'retry') {
+      state.items = (retryItems ?? []).filter(isStudyQuestion).map((item, index) => retryExercise(item, `${state.seed}:${index}`));
+      state.config.infinite = false;
     } else if (cfg.activity === 'review') {
       const [cards, latest] = await Promise.all([db.cards.bulkGet(cfg.practiceCardIds ?? []), latestReviews()]);
       await ensureLaws([...new Set(cards.flatMap((card) => card?.articleId ? [card.articleId.split('.')[0]] : []))]);
@@ -626,6 +640,16 @@ export async function resumeSession(): Promise<SessionState | null> {
         return fixed ? [{ ...fixed, practice: exercise.practice }] : [];
       }
     }
+    // Sessões já respondidas mantêm seu histórico. As lacunas antigas ainda pendentes usam a seleção atual.
+    if (saved.config.activity !== 'retry' && exercise.key.startsWith('L:') && exercise.kind.startsWith('cloze') && exercise.priority === undefined) {
+      const unitId = exercise.unitId ?? exercise.key.split(':')[1];
+      const hit = getUnit(unitId);
+      if (hit) {
+        const current = buildLiteral(hit.law, hit.art, hit.unit, exercise.dim, exercise.stage,
+          saved.config.mode === 'provar' ? 'provar' : 'memorizar', saved.id);
+        return current ? [{ ...current, practice: exercise.practice }] : [];
+      }
+    }
     if (!isCurrentDoctrineQuestion(exercise.key)) return [exercise];
     const current = doctrineExercise(exercise.key, String(saved.seed));
     if (!current) return [exercise];
@@ -637,7 +661,7 @@ export async function resumeSession(): Promise<SessionState | null> {
     const sameParts = JSON.stringify(current.doctrineParts) === JSON.stringify(exercise.doctrineParts);
     return [current.prompt === exercise.prompt && sameOptions && sameParts ? exercise : { ...current, practice: exercise.practice }];
   });
-  const legacyTyped = saved.config.mode !== 'provar' && remaining.some((exercise) => exercise.kind === 'cloze-type');
+  const legacyTyped = saved.config.mode !== 'provar' && saved.config.activity !== 'retry' && remaining.some((exercise) => exercise.kind === 'cloze-type');
   const revised = remaining.length !== saved.items.length - firstPending
     || remaining.some((exercise, index) => exercise !== saved.items[firstPending + index]);
   if (!legacyTyped && !revised && !saved.pausedAt && !saved.config.timed) return saved;

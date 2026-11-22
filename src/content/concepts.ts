@@ -4,6 +4,18 @@ import type { Concept } from './types';
 export const CONCEPTS: Concept[] = [
   // ---------------- Direito Penal ----------------
   {
+    id: 'c-pen-associacoes-minimo', tipo: 'comparacao', topico: 'penal-cp', dims: ['conceitual', 'aplicacao'], nivel: 2,
+    pergunta: 'Qual é o número mínimo de integrantes exigido, respectivamente, para organização criminosa e associação criminosa?',
+    opcoes: [
+      { texto: '4 na organização e 3 na associação', correta: true, porque: 'A Lei n. 12.850/2013, art. 1º, § 1º, exige quatro ou mais pessoas. O CP, art. 288, exige três ou mais.' },
+      { texto: '3 na organização e 4 na associação', correta: false, porque: 'Os mínimos dos dois dispositivos foram invertidos.' },
+      { texto: '3 em ambos os casos', correta: false, porque: 'Três é o mínimo da associação criminosa. A definição de organização criminosa exige pelo menos quatro pessoas.' },
+      { texto: '4 em ambos os casos', correta: false, porque: 'O CP já admite três pessoas para o requisito numérico da associação criminosa.' },
+      { texto: '5 na organização e 3 na associação', correta: false, porque: 'Quatro pessoas já atendem ao requisito numérico da organização criminosa.' },
+    ],
+    refs: [{ law: 'l12850', art: '1', quote: '4 (quatro) ou mais pessoas' }, { law: 'cp', art: '288', quote: '3 (três) ou mais pessoas' }],
+  },
+  {
     id: 'c-pen-01', tipo: 'crime-conduta', topico: 'penal-cp', dims: ['conceitual', 'aplicacao'], nivel: 1,
     situacao: 'Um servidor do fórum diz a um advogado que só fará a juntada urgente de uma petição se receber R$ 1.000,00, deixando claro que, sem o pagamento, o processo "vai para o fim da fila".',
     pergunta: 'A conduta do servidor caracteriza, em tese:',
@@ -430,6 +442,19 @@ export const CONCEPTS: Concept[] = [
       { texto: 'O Comitê Interinstitucional', correta: false, porque: 'O Comitê Interinstitucional faz a interlocução com entidades externas (art. 8º).' },
     ],
     refs: [{ law: 'res963', art: '5' }, { law: 'res963', art: '6' }, { law: 'res963', art: '7' }, { law: 'res963', art: '8' }],
+  },
+  {
+    id: 'c-int-850-limite-teletrabalho', tipo: 'comparacao', topico: 'int-850', dims: ['conceitual', 'aplicacao'], nivel: 2,
+    situacao: 'Uma unidade do TJSP vinculada diretamente à Presidência vai distribuir suas vagas de teletrabalho. O gestor aplica a regra geral para essa unidade, sem solicitar majoração excepcional.',
+    pergunta: 'Que percentual do quadro serve de limite para essa unidade?',
+    opcoes: [
+      { texto: '70%', correta: true, porque: 'O inciso II do art. 9º prevê 70% nas unidades vinculadas aos órgãos de direção nele indicados.' },
+      { texto: '50%', correta: false, porque: 'O inciso III fixa 50% para as unidades de primeiro grau, excetuados os gabinetes.' },
+      { texto: '60%', correta: false, porque: 'Para as unidades vinculadas à Presidência, o inciso II fixa o limite de 70%.' },
+      { texto: '75%', correta: false, porque: 'O arredondamento previsto no inciso II incide sobre o resultado em número de servidores. O percentual de referência é 70%.' },
+      { texto: '80%', correta: false, porque: 'O limite de referência é 70%. A majoração é excepcional e depende das condições previstas no inciso II.' },
+    ],
+    refs: [{ law: 'res850', art: '9', quote: '70% (setenta por cento)' }, { law: 'res850', art: '9', quote: '50% (cinquenta por cento)' }],
   },
   // ---------------- Técnica legislativa e CF (Título II) ----------------
   {

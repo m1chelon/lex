@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { importBackup } from '../src/data/backup';
 import { createBackupBlob } from '../src/data/profileBackup';
-import { finishSimulado, listSimulados, loadSimulado, saveSimulado, updateSimulado, type Simulado } from '../src/learn/simulado';
+import { finishSimulado, gerarSimulado, listSimulados, loadSimulado, saveSimulado, simuladoErrors, updateSimulado, type Simulado } from '../src/learn/simulado';
 import { baterPonto, getPontos, pontoHoje } from '../src/learn/ponto';
 import { db } from '../src/data/db';
 import { reviewQueue, setReviewMark } from '../src/learn/reviewQueue';
@@ -98,6 +98,61 @@ it('sugere cada erro uma vez e retira da revisão os acertos na repetição', as
   const items = [corrected, missed, corrected, missed, missed];
   const results = items.slice(0, -1).map(({ key }, index) => ({ key, ms: 1000, correct: index === 2 }));
   expect(pendingSessionErrors({ items, results })).toEqual([missed]);
+});
+
+it('prioriza a lacuna do percentual no treino, no diário e na prova da Resolução 850', async () => {
+  const cfg: SessionConfig = { ...config, focus: 'law:res850', articleIds: ['res850.9'] };
+  const itemAtLimit = (state: Awaited<ReturnType<typeof buildSession>>) => state.items.find(
+    (item) => item.unitId === 'res850.9.i2' && item.dim === 'literal',
+  );
+  const normal = await buildSession(cfg, false);
+  const daily = await buildSession({ ...cfg, activity: 'daily' }, false);
+  const typed = await buildSession({ ...cfg, mode: 'provar', mix: 'literal' }, false);
+  expect(itemAtLimit(normal)).toMatchObject({ kind: 'cloze-mc', answer: '70% (setenta por cento)' });
+  expect(itemAtLimit(daily)).toMatchObject({ kind: 'cloze-mc', answer: '70% (setenta por cento)' });
+  expect(itemAtLimit(typed)).toMatchObject({ kind: 'cloze-type', answer: '70% (setenta por cento)' });
+  const exam = await gerarSimulado(cfg, 'leiseca', 3, null);
+  const percentItem = exam.questoes.find((question) => question.unitId === 'res850.9.i2');
+  expect(percentItem).toMatchObject({ target: '70% (setenta por cento)' });
+  expect(percentItem?.options).toHaveLength(5);
+  expect(percentItem?.texto).toContain('até ________ do quadro');
+});
+
+it('refaz cada alvo efetivamente errado, mesmo quando o cartão também teve outro acerto', async () => {
+  const active = await buildSession({ ...config, focus: 'law:res850', articleIds: ['res850.9'] }, false);
+  const options = active.items.find((item) => item.answer === '70% (setenta por cento)')!;
+  const typed = { ...options, kind: 'cloze-type' as const, options: undefined };
+  const anotherTarget = { ...options, answer: 'imediatamente superior' };
+  const wrong = pendingSessionErrors({
+    items: [options, anotherTarget, typed],
+    results: [{ key: options.key, correct: false, ms: 1 }, { key: options.key, correct: true, ms: 1 }],
+  });
+  expect(wrong).toEqual([options]);
+  const retry = await buildSession({ ...config, activity: 'retry', minutes: 0 }, false, [...wrong, typed]);
+  expect(retry.items.map(({ kind, answer }) => ({ kind, answer }))).toEqual([
+    { kind: 'cloze-mc', answer: options.answer }, { kind: 'cloze-type', answer: options.answer },
+  ]);
+  expect(retry.items[0].options).not.toEqual(options.options);
+  expect(retry.items[0].options).toEqual(expect.arrayContaining(options.options!));
+  expect(retry.config.timed).toBe(false);
+  const previous = await loadSession();
+  try {
+    await saveSession({ ...retry, pausedAt: Date.now() });
+    expect((await resumeSession())?.items).toEqual(retry.items);
+  } finally { await saveSession(previous); }
+});
+
+it('reapresenta somente as questões respondidas incorretamente no simulado', async () => {
+  const cfg: SessionConfig = { ...config, focus: 'law:res850', articleIds: ['res850.9'] };
+  const exam = await gerarSimulado(cfg, 'leiseca', 3, null);
+  expect(exam.questoes).toHaveLength(3);
+  const [wrong, right] = exam.questoes;
+  const retry = simuladoErrors({
+    ...exam, respostas: { [wrong.id]: wrong.options!.find((o) => !o.correct)!.id, [right.id]: right.options!.find((o) => o.correct)!.id },
+  });
+  expect(retry).toHaveLength(1);
+  expect(retry[0]).toMatchObject({ key: wrong.id, answer: wrong.target, options: wrong.options });
+  expect(retry[0].stem.filter(({ blank }) => blank)).toEqual([{ t: wrong.target, blank: true }]);
 });
 
 describe('retomada da sequência de artigos', () => {

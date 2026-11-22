@@ -283,7 +283,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         <>
           <OptionList options={ex.options!} answered={answered} chosen={selected} onPick={pick} />
           {feedback}
-          {answered && <Official ex={ex} highlight={ex.kind === 'cloze-mc' ? ex.answer : undefined} />}
+          {answered && <Official ex={ex} highlight={ex.kind === 'cloze-mc' ? ex.answer : ex.altered?.from} />}
         </>
       )}
     </div>
@@ -298,7 +298,7 @@ function ConceptRefs({ id }: { id: string }) {
   return <div className="card" style={{ padding: '6px 14px' }}><div className="caps" style={{ margin: '6px 0 2px' }}>Fundamentação</div>{c.refs.map((r, i) => <RefLine key={i} r={r} status={vi?.refs[i]?.status} />)}</div>;
 }
 
-function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: () => void; onNext: (cfg: SessionConfig) => void; startXp?: number }) {
+function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: () => void; onNext: (cfg: SessionConfig, retryItems?: Exercise[]) => void; startXp?: number }) {
   const graded = s.results.filter((r) => r.correct !== null);
   const ok = graded.filter((r) => r.correct).length;
   const wrong = pendingSessionErrors(s);
@@ -383,9 +383,8 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
       )}
       <div className="answer-dock summary-dock">
         {!!wrong.length && <button className="btn btn-primary btn-block" onClick={() => onNext({
-          area: s.config.area, focus: s.config.focus, mode: 'memorizar', minutes: 10, title: 'Refazer erros', activity: 'review',
-          practiceCardIds: wrong.map(({ key }) => key),
-        })}>Refazer {wrong.length} {wrong.length === 1 ? 'erro' : 'erros'}</button>}
+          area: s.config.area, focus: s.config.focus, mode: s.config.mode, minutes: 0, title: 'Revisão dos erros', activity: 'retry',
+        }, wrong)}>Refazer {wrong.length} {wrong.length === 1 ? 'erro' : 'erros'} agora</button>}
         {followup && <button className={`btn btn-block ${wrong.length ? 'btn-quiet' : 'btn-primary'}`} onClick={() => onNext(followup.config)}>{followup.label}</button>}
         <button className={`btn btn-block ${wrong.length || followup ? 'btn-quiet' : 'btn-primary'}`} onClick={onClose}>Concluir</button>
       </div>
@@ -432,7 +431,9 @@ function BlitzClock({ deadline, onTimeout }: { deadline: number; onTimeout: () =
   );
 }
 
-export function SessionScreen({ active, resume, config, plan }: { active: boolean; resume?: boolean; config?: SessionConfig; plan?: Plan }) {
+export function SessionScreen({ active, resume, config, plan, retryItems }: {
+  active: boolean; resume?: boolean; config?: SessionConfig; plan?: Plan; retryItems?: readonly Exercise[];
+}) {
   const [s, setS] = useState<SessionState | null>(null);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [seconds, setSeconds] = useState(3);
@@ -461,7 +462,7 @@ export function SessionScreen({ active, resume, config, plan }: { active: boolea
     return next;
   };
   const openNew = async (options: SessionConfig, interrupted?: SessionState) => {
-    const next = await buildSession(options, false);
+    const next = await buildSession(options, false, retryItems);
     if (!next.items.length) return next;
     if (interrupted) await finishSession(interrupted, false, { expected: interrupted, replacement: next });
     else await saveSession(next, null);
@@ -710,7 +711,7 @@ export function SessionScreen({ active, resume, config, plan }: { active: boolea
       }
       await close();
     }}
-    onNext={(next) => nav.replace({ name: 'session', config: next, reenter: s.id })} />;
+    onNext={(next, retry) => nav.replace({ name: 'session', config: next, reenter: s.id, retryItems: retry })} />;
 
   const progress = s.config.infinite ? (s.index % 20) / 20 : s.index / s.items.length;
   const question = s.items.slice(0, s.index + 1).filter(isStudyQuestion).length;
@@ -943,6 +944,7 @@ function SaveReview({ cardId }: { cardId: string }) {
 function AnswerCorrection({ ex, answer }: { ex: Exercise; answer: Answer }) {
   const timedOut = answer.given === '(tempo esgotado)';
   const option = ex.options?.find((o) => o.correct);
+  const wrongExplanation = !answer.correct && ex.options?.find((o) => o.id === answer.optionId)?.why;
   let right = option?.text ?? ex.answer ?? '';
   let given = timedOut ? 'Tempo esgotado' : answer.given?.trim() || 'Em branco';
   let change = '';
@@ -950,6 +952,7 @@ function AnswerCorrection({ ex, answer }: { ex: Exercise; answer: Answer }) {
   let label = ex.family === 'literal' && ex.articleId ? 'A lei diz' : 'Resposta esperada';
   if (ex.kind === 'which-article') label = 'Dispositivo correto';
   if (ex.kind === 'rubric') label = 'Rubrica correta';
+  if (ex.kind === 'ce') label = 'Gabarito';
   if (ex.kind === 'tf' || ex.kind === 'spot') {
     if (ex.kind === 'tf') {
       given = answer.given === 'V' ? 'Igual à lei' : answer.given === 'F' ? 'Há alteração' : given;
@@ -979,7 +982,7 @@ function AnswerCorrection({ ex, answer }: { ex: Exercise; answer: Answer }) {
   if (!right) return null;
   if (ex.family === 'literal' && !timedOut && !answer.correct) {
     if (!ex.altered && ex.kind !== 'tf' && ex.kind !== 'order') note = trapNote(right, given);
-    if (!change && ex.kind !== 'tf' && ex.kind !== 'order' && !note) {
+    if (!change && ex.kind !== 'tf' && ex.kind !== 'ce' && ex.kind !== 'order' && !note) {
       const hasNegation = (value: string) => /\b(?:nao|nunca|nem)\b/.test(fold(value));
       if (hasNegation(right) !== hasNegation(given)) change = 'A negação inverte o sentido deste trecho.';
       else if (ex.dim === 'prazos') change = 'O prazo depende do número e da unidade de tempo do dispositivo.';
@@ -987,8 +990,8 @@ function AnswerCorrection({ ex, answer }: { ex: Exercise; answer: Answer }) {
       else change = 'Confira a redação no trecho destacado abaixo.';
     }
   }
-  const explanation = [change, note?.texto ?? option?.why].filter(Boolean).join(' ');
-  const comparison = ex.altered?.to ?? (ex.kind === 'tf' || ex.kind === 'spot' ? '' : given);
+  const explanation = [change, note?.texto ?? (wrongExplanation || option?.why)].filter(Boolean).join(' ');
+  const comparison = ex.kind === 'ce' ? '' : ex.altered?.to ?? (ex.kind === 'tf' || ex.kind === 'spot' ? '' : given);
   const diff = ex.family === 'literal' && !timedOut && comparison && fold(comparison) !== fold(right)
     ? wordDiff(comparison, right) : [];
   return (
