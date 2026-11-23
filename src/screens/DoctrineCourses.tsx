@@ -35,7 +35,7 @@ export function DoctrineCatalog() {
   }, []);
   return (
     <section className="stack tab-content">
-      <SectionHeader title="Cursos" description="Questões de doutrina comentadas por matéria." icon={<span className="section-icon courses"><IBook /></span>}
+      <SectionHeader title="Cursos" description="Questões comentadas por matéria: doutrina jurídica, Português e Informática." icon={<span className="section-icon courses"><IBook /></span>}
         right={<button className="icon-btn glass" aria-label="Buscar no LEX" onClick={() => nav.push({ name: 'search' })}><ISearch size={20} /></button>} />
       <div className="contest-catalog doctrine-catalog">
         {courseCatalog.map((course) => (

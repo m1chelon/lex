@@ -14,6 +14,8 @@ import { EDITAL } from '../core/sources';
 import { topicoLabel } from './plan';
 import { loadCalibration, recordAnswer } from './scheduler';
 import { fold, hashStr, rng, shuffle } from './text';
+import { buildAssertivas, cebraspeTraps, naNorma, statementOf } from './bancas';
+import { doctrineExamQuestions } from './doctrineCourses';
 
 export type Estilo = 'leiseca' | 'cebraspe' | 'fgv';
 export interface SimOption { id: string; text: string; correct: boolean; why?: string }
@@ -21,6 +23,8 @@ export interface Questao {
   id: string; estilo: Estilo; lawId?: string; articleId?: string; unitId?: string; conceptId?: string;
   where?: string; enunciado: string; contexto?: string; contextoLegal?: string; texto?: string;
   disciplina?: string; bloco?: string;
+  /** Questão vinda de um curso (Português, Informática): chave do cartão no curso, para revisão conjunta. */
+  doctrineKey?: string; doctrineCourse?: string;
   options?: SimOption[]; ce?: 'C' | 'E'; mutation?: Mutation; officialText?: string; target?: string; dim?: Dim;
 }
 export interface Simulado {
@@ -30,10 +34,14 @@ export interface Simulado {
 
 export const EDITAL_SIMULADO = {
   tjsp: {
-    title: 'TJSP · Conhecimentos em Direito',
-    detail: '30 de Direito. Português, conhecimentos gerais e redação ficam fora deste treino.',
+    title: 'TJSP · Português, Direito e Informática',
+    detail: '16 de Língua Portuguesa, 30 de Direito e 9 de Informática, como na distribuição da última prova. Atualidades, Matemática, Raciocínio Lógico e redação ficam fora deste treino.',
     url: EDITAL.url,
-    blocks: [{ id: 'II', label: 'Conhecimentos em Direito', n: 30, minimum: 15 }],
+    blocks: [
+      { id: 'I', label: 'Língua Portuguesa', n: 16, minimum: 8, course: 'portugues' },
+      { id: 'II', label: 'Conhecimentos em Direito', n: 30, minimum: 15 },
+      { id: 'III', label: 'Conhecimentos Gerais · Informática', n: 9, minimum: null, course: 'informatica' },
+    ],
   },
   tjms: {
     title: 'TJMS · Blocos jurídicos',
@@ -100,7 +108,10 @@ function qLeiSeca(law: LawDoc, art: Article, u: Unit, seed: string): Questao | n
 
 function qCebraspe(law: LawDoc, art: Article, u: Unit, seed: string): Questao | null {
   const r = rng(seed);
-  const changes = alternativesForRule(law, u, seed, true);
+  // Alterna as armadilhas típicas da banca (modal, proibição, ressalva) com as trocas de prazo e termo.
+  const traps = shuffle(cebraspeTraps(u), r);
+  const rule = alternativesForRule(law, u, seed, true);
+  const changes = traps.length && (!rule.length || r() < 0.5) ? [...traps, ...rule] : [...rule, ...traps];
   const pick = changes.length ? undefined : pickProvisionTarget(law, art, u);
   const change: Mutation | undefined = changes[0] ?? (pick && {
     text: u.t.slice(0, pick.target.start) + pick.choices[0] + u.t.slice(pick.target.start + pick.target.text.length),
@@ -111,8 +122,8 @@ function qCebraspe(law: LawDoc, art: Article, u: Unit, seed: string): Questao | 
   const changed = r() < 0.5;
   return { id: `S:${u.id}:CE`, estilo: 'cebraspe', lawId: law.id, articleId: art.id, unitId: u.id,
     where: `${law.short}, ${unitPath(art, u)}`,
-    enunciado: 'Julgue a afirmação à luz do dispositivo indicado.', texto: changed ? change.text : u.t, ce: changed ? 'E' : 'C',
-    contextoLegal: unitContext(art, u).map(({ t }) => t).join('').trim() || undefined,
+    // Como no CEBRASPE, o item é uma proposição completa: incisos e alíneas trazem o texto que os introduz.
+    enunciado: `Com base ${naNorma(law.short)}, julgue o item a seguir.`, texto: statementOf(art, u, changed ? change.text : u.t), ce: changed ? 'E' : 'C',
     mutation: changed ? change : undefined, officialText: u.t, target: change.from, dim: change.dim,
   };
 }
@@ -173,8 +184,12 @@ async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, s
             add({ ...ref, id: authoredId, estilo, conceptId: concept.id, enunciado: concept.pergunta, contexto: concept.situacao,
               options: conceptExercise(concept, s).options! });
           } else {
-            const ex = buildCaseForProvision(law, art, unit, s);
-            if (ex) add({ ...ref, id: `S:${ex.key}`, estilo, dim: ex.dim, target: ex.answer, enunciado: ex.prompt,
+            // Cerca de um terço das questões no formato de assertivas (I, II e III), comum na FGV e na VUNESP.
+            const assertivas = rng(`${s}:formato`)() < 0.34 ? buildAssertivas(law, art, unit, s) : null;
+            const ex = assertivas ? null : buildCaseForProvision(law, art, unit, s);
+            if (assertivas) add({ ...ref, id: assertivas.id, estilo, dim: 'aplicacao', enunciado: assertivas.enunciado,
+              texto: assertivas.texto, officialText: assertivas.officialText, options: assertivas.options });
+            else if (ex) add({ ...ref, id: `S:${ex.key}`, estilo, dim: ex.dim, target: ex.answer, enunciado: ex.prompt,
               contexto: ex.context?.map((c) => c.t).join(' '), texto: ex.stem.map((c) => c.t).join(''), options: ex.options });
           }
         } else {
@@ -221,6 +236,15 @@ export async function gerarSimuladoEdital(area: 'tjsp' | 'tjms', tempoMin: numbe
   const cov = coverage(area);
   const questoes: Questao[] = [];
   for (const block of EDITAL_SIMULADO[area].blocks) {
+    if ('course' in block && block.course) {
+      const disciplina = block.course === 'portugues' ? 'Língua Portuguesa' : 'Informática';
+      const items = await doctrineExamQuestions(block.course, block.n, String(seed));
+      questoes.push(...items.map((item): Questao => ({
+        id: `S:${item.key}`, estilo: 'leiseca', enunciado: item.prompt, options: item.options,
+        doctrineKey: item.key, doctrineCourse: block.course, disciplina, bloco: block.id, where: item.module,
+      })));
+      continue;
+    }
     const topics = new Map<string, Set<string>>();
     const blockQuestions: Questao[] = [];
     for (const item of cov.items) {
@@ -290,7 +314,7 @@ function simuladoDimension(question: Questao): Dim {
 }
 
 export function simuladoErrors(s: Simulado): Exercise[] {
-  return s.questoes.flatMap((question) => {
+  return s.questoes.flatMap((question): Exercise[] => {
     const given = s.respostas[question.id];
     if (!given || isSimuladoAnswerCorrect(question, given)) return [];
     const ce = question.estilo === 'cebraspe';
@@ -300,6 +324,11 @@ export function simuladoErrors(s: Simulado): Exercise[] {
     })) : question.options ?? [];
     const correct = options.find((option) => option.correct);
     if (!correct) return [];
+    if (question.doctrineKey && question.doctrineCourse) {
+      return [{ key: question.doctrineKey, kind: 'doctrine', family: 'interpretacao', dim: 'conceitual', prompt: question.enunciado,
+        stem: [], options, answer: correct.text, expectedMs: 30_000, stage: 1, where: question.where,
+        doctrine: { courseId: question.doctrineCourse, module: question.where ?? '', source: '', pages: '' } } satisfies Exercise];
+    }
     const expected = question.target ?? correct.text;
     const text = question.texto ?? '';
     const blank = text.indexOf('________');
@@ -380,8 +409,9 @@ export async function finishSimulado(id: string): Promise<Simulado> {
         const answer = question.options?.find((option) => option.correct);
         const [, , format] = question.id.split(':');
         await recordAnswer({
-          cardId: question.conceptId ? `C:${question.conceptId}` : question.id,
-          base: { articleId: question.articleId, unitId: question.unitId, conceptId: question.conceptId, dim: simuladoDimension(question), type: 'simulado' },
+          cardId: question.doctrineKey ?? (question.conceptId ? `C:${question.conceptId}` : question.id),
+          base: question.doctrineKey ? { dim: 'conceitual', type: 'doctrine' }
+            : { articleId: question.articleId, unitId: question.unitId, conceptId: question.conceptId, dim: simuladoDimension(question), type: 'simulado' },
           correct: isSimuladoAnswerCorrect(question, given),
           ms: 30000, expectedMs: 60000, mode: 'simulado', type: 'simulado',
           given: question.estilo === 'cebraspe' ? given : question.options?.find((option) => option.id === given)?.text,
@@ -409,6 +439,7 @@ export function readSavedSimulado(value: unknown, id: string): Simulado | null {
   for (const question of saved.questoes) {
     if (!question || typeof question.id !== 'string' || typeof question.enunciado !== 'string' || ids.has(question.id)) return null;
     if (![question.contexto, question.contextoLegal, question.texto, question.disciplina, question.officialText, question.target,
+      question.doctrineKey, question.doctrineCourse,
       question.mutation?.note, question.mutation?.from, question.mutation?.to]
       .every((text) => text == null || typeof text === 'string')) return null;
     if (question.dim != null && !DIMS.some(({ id }) => id === question.dim)) return null;

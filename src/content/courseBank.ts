@@ -37,6 +37,10 @@ export const COURSE_BOOKS = {
   consumidorIndividual: 'Manual de Direito do Consumidor, 15ª ed., 2026',
   consumidorColetivo: 'Manual de Direito do Consumidor, 15ª ed., 2026',
   organizacoes: 'Organizações Criminosas',
+  portuguesEsquematizado: 'Português Esquematizado, 10ª ed., 2022 — Agnaldo Martino',
+  gramaticaPestana: 'A Gramática para Concursos Públicos — Fernando Pestana',
+  informaticaSatin: 'Manual Completo de Informática para Concursos — Helder Satin',
+  microsoft365: 'Suporte Microsoft — Windows, Microsoft 365, Teams e OneDrive',
 } as const;
 
 export type CourseFact = readonly [id: string, term: string, criterion: string, scenario: string, pages: string];

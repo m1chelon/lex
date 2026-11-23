@@ -54,7 +54,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          const course = /\/src\/content\/(constitutional|electoral|penal|processo-civil|processo-penal|civil|administrativo|consumidor)\/(?!index\.ts$)/.exec(id);
+          const course = /\/src\/content\/(constitutional|electoral|penal|processo-civil|processo-penal|civil|administrativo|consumidor|portugues|informatica)\/(?!index\.ts$)/.exec(id);
           if (course) return `curso-${course[1]}`;
         },
       },

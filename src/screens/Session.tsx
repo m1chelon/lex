@@ -1,4 +1,4 @@
-import { doctrineQuestion } from '../learn/doctrineCourses';
+import { doctrineLabel, doctrineQuestion } from '../learn/doctrineCourses';
 import { reviewMarkId, setReviewMark } from '../learn/reviewQueue';
 import { TucaLoading } from '../ui/TucaLoading';
 import { trapNote } from '../content/traps';
@@ -79,7 +79,7 @@ function Official({ ex, highlight }: { ex: Exercise; highlight?: string }) {
 }
 
 function KindBadge({ ex }: { ex: Exercise }) {
-  const fam = ex.doctrine ? 'Doutrina' : { literal: 'Literalidade', interpretacao: 'Interpretação', leitura: 'Leitura guiada', microaula: 'Microaula', glossario: 'Dicionário' }[ex.family];
+  const fam = ex.doctrine ? doctrineLabel(ex.doctrine.courseId) : { literal: 'Literalidade', interpretacao: 'Interpretação', leitura: 'Leitura guiada', microaula: 'Microaula', glossario: 'Dicionário' }[ex.family];
   const c = ex.conceptId ? findLawConcept(ex.conceptId) : null;
   return (
     <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -267,7 +267,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
   return (
     <div className="stack" style={{ gap: 14 }}>
       <MascotQuestion text={ex.prompt} />
-      <div className="law-art law">
+      <div className="law-art law" style={{ whiteSpace: 'pre-line' }}>
         {ex.context?.length ? <div className="muted" style={{ fontSize: '0.92em', marginBottom: 10, whiteSpace: 'pre-line' }}><Segs segs={ex.context} lawId={lawId} terms={terms} /></div> : null}
         <Segs segs={ex.stem} lawId={lawId} terms={terms && ex.kind !== 'which-article' && ex.kind !== 'rubric'} blankContent={blankShown} />
       </div>
@@ -792,7 +792,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
           {checkpoint.remaining === 0 ? ' concluído' : checkpoint.remaining === 1 ? ' · falta 1 questão' : ` · faltam ${checkpoint.remaining} questões`}
         </p>}
         {where && (!answer && ex.kind === 'which-article' ? null : ex.doctrine
-          ? <p className="question-module"><span className="muted">Doutrina</span> · {where}</p>
+          ? <p className="question-module"><span className="muted">{doctrineLabel(ex.doctrine.courseId)}</span> · {where}</p>
           : <div className="question-reference">
             <LegalReference key={where + ':' + (ex.unitId ?? '')} where={where} unitId={ex.unitId} onOpen={canConsult ? () => {
               setAutoPaused(true);

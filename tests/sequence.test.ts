@@ -528,7 +528,9 @@ it('gera casos práticos, leitura com pontos-chave, Relâmpago e Memorizar Guiad
   expect(reading.items[0]).toMatchObject({ kind: 'read', readingFocus: expect.arrayContaining([{ unitId: 'cp.293.cpt', text: 'Falsificar' }]) });
   const blitz = await buildSession(planToConfig({ scope, mode: 'relampago', minutes: 5 }), false);
   expect(blitz.items).toHaveLength(20);
-  expect(blitz.items.every(({ kind, dim, expectedMs }) => kind === 'cloze-mc' && dim !== 'penas' && expectedMs === 10_000)).toBe(true);
+  expect(blitz.items.every(({ kind, expectedMs }) => kind === 'cloze-mc' && expectedMs === 10_000)).toBe(true);
+  // Penas também entram no Relâmpago, limitadas a um quarto da rodada.
+  expect(blitz.items.filter(({ dim }) => dim === 'penas').length).toBeLessThanOrEqual(5);
 });
 
 it('cobre caput, parágrafos, incisos e alíneas nos dois modos de Memorizar, com lacunas curtas', async () => {

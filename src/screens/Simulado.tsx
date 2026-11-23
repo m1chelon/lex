@@ -17,8 +17,8 @@ import { LegalReference } from '../ui/LegalReference';
 
 const ESTILOS: { id: Estilo; label: string; desc: string; minPorQ: number }[] = [
   { id: 'leiseca', label: 'Lei seca', desc: '5 alternativas sobre prazos, limites, requisitos, competências e exceções da legislação.', minPorQ: 2.5 },
-  { id: 'cebraspe', label: 'Certo/Errado', desc: 'Julgue se o item preserva a regra do dispositivo. Uma errada anula uma certa.', minPorQ: 1.5 },
-  { id: 'fgv', label: 'Casos (FGV)', desc: 'Estilo FGV: situação-problema com 4–5 alternativas — banco de casos verificados e casos gerados a partir dos tipos penais.', minPorQ: 3 },
+  { id: 'cebraspe', label: 'Certo/Errado', desc: 'Estilo CEBRASPE: itens com as armadilhas da banca (dever × faculdade, proibição × permissão, ressalva suprimida, prazo e quórum trocados). Uma errada anula uma certa; deixe em branco se não souber.', minPorQ: 1.5 },
+  { id: 'fgv', label: 'Casos (FGV)', desc: 'Estilo FGV: situação-problema e julgamento de assertivas (I, II e III), com 5 alternativas. Usa o banco de casos verificados e casos gerados do texto oficial.', minPorQ: 3 },
 ];
 
 export function useSimuladoSetup(area: AreaId, focus: string) {
@@ -62,7 +62,7 @@ export function SimuladoFields({ setup }: { setup: ReturnType<typeof useSimulado
   const { estilo, setEstilo, n, setN, tempo, setTempo, available, edital, setOfficial, count, defaultTime } = setup;
   const e = ESTILOS.find((x) => x.id === estilo)!;
   return (<>
-    {available && <Segmented label="Formato" value={edital ? 'edital' : 'livre'} options={[{ id: 'livre', label: 'Treino livre' }, { id: 'edital', label: 'Blocos jurídicos' }]} onChange={(choice) => setOfficial(choice === 'edital')} />}
+    {available && <Segmented label="Formato" value={edital ? 'edital' : 'livre'} options={[{ id: 'livre', label: 'Treino livre' }, { id: 'edital', label: 'Blocos do edital' }]} onChange={(choice) => setOfficial(choice === 'edital')} />}
     {edital ? (
       <div className="edital-note">
         <strong>{count} questões · {EDITAL_SIMULADO[edital].title}</strong>
@@ -203,14 +203,15 @@ export function SimuladoRun({ id }: { id: string }) {
           <Countdown s={s} onEnd={() => { deadlineReached.current = true; toast('Tempo esgotado'); void finish(); }} />
           <button className="btn btn-quiet btn-sm focus-toggle" aria-label="Modo foco" aria-pressed={studyFocus} onClick={() => setSettings({ studyFocus: !studyFocus })}>Foco</button>
         </div>
-        {q.where && q.estilo !== 'fgv' && <LegalReference key={q.where + (q.unitId ?? '')} where={q.where} unitId={q.unitId} />}
+        {q.doctrineKey ? <p className="question-module"><span className="muted">{q.disciplina}</span> · {q.where}</p>
+          : q.where && q.estilo !== 'fgv' && <LegalReference key={q.where + (q.unitId ?? '')} where={q.where} unitId={q.unitId} />}
       </header>
       <div className="question-body" ref={body}>
         <div key={q.id} className="stack question-content">
           {q.contexto && <div className="card elev"><CType k="hipotetico" /><p style={{ marginTop: 8, lineHeight: 1.55 }}>{q.contexto}</p></div>}
           <MascotQuestion text={q.enunciado} />
           {q.contextoLegal && <div className="law-art law muted" style={{ whiteSpace: 'pre-line' }}>{q.contextoLegal}</div>}
-          {q.texto && <div className="law-art law">{q.texto}</div>}
+          {q.texto && <div className="law-art law" style={{ whiteSpace: 'pre-line' }}>{q.texto}</div>}
           <div className="study-options" role="group" aria-label="Alternativas">
             {q.estilo === 'cebraspe'
               ? (['C', 'E'] as const).map((v) => <button key={v} className={`opt ${s.respostas[q.id] === v ? 'selected' : ''}`} aria-pressed={s.respostas[q.id] === v} onClick={() => answer(v)}><strong>{v === 'C' ? 'Certo' : 'Errado'}</strong></button>)
@@ -250,6 +251,13 @@ function SimuladoResult({ s }: { s: Simulado }) {
   const practiceSubject = (topic: string) => {
     if (!s.area || s.area === 'geral') return;
     const answers = s.questoes.filter((q) => q.disciplina === topic && !isSimuladoAnswerCorrect(q, s.respostas[q.id]));
+    const course = answers.find((q) => q.doctrineCourse)?.doctrineCourse;
+    if (course) {
+      // Português e Informática: refaz os erros do curso (as respostas do simulado já entraram nele).
+      nav.push({ name: 'session', config: { area: s.area, focus: 'auto', mode: 'memorizar', minutes: 7, title: topic,
+        activity: 'doctrine', doctrine: { courseId: course, filter: answers.some((q) => s.respostas[q.id]) ? 'errors' : 'study' } } });
+      return;
+    }
     const articles = [...new Set(answers.flatMap((q) => q.articleId ? [q.articleId] : []))];
     nav.push({ name: 'session', config: {
       area: s.area, focus: `topico:${topic}`, mode: 'memorizar', minutes: 10, title: 'Treino da disciplina', order: 'linear',
@@ -314,13 +322,13 @@ function SimuladoResult({ s }: { s: Simulado }) {
             {q.contexto && <p className="small muted">{q.contexto}</p>}
             <p className="small" style={{ fontWeight: 620 }}>{q.enunciado}</p>
             {q.contextoLegal && <p className="small muted" style={{ whiteSpace: 'pre-line' }}>{q.contextoLegal}</p>}
-            {q.texto && <p className="small law" style={{ fontSize: 14.5 }}>{q.texto}</p>}
+            {q.texto && <p className="small law" style={{ fontSize: 14.5, whiteSpace: 'pre-line' }}>{q.texto}</p>}
             {q.estilo === 'cebraspe' ? (
               <p className="small">Gabarito: <strong>{q.ce === 'C' ? 'Certo' : 'Errado'}</strong>{a ? ` · sua resposta: ${a === 'C' ? 'Certo' : 'Errado'}` : ''}{q.mutation && <><br /><CType k="incorreto" /> {q.mutation.note}</>}</p>
             ) : (
               q.options!.map((o, j) => <p key={o.id} className="small" style={{ color: o.correct ? 'var(--ok)' : o.id === a ? 'var(--bad)' : 'var(--text-2)', lineHeight: 1.45 }}><strong>{letra(j)})</strong> {o.text}{(o.correct || o.id === a) && o.why ? <span className="xsmall" style={{ display: 'block', opacity: 0.85 }}>{o.why}</span> : null}</p>)
             )}
-            {q.officialText && <div className="law-art" style={{ padding: 12 }}><CType k="oficial" /><p className="law" style={{ fontSize: 15, marginTop: 6 }}>{q.officialText}</p></div>}
+            {q.officialText && <div className="law-art" style={{ padding: 12 }}><CType k="oficial" /><p className="law" style={{ fontSize: 15, marginTop: 6, whiteSpace: 'pre-line' }}>{q.officialText}</p></div>}
             {art && <button className="small gold" style={{ alignSelf: 'flex-start' }} onClick={() => nav.push({ name: 'article', id: art.art.id, unitId: q.unitId })}>{articleTitle(art.law.id, art.art)} ›</button>}
             {q.conceptId && <span className="xsmall muted">Fundamentação: {CONCEPTS.find((x) => x.id === q.conceptId)?.refs.map((r) => `${r.law} art. ${r.art}`).join(', ')}</span>}
           </div>

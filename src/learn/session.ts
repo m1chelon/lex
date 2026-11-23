@@ -425,11 +425,14 @@ async function buildBlitz(config: SessionConfig, state: SessionState) {
   const studied = new Set(cards.flatMap(({ unitId, fsrs }) => unitId && fsrs.reps ? [unitId] : []));
   const pool = ids.flatMap((id) => {
     const hit = getArticle(id);
-    return hit ? provisionUnits(hit.art).filter((unit) => unit.k !== 'pena').map((unit) => ({ ...hit, unit })) : [];
+    // Penas entram no sorteio: espécie e limites da sanção são cobrados com frequência pela VUNESP.
+    return hit ? provisionUnits(hit.art).map((unit) => ({ ...hit, unit })) : [];
   });
   for (const { law, art, unit } of shuffle(pool, r).sort((a, b) =>
     Number(studied.has(a.unit.id)) - Number(studied.has(b.unit.id)))) {
     if (state.items.length >= BLITZ_COUNT) break;
+    // No máximo um quarto da rodada com penas, para o Relâmpago continuar centrado no texto do preceito.
+    if (unit.k === 'pena' && state.items.filter(({ dim }) => dim === 'penas').length >= BLITZ_COUNT / 4) continue;
     const exercise = buildMemory(law, art, unit, 1, String(state.seed), true);
     if (exercise) state.items.push({ ...exercise, expectedMs: BLITZ_SECONDS * 1000 });
   }

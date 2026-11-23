@@ -69,6 +69,9 @@ export function gradeDoctrineParts(parts: DoctrinePart[], answers: string[]) {
 }
 
 export const doctrineQuestion = (key: string) => byKey.get(key);
+/** Rótulo da questão de curso: "Doutrina" nos cursos jurídicos, o nome da disciplina nos demais. */
+export const doctrineLabel = (courseId: string) =>
+  PUBLISHED_DOCTRINE_COURSES.find(({ id }) => id === courseId)?.subject ?? 'Doutrina';
 export function isCurrentDoctrineQuestion(key: string) {
   const card = byKey.get(key);
   return !!card && 'question' in card;
@@ -151,5 +154,39 @@ export async function buildDoctrineSession(scope: DoctrineScope, seed: string) {
   return batch.slice(0, DOCTRINE_BATCH_SIZE).flatMap(({ key }) => {
     const exercise = doctrineExercise(key, seed);
     return exercise ? [{ ...exercise, practice: filter === 'errors' ? 'revanche' as const : filter === 'due' ? 'revisao' as const : undefined }] : [];
+  });
+}
+
+export interface DoctrineExamItem {
+  key: string; prompt: string; chapterId: string; module: string; source: string; pages: string;
+  options: { id: string; text: string; correct: boolean; why?: string }[];
+}
+
+/**
+ * Questões de múltipla escolha de um curso para o simulado do edital (5 alternativas, como na VUNESP).
+ * Distribui as questões entre os blocos indicados e prefere as ainda não respondidas.
+ */
+export async function doctrineExamQuestions(courseId: string, n: number, seed: string, chapterIds?: string[]): Promise<DoctrineExamItem[]> {
+  const random = rng(`exame:${courseId}:${seed}`);
+  const cards = currentCards.filter((card) => card.course.id === courseId && card.question.distractors?.length === 4
+    && (!chapterIds || chapterIds.includes(card.module.id)));
+  const answered = new Set(cards.length ? (await db.reviews.where('cardId').anyOf(cards.map(({ key }) => key)).toArray()).map(({ cardId }) => cardId) : []);
+  const groups = new Map<string, typeof cards>();
+  for (const card of shuffle(cards, random).sort((a, b) => Number(answered.has(a.key)) - Number(answered.has(b.key)))) {
+    groups.set(card.module.id, [...groups.get(card.module.id) ?? [], card]);
+  }
+  // Um bloco por vez, em rodízio, para cobrir o maior número de tópicos do edital.
+  const picked: typeof cards = [];
+  const queues = shuffle([...groups.values()], random);
+  while (picked.length < n && queues.some((queue) => queue.length)) {
+    for (const queue of queues) {
+      const next = queue.shift();
+      if (next && picked.length < n) picked.push(next);
+    }
+  }
+  return picked.map((card) => {
+    const { options } = questionPart(card, seed);
+    return { key: card.key, prompt: card.question.prompt, chapterId: card.module.id, module: card.module.title,
+      source: COURSE_BOOKS[card.book], pages: card.question.pages, options };
   });
 }

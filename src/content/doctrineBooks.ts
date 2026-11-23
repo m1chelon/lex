@@ -45,7 +45,7 @@ function readChapters(text: string, prefix: string, chapterCount: number, startP
 
     const [pages, prompt, answer, explanation, ...distractors] = fields;
     const trueFalse = fields.length === 4 && ['C', 'E'].includes(answer);
-    if (!chapter || fields.some((field) => !field) || (!trueFalse && fields.length !== 7)) {
+    if (!chapter || fields.some((field) => !field) || (!trueFalse && fields.length !== 7 && fields.length !== 8)) {
       throw new Error(`Invalid doctrine question: ${line}`);
     }
     const [first, last] = readRange(chapter.pages);
@@ -110,5 +110,7 @@ export interface PublishedDoctrineCourse {
   id: string;
   title: string;
   cover: CoverKind;
+  /** Disciplina não jurídica (Português, Informática): rótulo exibido no lugar de "Doutrina". */
+  subject?: string;
   books: readonly ReturnType<typeof defineDoctrineBook>[];
 }

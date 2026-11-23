@@ -19,6 +19,8 @@ import { haptic, setSettings } from '../ui/settings';
 import { IStudy, IBrain, IColumns, IClipboard, IGraduation, IProgressChart, ICheck, IChevR, IExternal, IHistory, IMap, IPlay, ISearch, ITrophy, IX } from '../ui/icons';
 import { useCorpusVersion } from '../App';
 import { StudyMetrics } from '../ui/StudyMetrics';
+import { editalSubject } from '../content/editalBasico';
+import { EditalSubjectCard } from './EditalSubject';
 
 export function ConcursosScreen() {
   const version = useCorpusVersion();
@@ -201,7 +203,7 @@ export function CursoScreen({ id, active }: { id: 'tjsp' | 'tjms'; active: boole
             <a className="btn btn-sm btn-quiet" href={a.edital.url} target="_blank" rel="noreferrer"><IExternal size={15} /> Edital oficial</a>
           </div>
           {id === 'tjsp' ? <>
-            <p className="small muted">O treino cobre os recortes de Direito e do Estatuto da Pessoa com Deficiência previstos no Anexo VIII.</p>
+            <p className="small muted">O treino cobre os recortes de Direito e do Estatuto da Pessoa com Deficiência previstos no Anexo VIII, além de Língua Portuguesa e Informática, com questões por tópico do edital.</p>
             <details>
               <summary className="small">Data de corte da legislação</summary>
               <p className="small muted">{a.edital.regra}</p>
@@ -209,7 +211,7 @@ export function CursoScreen({ id, active }: { id: 'tjsp' | 'tjms'; active: boole
             </details>
           </> : <>
             <p className="small muted">O treino de lei seca usa os textos integrais das normas associadas às disciplinas do Anexo I, conforme o edital com a 2ª retificação.</p>
-            <p className="small muted">O programa da FGV inclui Língua Portuguesa e tópicos de doutrina e jurisprudência além da lei seca.</p>
+            <p className="small muted">O programa da FGV também inclui doutrina e jurisprudência além da lei seca. Língua Portuguesa tem curso próprio de questões.</p>
           </>}
         </section>
       )}
@@ -264,6 +266,13 @@ export function CursoScreen({ id, active }: { id: 'tjsp' | 'tjms'; active: boole
             : activeChecklist?.filter === 'review' ? toReview : subject?.articles.filter((entry) => entry.seen) ?? [];
           const openChecklist = (filter: NonNullable<typeof checklist>['filter']) => setChecklist(
             activeChecklist?.filter === filter ? undefined : { topico: d.topico, filter, limit: 8 },
+          );
+          const linked = editalSubject(id, d.topico);
+          if (linked) return (
+            <Fragment key={d.topico}>
+              {subjects[index - 1]?.bloco !== d.bloco && <h3 className="contest-block-title">{COURSE_BLOCKS[d.bloco] ?? d.bloco}</h3>}
+              <EditalSubjectCard area={id} subject={linked} />
+            </Fragment>
           );
           return (
             <Fragment key={d.topico}>
