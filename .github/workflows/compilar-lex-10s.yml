@@ -1,29 +1,53 @@
-name: Compilar Memorização Guiada
+name: Verificar a publicação do Lex
 on:
   pull_request:
     branches: [codigo-fonte]
-    types: [opened]
+    types: [synchronize]
     paths: [.github/workflows/compilar-lex-10s.yml]
 permissions:
   contents: read
 jobs:
-  build:
+  verify:
     if: github.head_ref == 'compilacao-memorizacao-10s' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - run: npm ci
-      - run: npm run build:public
-      - name: Recuperar o JavaScript público já verificado
+      - name: Conferir a versão pública da Memorização Guiada
         run: |
-          file=dist-public/assets/index-DUDmGCQn.js
-          test "$(git hash-object "$file")" = 54c4e1259e0fa8e67b278d44bb25191f1406cd02
-          base64 -w 4096 "$file" | sed 's/^/LEX-DATA /'
-          printf '\n'
+          python3 - <<'PY'
+          from concurrent.futures import ThreadPoolExecutor
+          from hashlib import sha1
+          from time import sleep
+          from urllib.request import Request, urlopen
+          root = "https://m1chelon.github.io/lex/"
+          files = {
+              "": "a7044f355b486b2e50688f117eb687f8710cbe92",
+              "sw.js": "ea1c644e50cf7faefe7666fecd28517c7ad8415a",
+              "assets/index-DUDmGCQn.js": "54c4e1259e0fa8e67b278d44bb25191f1406cd02",
+              "assets/index-nRIFfLvg.css": "7c705679f169b09ff78473c23229f90a7864feb2",
+          }
+
+          def matches(entry):
+              path, expected = entry
+              url = root + path + "?v=47ce406"
+              try:
+                  request = Request(url, headers={"Cache-Control": "no-cache"})
+                  with urlopen(request, timeout=7) as response:
+                      data = response.read()
+                      digest = sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+                      print(path or "/", response.status, digest == expected, flush=True)
+                      return digest == expected
+              except Exception as exc:
+                  print(path or "/", type(exc).__name__, str(exc), flush=True)
+                  return False
+
+          with ThreadPoolExecutor(max_workers=4) as pool:
+              for attempt in range(10):
+                  if all(list(pool.map(matches, files.items()))):
+                      print("LEX_PAGES_VERIFIED", flush=True)
+                      break
+                  if attempt < 9:
+                      sleep(6)
+              else:
+                  raise SystemExit(1)
+          PY
