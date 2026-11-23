@@ -28,6 +28,8 @@ export type Order = 'misturado' | 'linear';
 export const DEFAULT_ARTICLE_ORDER: Order = 'linear';
 export interface SessionConfig {
   minutes: number; mode: Mode; focus: string; area?: AreaId; order?: Order; startArticleId?: string;
+  /** Ponto de partida escolhido pelo jogador ("do início" ou "do artigo…"): não é ajustado pela sequência salva. */
+  chosenStart?: boolean;
   infinite?: boolean; timed?: boolean; articleIds?: string[]; title?: string; mix?: 'literal' | 'casos' | 'ambos';
   /** Relâmpago: 10 s por questão, com lacunas e alternativas curtas. */
   blitz?: boolean;
@@ -529,7 +531,7 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
 export async function buildSession(cfg: SessionConfig, persist = true, retryItems?: readonly Exercise[]): Promise<SessionState> {
   const area = cfg.area ?? getSettings().area;
   const config: SessionConfig = { ...cfg, area, order: cfg.order ?? DEFAULT_ARTICLE_ORDER, timed: !cfg.infinite && !cfg.blitz, infinite: cfg.blitz ? false : cfg.infinite };
-  if (isMemoryMode(config.mode) && config.startArticleId && !config.backfillThrough) {
+  if (isMemoryMode(config.mode) && config.startArticleId && !config.backfillThrough && !config.chosenStart) {
     const key = sequenceKey(config);
     const saved = key && await kvGet<SequencePosition | null>(key, null);
     if (saved && !saved.provisionCoverage && saved.articleId === config.startArticleId) {

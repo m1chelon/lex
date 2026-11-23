@@ -315,10 +315,3 @@
   :root:not([data-motion='full']) .study-layout :is(.study-options > .opt, .memory-choices > .chip):active { transform: none; }
 }
 
-/* Artigo completo como referência nas lacunas */
-.article-peek > summary { cursor: pointer; color: var(--text-2, #b8bfe6); padding: 4px 2px; list-style: none; }
-.article-peek > summary::before { content: '▸ '; }
-.article-peek[open] > summary::before { content: '▾ '; }
-.article-peek .law-art { max-height: 38vh; overflow-y: auto; margin-top: 6px; }
-.article-peek .law-unit { margin: 4px 0; line-height: 1.45; }
-.article-peek em { opacity: .75; }

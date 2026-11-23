@@ -7,7 +7,7 @@ import { getCareer, careerFor, xpFor } from '../learn/career';
 import { motion } from 'motion/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { BLITZ_SECONDS, blitzDeadline, buildSession, canConsultStudySource, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, pendingSessionErrors, questionCheckpoint, requireCurrentSession, resumeSession, saveSession, SessionConflict, sessionDeadline, sessionInProgress, type SessionConfig, type SessionState } from '../learn/session';
-import { findTargets, shuffledOrderItems, type Exercise, type Seg } from '../learn/generators';
+import { contextChain, findTargets, shuffledOrderItems, type Exercise, type Seg } from '../learn/generators';
 import { GUIDED_MEMORY_SECONDS, savePlan, type Plan } from '../learn/plan';
 import { recordAnswer, markSeen } from '../learn/scheduler';
 import { checkTyped, shuffle, rng, fold } from '../learn/text';
@@ -271,7 +271,6 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         {ex.context?.length ? <div className="muted" style={{ fontSize: '0.92em', marginBottom: 10, whiteSpace: 'pre-line' }}><Segs segs={ex.context} lawId={lawId} terms={terms} /></div> : null}
         <Segs segs={ex.stem} lawId={lawId} terms={terms && ex.kind !== 'which-article' && ex.kind !== 'rubric'} blankContent={blankShown} />
       </div>
-      {(ex.kind === 'cloze-mc' || ex.kind === 'cloze-type') && ex.family === 'literal' && <ArticlePeek ex={ex} answered={answered} />}
       {ex.kind === 'cloze-type' ? (
         !answered ? (
           <form className="stack" style={{ gap: 10 }} onSubmit={(e) => { e.preventDefault(); const r = checkTyped(typed, ex.answer!); onAnswer({ correct: r.ok, given: typed }); }}>
@@ -466,11 +465,21 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
     await saveSession(next, saved);
     return next;
   };
-  const openNew = async (options: SessionConfig, interrupted?: SessionState) => {
+  const openNew = async (options: SessionConfig, _interrupted?: SessionState) => {
     const next = await buildSession(options, false, retryItems);
     if (!next.items.length) return next;
-    if (interrupted) await finishSession(interrupted, false, { expected: interrupted, replacement: next });
-    else await saveSession(next, null);
+    // Começar um treino novo é uma escolha explícita: encerra a sessão salva no momento (a mais recente,
+    // mesmo que outra aba ou uma atualização do app a tenha alterado) e grava a nova no lugar.
+    for (let attempt = 0; ; attempt++) {
+      const latest = await loadSession();
+      try {
+        if (sessionInProgress(latest)) await finishSession(latest, false, { expected: latest, replacement: next });
+        else await saveSession(next, latest ?? null);
+        break;
+      } catch (error) {
+        if (!(error instanceof SessionConflict) || attempt >= 2) throw error;
+      }
+    }
     if (plan) savePlan(plan);
     return next;
   };
@@ -520,6 +529,10 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
   const previewArticle = previewKey && ex?.articleId ? getArticle(ex.articleId)?.art : undefined;
   const previewCompanion = previewArticle && ex?.companionUnitId ? getUnit(ex.companionUnitId) : undefined;
   const readingPreview = !!previewArticle && previewSecond <= GUIDED_MEMORY_SECONDS;
+  const previewUnits = useMemo(() => {
+    const unit = previewArticle?.units.find(({ id }) => id === ex?.unitId);
+    return previewArticle && unit ? new Set([...contextChain(previewArticle, unit).map(({ id }) => id), unit.id]) : undefined;
+  }, [previewArticle, ex?.unitId]);
   useEffect(() => {
     if (!active || !readingPreview || !previewKey) return;
     const started = performance.now();
@@ -785,7 +798,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
               style={{ '--clock-fill': `${previewSecond * 100 / GUIDED_MEMORY_SECONDS}%` } as CSSProperties}>
               <span aria-hidden="true"><b key={previewSecond}>{previewSecond}</b></span>
             </span>
-            <span className="small"><ITimer size={16} /> Memorize o artigo</span>
+            <span className="small"><ITimer size={16} /> Memorize o trecho</span>
           </div>
         )}
         {checkpoint && !readingPreview && <p className="question-checkpoint small" role="status">
@@ -806,7 +819,8 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
         <div key={`${s.index}:${ex.key}:${readingPreview}`} className="stack question-content" data-blitz={s.config.blitz || undefined}>
           {readingPreview && previewArticle ? (
             <section className="law-art stack" aria-label="Leitura antes das lacunas">
-              <ArticleView art={previewArticle} showNotes={false} selectedUnit={ex.unitId} />
+              {/* Só o trecho da questão: o dispositivo e o caput/inciso que o introduz, não o artigo inteiro. */}
+              <ArticleView art={previewArticle} showNotes={false} selectedUnit={ex.unitId} only={previewUnits} />
               {previewCompanion && previewCompanion.art.id !== previewArticle.id && (
                 <div className="law">
                   <div className="law-lab">{articleTitle(previewCompanion.law.id, previewCompanion.art)}</div>
@@ -931,36 +945,6 @@ function SpotView({ ex, answer, onAnswer, lawId, feedback }: { ex: Exercise; ans
   );
 }
 
-/** Artigo inteiro como referência, com o dispositivo da questão oculto até a resposta. */
-function ArticlePeek({ ex, answered }: { ex: Exercise; answered: boolean }) {
-  const hit = ex.articleId ? getArticle(ex.articleId) : null;
-  const units = hit?.art.units.filter((u) => u.t && !u.rev) ?? [];
-  // Aberto por padrão (no Relâmpago, de 10 s, começa fechado). Em artigos longos, rola até o dispositivo da questão.
-  const initial = ex.expectedMs > 10_000;
-  const [open, setOpen] = useState(initial);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => setOpen(initial), [ex.key]); // eslint-disable-line
-  useEffect(() => {
-    const target = box.current?.querySelector<HTMLElement>('[data-current]');
-    if (open && target && box.current) box.current.scrollTop = Math.max(0, target.offsetTop - box.current.offsetTop - 60);
-  }, [open, ex.key]);
-  if (!hit || units.length < 2) return null;
-  const hidden = new Set([ex.unitId, ex.companionUnitId].filter(Boolean));
-  return (
-    <details className="article-peek" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary className="small">{open ? 'Ocultar' : 'Ver'} {articleTitle(hit.law.id, hit.art)} completo</summary>
-      <div className="law-art law muted" style={{ fontSize: '0.9em' }} ref={box}>
-        {units.map((u) => (
-          <div key={u.id} className={`law-unit k-${u.k}`} data-current={hidden.has(u.id) || undefined}>
-            <strong className="law-lab">{u.k === 'caput' ? hit.art.lab : u.lab}</strong>{' '}
-            {hidden.has(u.id) && !answered ? <em>(dispositivo desta questão)</em> : <span>{u.t}</span>}
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
 /** Várias lacunas: preencha uma por vez, tocando nas alternativas. */
 function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answered: boolean; onAnswer: (a: Answer) => void; feedback: React.ReactNode }) {
   const [filled, setFilled] = useState<string[]>([]);
@@ -995,7 +979,6 @@ function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answere
         </div>
       )}
       {!answered && cur > 0 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setFilled(filled.slice(0, -1))}>Desfazer</button>}
-      {ex.family === 'literal' && <ArticlePeek ex={ex} answered={answered} />}
       {feedback}
       {answered && <Official ex={ex} />}
     </div>

@@ -267,8 +267,8 @@ describe('retomada da sequência de artigos', () => {
       const restored = await resumeSession();
       expect(restored?.items.slice(0, first.length)).toEqual(first);
       expect(restored?.items[first.length]).toMatchObject({ unitId: 'cpp.240.p1.a', kind: 'cloze-multi' });
-      // "prender criminosos": uma lacuna no próprio dispositivo (até 40% das palavras) e outra no dispositivo vizinho.
-      expect(restored?.items[first.length].blanks?.map(({ answer }) => answer)).toEqual(['criminosos', 'fundadas razões']);
+      // "prender criminosos": uma lacuna só (até 40% das palavras), sem puxar outro dispositivo para a tela.
+      expect(restored?.items[first.length].blanks?.map(({ answer }) => answer)).toEqual(['criminosos']);
       expect(restored?.items.slice(first.length + 1)).toEqual(next);
     } finally { await saveSession(previous); }
   });
@@ -509,8 +509,9 @@ it('faz a conduta do art. 293 aparecer antes da pena, com lacunas curtas e alter
   const state = await buildSession({ ...config, focus: 'law:cp', articleIds: ['cp.293'] }, false);
   const conduct = state.items[0];
   expect(conduct).toMatchObject({ unitId: 'cp.293.cpt', kind: 'cloze-multi' });
-  // O caput tem só 4 palavras: as lacunas deixam parte do texto visível como referência.
-  expect(conduct.blanks?.length).toBeGreaterThanOrEqual(2);
+  // O caput tem só 4 palavras: uma lacuna, e o resto do texto fica visível como referência.
+  expect(conduct.blanks).toHaveLength(1);
+  expect(conduct.companionUnitId).toBeUndefined();
   expect(conduct.blanks?.filter(({ answer }) => ['Falsificar', 'fabricando-os', 'alterando-os'].includes(answer)).length).toBe(1);
   const reviewed = conduct.blanks!.find(({ answer }) => ['Falsificar', 'fabricando-os', 'alterando-os'].includes(answer))!;
   expect(reviewed.options.length).toBeGreaterThanOrEqual(4);
@@ -547,15 +548,21 @@ it('cobre caput, parágrafos, incisos e alíneas nos dois modos de Memorizar, co
     expect(items.map(({ unitId }) => unitId).sort()).toEqual(expected);
     for (const item of items) {
       expect(item.kind).toBe('cloze-multi');
-      expect(item.blanks?.length).toBeGreaterThanOrEqual(2);
+      expect(item.blanks?.length).toBeGreaterThanOrEqual(1);
       expect(item.blanks?.length).toBeLessThanOrEqual(3);
+      // Uma questão, um dispositivo: sem trecho de outro dispositivo na mesma tela.
+      expect(item.companionUnitId).toBeUndefined();
       const unit = getArticle(item.articleId!)!.art.units.find(({ id }) => id === item.unitId)!;
-      const primaryStem = item.stem.slice(1).map(({ t }) => t).join('').split('\n\n')[0];
+      const primaryStem = item.stem.slice(1).map(({ t }) => t).join('');
       expect(primaryStem).toBe(unit.t);
+      // Dispositivos com mais de 5 palavras têm ao menos duas lacunas; nunca mais de ~40% oculto.
+      const words = unit.t.match(/[\p{L}\d]+/gu)!.length;
+      const hidden = item.blanks!.reduce((n, { answer }) => n + answer.match(/[\p{L}\d]+/gu)!.length, 0);
+      if (unit.k !== 'pena' && item.blanks!.length > 1) expect(hidden, unit.id).toBeLessThanOrEqual(Math.max(1, Math.floor(words * 0.4)));
       expect(item.blanks?.every(({ answer, options }) => shortAnswer(answer) && options.includes(answer))).toBe(true);
     }
     expect(items.find(({ unitId }) => unitId === 'cf.1.i1')).toMatchObject({
-      companionUnitId: 'cf.1.cpt', blanks: expect.arrayContaining([expect.objectContaining({ answer: 'soberania' })]),
+      blanks: [expect.objectContaining({ answer: 'soberania' })],
     });
     expect(items.find(({ unitId }) => unitId === 'cp.157.p2-A.i3.b')?.blanks?.[0]).toMatchObject({ answer: 'desabastecimento' });
   }

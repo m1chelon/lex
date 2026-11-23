@@ -251,19 +251,21 @@ export function literalPrompt(target: Target) {
 }
 
 // ---------- construção ----------
+/** Dispositivos que introduzem o dispositivo dado (caput, parágrafo, inciso), do mais externo ao mais interno. */
+export function contextChain(art: Article, u: Unit): Unit[] {
+  if (u.k === 'caput') return [];
+  const chain: Unit[] = [];
+  let p = u.parent ? art.units.find((x) => x.id === u.parent) : undefined;
+  while (p) { chain.unshift(p); p = p.parent ? art.units.find((x) => x.id === p!.parent) : undefined; }
+  const caput = art.units.find((x) => x.k === 'caput');
+  // Incisos, alíneas e itens ligados ao caput mostram também o caput, para a lacuna ter referência.
+  const underCaput = u.k === 'inc' || u.k === 'pena' || ((u.k === 'ali' || u.k === 'item') && chain[0]?.k === 'inc');
+  if (caput && caput !== u && !chain.includes(caput) && underCaput) chain.unshift(caput);
+  return chain;
+}
+
 export function unitContext(art: Article, u: Unit): Seg[] {
-  const ctx: Seg[] = [];
-  if (u.k !== 'caput') {
-    const chain: Unit[] = [];
-    let p = u.parent ? art.units.find((x) => x.id === u.parent) : undefined;
-    while (p) { chain.unshift(p); p = p.parent ? art.units.find((x) => x.id === p!.parent) : undefined; }
-    const caput = art.units.find((x) => x.k === 'caput');
-    // Incisos, alíneas e itens ligados ao caput mostram também o caput, para a lacuna ter referência.
-    const underCaput = u.k === 'inc' || u.k === 'pena' || ((u.k === 'ali' || u.k === 'item') && chain[0]?.k === 'inc');
-    if (caput && caput !== u && !chain.includes(caput) && underCaput) chain.unshift(caput);
-    for (const c of chain) ctx.push({ t: `${c.lab} `, strong: true }, { t: c.t + '\n' });
-  }
-  return ctx;
+  return contextChain(art, u).flatMap((c) => [{ t: `${c.lab} `, strong: true }, { t: c.t + '\n' }]);
 }
 
 const labOf = (art: Article, u: Unit) => (u.k === 'caput' ? art.lab : u.lab) + ' ';

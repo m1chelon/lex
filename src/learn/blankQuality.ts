@@ -81,7 +81,7 @@ export function phraseTargets(unit: Unit): (Target & { choices: string[] })[] {
 }
 
 /** Palavras que, sozinhas, não testam conhecimento da lei. */
-const GENERIC = new Set(['nao', 'tambem', 'e', 'sao', 'sera', 'serao', 'foi', 'ser', 'ha', 'ter', 'tem', 'esta', 'estao',
+const GENERIC = new Set(['nao', 'sem', 'com', 'por', 'para', 'tambem', 'e', 'sao', 'sera', 'serao', 'foi', 'ser', 'ha', 'ter', 'tem', 'esta', 'estao',
   'o', 'a', 'os', 'as', 'um', 'uma', 'lei', 'leis', 'crime', 'crimes', 'caso', 'casos', 'agente', 'agentes', 'fato', 'fatos', 'pais', 'brasil',
   'seguinte', 'seguintes', 'disposto', 'artigo', 'artigos', 'forma', 'pessoa', 'pessoas', 'modo', 'termos', 'termo', 'hipotese',
   'hipoteses', 'presente', 'respectivo', 'respectiva', 'referido', 'referida', 'mesmo', 'mesma', 'anterior', 'deste', 'desta', 'ainda']);

@@ -50,7 +50,7 @@ export function UnitView({ u, onTerm, seen, selected, highlighted, onTap, showNo
   );
 }
 
-export function ArticleView({ art, onTerm, selectedUnit, highlights, onUnitTap, showNotes = true, focus = [] }: { art: Article; onTerm?: OnTerm; selectedUnit?: string; highlights?: Set<string>; onUnitTap?: (u: Unit) => void; showNotes?: boolean; focus?: { unitId: string; text: string }[] }) {
+export function ArticleView({ art, onTerm, selectedUnit, highlights, onUnitTap, showNotes = true, focus = [], only }: { art: Article; onTerm?: OnTerm; selectedUnit?: string; highlights?: Set<string>; onUnitTap?: (u: Unit) => void; showNotes?: boolean; focus?: { unitId: string; text: string }[]; /** Mostra só estes dispositivos (o perguntado e os que o introduzem). */ only?: Set<string> }) {
   const seen = new Set<string>();
   const guided = (unit: Unit) => focus.filter(({ unitId }) => unitId === unit.id).map(({ text }) => text);
   const caput = art.units.find((u) => u.k === 'caput');
@@ -58,7 +58,7 @@ export function ArticleView({ art, onTerm, selectedUnit, highlights, onUnitTap, 
     <div className="law">
       {art.rub && <div className="law-rub">{art.rub}</div>}
       {art.noCurrent && <div className="badge badge-warn" style={{ marginBottom: 8 }}>A compilação oficial mostra apenas redação anterior (riscada). Confira na fonte.</div>}
-      {art.units.map((u) => (
+      {art.units.filter((u) => !only || only.has(u.id)).map((u) => (
         u === caput ? (
           <div key={u.id} id={`u-${u.id}`} className={`law-unit k-caput${u.rev ? ' rev' : ''}${selectedUnit === u.id ? ' selected' : ''}`} onClick={() => onUnitTap?.(u)}>
             <span className="law-lab">{art.lab}</span>{' '}

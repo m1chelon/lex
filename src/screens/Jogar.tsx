@@ -3,12 +3,12 @@ import { RAMOS, areaLaws, lawsByRamo, type AreaId } from '../core/areas';
 import { SOURCES, type Ramo } from '../core/sources';
 import { getLaw, getManifest } from '../data/corpus';
 import { COURSE_NAME, GUIDED_MEMORY_SECONDS, MODE_INFO, courseTopics, getPlan, planLabel, planToConfig, savePlan, scopeToFocus, topicoLabel, type Plan, type PlanMode, type PlanScope } from '../learn/plan';
-import { DEFAULT_ARTICLE_ORDER, loadSession } from '../learn/session';
+import { DEFAULT_ARTICLE_ORDER, loadSequence, loadSession, scopeArticles, type SessionConfig } from '../learn/session';
 import { Flag } from '../ui/Flags';
 import { TINT } from '../ui/IconTile';
 import { PomodoroSheet } from '../ui/Pomodoro';
 import { nav } from '../ui/nav';
-import { Segmented, useAsync } from '../ui/primitives';
+import { Segmented, toast, useAsync } from '../ui/primitives';
 import { SubjectGlyph } from '../ui/ramo';
 import { haptic, useSettings } from '../ui/settings';
 import { IBolt, IBrain, ICheck, IColumns, IClose, IHistory, IPlay, IPuzzle, ISliders, IStudy, ITarget, ITomato, ITrophy } from '../ui/icons';
@@ -16,8 +16,8 @@ import { SimuladoFields, SimuladoHistory, useSimuladoSetup } from './Simulado';
 
 const MODES = {
   aprender: { Icon: IStudy, tint: TINT.teal, label: 'Artigos com pontos-chave destacados' },
-  memorizar: { Icon: IBrain, tint: TINT.violet, label: 'Duas ou três lacunas por questão' },
-  'memorizar-guiada': { Icon: IBrain, tint: TINT.teal, label: `Artigo completo por ${GUIDED_MEMORY_SECONDS} s antes das lacunas` },
+  memorizar: { Icon: IBrain, tint: TINT.violet, label: 'Uma a três lacunas por dispositivo' },
+  'memorizar-guiada': { Icon: IBrain, tint: TINT.teal, label: `Na ordem: lê o trecho por ${GUIDED_MEMORY_SECONDS} s e completa` },
   casos: { Icon: IPuzzle, tint: TINT.orange, label: 'Situações práticas' },
   provar: { Icon: ITarget, tint: TINT.rose, label: 'Digite a resposta da lei seca' },
   relampago: { Icon: IBolt, tint: TINT.gold, label: '20 questões rápidas' },
@@ -43,6 +43,9 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
   const [minutes, setMinutes] = useState<number | 'inf'>(previous?.minutes ?? settings.dailyMinutes);
   const [order, setOrder] = useState(previous?.order ?? DEFAULT_ARTICLE_ORDER);
   const [pomo, setPomo] = useState(false);
+  // Ponto de partida no modo sequencial: de onde parou, do primeiro artigo ou de um artigo escolhido.
+  const [startFrom, setStartFrom] = useState<'continuar' | 'inicio' | 'artigo'>('continuar');
+  const [startNum, setStartNum] = useState('');
   const [adjusting, setAdjusting] = useState(!!adjust || presetMode === 'simulado');
   const pending = useAsync(() => loadSession().catch(() => null), []);
   const unfinished = pending && pending.index < pending.items.length && !pending.finishedAt ? pending : null;
@@ -71,8 +74,32 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
       return;
     }
     haptic('ok');
-    nav.replace({ name: 'session', plan, config: planToConfig(plan, scope.kind === 'curso' && scope.topico ? { title: label.title } : {}) });
+    const config = planToConfig(plan, scope.kind === 'curso' && scope.topico ? { title: label.title } : {});
+    void startingPoint(config).then((over) => {
+      if (over === null) return;
+      nav.replace({ name: 'session', plan, config: { ...config, ...over } });
+    });
   };
+  const sequential = timed && (order === 'linear' || mode === 'memorizar-guiada');
+  /** Configuração do ponto de partida; null quando o artigo digitado não está no recorte. */
+  const startingPoint = async (config: SessionConfig): Promise<Partial<SessionConfig> | null> => {
+    if (!sequential) return {};
+    const ids = await scopeArticles({ ...config, startArticleId: undefined }, 0);
+    if (startFrom === 'inicio') return ids[0] ? { startArticleId: ids[0], sequenceSkip: undefined, backfillThrough: undefined, chosenStart: true } : {};
+    if (startFrom === 'artigo') {
+      const wanted = startNum.toLowerCase().replace(/art(?:igo)?\.?/u, '').replace(/[ºo°\s]/gu, '').replace(/^0+/u, '');
+      const match = (id: string) => id.slice(id.indexOf('.') + 1).toLowerCase() === wanted;
+      const found = ids.find((id) => match(id) && (!scope.law || id.startsWith(`${scope.law}.`))) ?? ids.find(match);
+      if (!wanted || !found) {
+        toast(`O art. ${startNum || '?'} não está neste recorte. Confira o número ou escolha outra lei.`);
+        return null;
+      }
+      return { startArticleId: found, sequenceSkip: undefined, backfillThrough: undefined, chosenStart: true };
+    }
+    const saved = await loadSequence(config);
+    return saved ? { startArticleId: saved.articleId, sequenceSkip: saved.practiced, backfillThrough: saved.config?.backfillThrough } : {};
+  };
+  const firstLaw = scope.law ?? laws[0];
 
   return (
     <div className="jogar">
@@ -96,7 +123,7 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
                 {label.title}
               </p>
               <p className="small muted">{label.sub}</p>
-              <p className="small">{label.how}{timed && ` · ${order === 'linear' ? 'Sequencial' : 'Aleatório'}`}</p>
+              <p className="small">{label.how}{timed && ` · ${order === 'linear' || mode === 'memorizar-guiada' ? 'Sequencial' : 'Aleatório'}`}</p>
               {unfinished && !adjusting && <button className="btn btn-quiet" onClick={resume}><IHistory size={17} /> Continuar sessão em andamento</button>}
               {!canStart && !adjusting && <p className="small muted" role="status">Escolha um conteúdo com normas disponíveis.</p>}
             </>
@@ -160,10 +187,26 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
                   {MINUTES.map((value) => <button className="jg-time" key={value} aria-pressed={minutes === value} onClick={() => { haptic('soft'); setMinutes(value); }}>{value === 'inf' ? 'Sem limite' : `${value} min`}</button>)}
                 </div>
                 <h2 id="jg-order">Ordem dos artigos</h2>
-                <Segmented label="Ordem dos artigos" value={order} options={[
-                  { id: 'linear', label: 'Sequencial' },
-                  { id: 'misturado', label: 'Aleatório' },
-                ]} onChange={setOrder} />
+                {mode === 'memorizar-guiada'
+                  ? <p className="small muted">Sempre na ordem da lei, dispositivo por dispositivo.</p>
+                  : <Segmented label="Ordem dos artigos" value={order} options={[
+                    { id: 'linear', label: 'Sequencial' },
+                    { id: 'misturado', label: 'Aleatório' },
+                  ]} onChange={setOrder} />}
+                {(order === 'linear' || mode === 'memorizar-guiada') && <>
+                  <h2 id="jg-start">Começar</h2>
+                  <Segmented label="Começar" value={startFrom} options={[
+                    { id: 'continuar', label: 'De onde parei' },
+                    { id: 'inicio', label: 'Do início' },
+                    { id: 'artigo', label: 'Do artigo…' },
+                  ]} onChange={setStartFrom} />
+                  {startFrom === 'artigo' && (
+                    <label className="stack" style={{ gap: 4, marginTop: 8 }}>
+                      <span className="small muted">Número do artigo{firstLaw && getLaw(firstLaw) ? ` (${getLaw(firstLaw)!.short})` : ''}</span>
+                      <input className="input" inputMode="text" placeholder="Ex.: 7, 144, 104-A" value={startNum} onChange={(e) => setStartNum(e.target.value)} />
+                    </label>
+                  )}
+                </>}
                 <div className="jg-extras">
                   <button onClick={() => setPomo(true)}><ITomato size={16} /> Pomodoro</button>
                 </div>

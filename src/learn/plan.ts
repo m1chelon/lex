@@ -17,8 +17,8 @@ export const GUIDED_MEMORY_SECONDS = 10;
 
 export const MODE_INFO: Record<PlanMode, { label: string; desc: string }> = {
   aprender: { label: 'Leitura Guiada', desc: 'Leia a lei com os trechos essenciais destacados.' },
-  memorizar: { label: 'Memorizar', desc: 'Complete duas ou três lacunas curtas no dispositivo.' },
-  'memorizar-guiada': { label: 'Memorizar Guiada', desc: `Leia o artigo completo por ${GUIDED_MEMORY_SECONDS} segundos e preencha as lacunas.` },
+  memorizar: { label: 'Memorizar', desc: 'Complete de uma a três lacunas curtas em cada dispositivo.' },
+  'memorizar-guiada': { label: 'Memorizar Guiada', desc: `Na ordem, dispositivo por dispositivo: leia o trecho por ${GUIDED_MEMORY_SECONDS} segundos e preencha as lacunas.` },
   casos: { label: 'Casos', desc: 'Situações práticas: identifique o instituto, o crime ou a consequência.' },
   provar: { label: 'Provar', desc: 'Nível de prova: digite as lacunas da lei seca e pratique com casos.' },
   relampago: { label: 'Relâmpago', desc: '20 questões, 10 segundos cada. Treino sob pressão.' },
@@ -81,6 +81,8 @@ export function planToConfig(p: Plan, over: Partial<SessionConfig> = {}): Sessio
   const { area, focus } = scopeToFocus(p.scope);
   const base: SessionConfig = { area, focus, mode: p.mode === 'relampago' || p.mode === 'simulado' ? 'memorizar' : p.mode, minutes: p.minutes === 'inf' ? 30 : p.minutes, infinite: p.minutes === 'inf', order: p.order ?? DEFAULT_ARTICLE_ORDER, mix: getSettings().provarMix };
   if (p.mode === 'relampago') Object.assign(base, { blitz: true, minutes: 5, infinite: false });
+  // A Memorização Guiada segue sempre a ordem da lei, dispositivo por dispositivo.
+  if (p.mode === 'memorizar-guiada') base.order = 'linear';
   return { ...base, ...over };
 }
 

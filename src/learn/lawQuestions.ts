@@ -160,8 +160,10 @@ export function buildMemory(law: LawDoc, art: Article, unit: Unit, stage: number
     }
   };
   select(candidates, quick ? 1 : 3);
-  const minimum = quick ? 1 : 2;
-  if (chosen.length < minimum) select(contextualTargets(law, art, unit), minimum);
+  // Cada questão trata de um só dispositivo: quando o trecho é curto, basta uma lacuna. Antes, a falta de
+  // segunda lacuna puxava outro dispositivo para a mesma tela, o que misturava caput e inciso e repetia trechos.
+  if (chosen.length < (quick ? 1 : 2)) select(contextualTargets(law, art, unit), quick ? 1 : 2);
+  const minimum = 1;
   if (!chosen.length) return null;
   const dim = unit.k === 'pena' ? 'penas' : main.length && main.every(({ target }) => target.dim === 'prazos') ? 'prazos' : 'literal';
   const key = `L:${unit.id}:${dim}`;
