@@ -1,5 +1,6 @@
-import { CONCEPTS } from '../content/concepts';
-import { coverage } from '../data/corpus';
+import { findLawConcept } from '../content/lawCases';
+import { SOURCES, type Ramo } from '../core/sources';
+import { coverage, getArticle, getLaw, getManifest, lawIdOf } from '../data/corpus';
 import { db, kvGet, type CardRow, type ReviewRow } from '../data/db';
 import { computeMastery } from './mastery';
 import { isDue } from './scheduler';
@@ -20,6 +21,43 @@ export function loadCourseProgress(area: 'tjsp' | 'tjms') {
   return loadArticleProgress(coverage(area).required);
 }
 
+function cardArticleIds({ articleId, conceptId }: CardRow) {
+  if (articleId) return [articleId];
+  return findLawConcept(conceptId ?? '')?.refs.map(({ law, art }) => `${law}.${art}`) ?? [];
+}
+
+export async function loadBranchCoverage() {
+  const [cards, read] = await Promise.all([db.cards.toArray(), kvGet<string[]>('readArticles', [])]);
+  const seen = new Set(read);
+  for (const card of cards) cardArticleIds(card).forEach((id) => seen.add(id));
+
+  const seenByLaw = new Map<string, number>();
+  for (const id of seen) {
+    const lawId = lawIdOf(id);
+    if (getLaw(lawId)) {
+      const article = getArticle(id)?.art;
+      if (!article || article.rev) continue;
+    }
+    seenByLaw.set(lawId, (seenByLaw.get(lawId) ?? 0) + 1);
+  }
+
+  // O manifesto mantém o total da matéria mesmo antes de baixar todas as leis.
+  const manifest = new Map(getManifest()?.laws.map((law) => [law.id, law]));
+  const branches = new Map<Ramo, { seen: number; total: number }>();
+  for (const { id, ramo } of SOURCES) {
+    if (!ramo) continue;
+    const entry = manifest.get(id);
+    const published = entry?.status === 'ok' ? (entry.articles ?? entry.stats?.articles ?? 0) - (entry.stats?.revoked ?? 0) : 0;
+    const total = getLaw(id)?.articles.filter(({ rev }) => !rev).length ?? published;
+    if (total <= 0) continue;
+    const row = branches.get(ramo) ?? { seen: 0, total: 0 };
+    row.seen += Math.min(seenByLaw.get(id) ?? 0, total);
+    row.total += total;
+    branches.set(ramo, row);
+  }
+  return branches;
+}
+
 export async function loadArticleProgress(required?: ReadonlySet<string>) {
   const [cards, reviews, read] = await Promise.all([
     db.cards.toArray(),
@@ -31,7 +69,6 @@ export async function loadArticleProgress(required?: ReadonlySet<string>) {
   const latest = new Map<string, ReviewRow>();
   const byCard = new Map<string, ReviewRow[]>();
   const byArticle = new Map<string, CardRow[]>();
-  const concepts = new Map(CONCEPTS.map((c) => [c.id, c.refs.map((r) => `${r.law}.${r.art}`)]));
   for (const answer of reviews) {
     const history = byCard.get(answer.cardId);
     if (history) history.push(answer);
@@ -39,8 +76,7 @@ export async function loadArticleProgress(required?: ReadonlySet<string>) {
     if ((latest.get(answer.cardId)?.at ?? -1) <= answer.at) latest.set(answer.cardId, answer);
   }
   for (const card of cards) {
-    const ids = card.articleId ? [card.articleId] : concepts.get(card.conceptId ?? '') ?? [];
-    for (const id of new Set(ids)) {
+    for (const id of new Set(cardArticleIds(card))) {
       if (required && !required.has(id)) continue;
       const list = byArticle.get(id);
       if (list) list.push(card);

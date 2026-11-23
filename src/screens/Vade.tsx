@@ -12,7 +12,7 @@ import { SOURCES } from '../core/sources';
 import { headingPath } from '../core/edital';
 import type { Article, Heading, LawDoc, Unit } from '../core/types';
 import { nav } from '../ui/nav';
-import { PageHeader, SectionHeader, Sheet, toast, CType, spring, useAsync } from '../ui/primitives';
+import { PageHeader, SectionHeader, Sheet, toast, CType, spring, useAsync, useLiveAsync } from '../ui/primitives';
 import { haptic, reducedMotion, useSettings } from '../ui/settings';
 import { ArticleView } from '../ui/LawText';
 import { openTerm } from '../ui/termStore';
@@ -29,11 +29,13 @@ import { lawStyle } from '../ui/ramo';
 import { TINT } from '../ui/IconTile';
 import { parseArticleQuery, searchArticles, searchCatalog } from '../learn/search';
 import { articlesInSection, lawSections } from '../learn/lawSections';
+import { loadBranchCoverage } from '../learn/courseProgress';
 
 const FIRST_BRANCHES = ['Penal', 'Civil'] as const;
 const BROWSE_BRANCHES = [...FIRST_BRANCHES, ...RAMOS.filter((ramo) => ramo !== 'Penal' && ramo !== 'Civil' && !ramo.startsWith('Interna'))]
   .filter((ramo) => lawsByRamo(ramo).length);
 const branchTitle = (ramo: Ramo) => ramo === 'Direitos sociais' ? ramo : `Direito ${ramo}`;
+const branchPercent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 2 });
 const MAIN_CODES: Partial<Record<Ramo, { id: string; name: string }>> = {
   Penal: { id: 'cp', name: 'Código Penal' },
   Civil: { id: 'cc', name: 'Código Civil' },
@@ -44,6 +46,8 @@ const MAIN_CODES: Partial<Record<Ramo, { id: string; name: string }>> = {
 };
 
 export function VadeHome() {
+  const version = useCorpusVersion();
+  const branchCoverage = useLiveAsync(loadBranchCoverage, [version]);
   const [q, setQ] = useState('');
   return (
     <div className="stack tab-content">
@@ -59,9 +63,15 @@ export function VadeHome() {
       <div className="branch-grid">
         {BROWSE_BRANCHES.map((ramo) => {
           const style = RAMO_STYLE[ramo];
+          const progress = branchCoverage?.get(ramo);
           return <button className="branch-card" key={ramo} onClick={() => { haptic('tap'); nav.push({ name: 'ramo', ramo }); }}>
             <span className={`law-glyph${ramo === 'Civil' ? ' civil-glyph' : ''}`} style={{ ['--tint' as string]: TINT[style.color] }}>{style.icon(21)}</span>
             <span className="branch-name"><strong>{branchTitle(ramo)}</strong><IChevR size={15} /></span>
+            {progress && <span className="branch-progress">
+              <small>{branchPercent.format(progress.seen / progress.total)} estudado</small>
+              <progress value={progress.seen} max={progress.total} aria-label={`Progresso em ${branchTitle(ramo)}`}
+                aria-valuetext={`${progress.seen} de ${progress.total} artigos estudados`} />
+            </span>}
           </button>;
         })}
       </div>

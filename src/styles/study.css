@@ -45,6 +45,9 @@
 }
 .branch-card:hover { border-color: var(--accent); background: #222b50; }
 .branch-card strong { line-height: 1.3; overflow-wrap: anywhere; }
+.branch-progress { display: grid; gap: 6px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.branch-progress small { font-size: .8125rem; line-height: 1.25; }
+.branch-progress progress { width: 100%; height: 4px; accent-color: #aca9ff; }
 .branch-code { padding: 14px; border: 1px solid #8d9dda4a; border-radius: 18px; background: #131830; }
 .branch-heading { min-height: 64px; }
 .branch-heading small { color: #abd0f5; font-size: .81rem; }
