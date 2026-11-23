@@ -19,6 +19,13 @@ const LOOK_POSES = {
 };
 export type CapiPose = keyof typeof LOOK_POSES;
 
+const REACTION_POSES: Record<CapiReaction, { y: number[]; rotate: number[]; scale: number[] }> = {
+  first: { y: [0, 2, -10, 1, 0], rotate: [0, 3, -9, 3, 0], scale: [1, .96, 1.09, .98, 1] },
+  correct: { y: [0, 1, -6, 0, 0], rotate: [0, 1, -5, 2, 0], scale: [1, .98, 1.055, 1, 1] },
+  recovered: { y: [0, 1, -5, -1, 0], rotate: [0, 0, 6, -2, 0], scale: [1, .99, 1.045, 1, 1] },
+  incorrect: { y: [0, 0, 3, 2, 0], rotate: [0, 0, 7, 4, 0], scale: [1, 1, .98, .99, 1] },
+};
+
 export function Mascot({ mood = 'happy', size = 96, decorative = false, still = false, reaction, scene = false, preview, avatar, posePreview }: {
   mood?: Mood; size?: number; decorative?: boolean; still?: boolean; reaction?: CapiReaction; scene?: boolean;
   preview?: CapiLook; avatar?: boolean; posePreview?: CapiPose;
@@ -31,11 +38,9 @@ export function Mascot({ mood = 'happy', size = 96, decorative = false, still = 
   const surroundings = capiScene(amb, weather, scene);
   const { effect, ritual } = surroundings;
   const staticPose = still || avatar || reducedMotion() || isLowPerformance();
-  const pose = reaction === 'correct' || reaction === 'first' || reaction === 'recovered'
-    ? { y: [0, -9, 0, -4, 0], rotate: [0, -8, 6, -3, 0], scale: [1, 1.09, .97, 1.03, 1] }
-    : reaction === 'incorrect' ? { y: [0, 3, 0], rotate: [0, -7, 0] }
-      : mood === 'cheer' ? { y: [0, -6, 0], rotate: [0, -4, 0] }
-        : posePreview ? LOOK_POSES[posePreview] : undefined;
+  const pose = reaction ? REACTION_POSES[reaction]
+    : mood === 'cheer' ? { y: [0, -5, 1, 0], rotate: [0, -5, 2, 0], scale: [1, 1.06, .985, 1] }
+      : posePreview ? LOOK_POSES[posePreview] : undefined;
   const name = gender === 'feminino' ? 'A Capi' : 'O Capi';
   return (
     <motion.svg width={size} height={size} viewBox={avatar ? '5 -3 110 117' : '-3 -3 126 126'}
@@ -46,9 +51,14 @@ export function Mascot({ mood = 'happy', size = 96, decorative = false, still = 
       data-suit={look.suit} data-glasses={look.glasses ?? undefined} data-watch={look.watch ?? undefined}
       data-gender={gender} data-mood={mood} data-capi-weather={effect ?? undefined} data-ritual={ritual} data-reaction={reaction}
       animate={staticPose || !pose ? { y: 0, rotate: 0, scale: 1 } : pose}
-      transition={{ duration: staticPose || !pose ? 0 : posePreview ? 1.1 : .7, ease: 'easeInOut' }}>
+      transition={{
+        duration: staticPose || !pose ? 0 : posePreview ? 1.1 : reaction === 'incorrect' ? .78 : .62,
+        times: !staticPose && reaction ? [0, .16, .44, .73, 1] : undefined,
+        ease: 'easeInOut',
+      }}>
       <CapybaraArt id={id} mood={mood} period={amb.period} look={look} gender={gender} scene={surroundings}
-        portrait={avatar} animated={!staticPose && (scene || !!reaction)} reaction={reaction} />
+        portrait={avatar} animated={!staticPose && (scene || !!reaction || !!posePreview)}
+        idle={!staticPose && scene && !reaction} reaction={reaction} />
     </motion.svg>
   );
 }

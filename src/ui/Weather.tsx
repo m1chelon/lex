@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useAmbient } from './ambient';
+import { AnimatePresence, motion } from 'motion/react';
+import { useAmbient, wxOf, type WeatherNow } from './ambient';
 import { ICloud, ICloudMoon, ICloudSun, IFog, IMoon, IPin, IRain, ISnow, IStorm, ISun } from './icons';
 import { locationLabel, ufOf, type UF } from './locations';
 import { Sheet, toast } from './primitives';
-import { haptic, setSettings, useSettings } from './settings';
+import { haptic, isLowPerformance, reducedMotion, setSettings, useSettings } from './settings';
 
 function iconFor(code: number, day: boolean, size = 18) {
   if (code === 0) return day ? <ISun size={size} /> : <IMoon size={size} />;
@@ -28,6 +29,23 @@ export function weatherLabel(code: number) {
   return 'tempo instável';
 }
 
+function WeatherIcon({ current, size }: { current?: WeatherNow | null; size: number }) {
+  const moving = !reducedMotion() && !isLowPerformance();
+  const sky = current ? wxOf(current.code) : 'cloudy';
+  const light = current?.day === false ? 'night' : 'day';
+  return <span className="weather-icon-frame" data-sky={sky} data-light={light}
+    style={{ width: size, height: size }} aria-hidden="true">
+    <AnimatePresence>
+      <motion.span key={`${current?.code ?? 'unknown'}:${light}`} className="weather-icon-glyph"
+        initial={moving ? { opacity: 0, y: 4, scale: .78, rotate: -11 } : false}
+        animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }} exit={moving ? { opacity: 0, y: -3, scale: .88, rotate: 8 } : { opacity: 0 }}
+        transition={{ duration: moving ? .3 : 0, ease: [0.22, 0.8, 0.3, 1] }}>
+        {current ? iconFor(current.code, current.day, size) : <ICloudSun size={size} />}
+      </motion.span>
+    </AnimatePresence>
+  </span>;
+}
+
 export function WeatherChip() {
   const { weather } = useSettings();
   const now = useAmbient().weather;
@@ -38,7 +56,9 @@ export function WeatherChip() {
     <>
       <button className="weather-chip" onClick={() => { haptic('soft'); setOpen(true); }}
         aria-label={now ? `${now.t} graus, ${weatherLabel(now.code)} em ${place}. Alterar local do clima` : place ? 'Clima e localização' : 'Mostrar o clima'}>
-        {now ? <>{iconFor(now.code, now.day, 17)}<span>{now.t}°</span></> : <><ICloudSun size={16} /><span className="xsmall">{place ? 'Clima' : '+ clima'}</span></>}
+        <WeatherIcon current={now} size={19} />
+        {now ? <span className="weather-number" key={now.t}>{now.t}°</span>
+          : <span className="xsmall">{place ? 'Clima' : '+ clima'}</span>}
       </button>
       <WeatherSheet open={open} onClose={() => setOpen(false)} />
     </>
@@ -97,12 +117,17 @@ function WeatherSheet({ open, onClose }: { open: boolean; onClose: () => void })
         <h2 className="title-m">Clima e localização</h2>
         <p className="small muted">O ambiente e o Capi acompanham o mesmo local.</p>
         {weather.lat !== undefined && <div className="weather-current">
-          <strong>{locationLabel(weather)}</strong>
           {current ? <>
-            <span className="row">{iconFor(current.code, current.day)} {current.t}° · {weatherLabel(current.code)}</span>
+            <div className="weather-current-heading">
+              <span className="weather-current-icon"><WeatherIcon current={current} size={36} /></span>
+              <div className="weather-current-copy">
+                <strong>{locationLabel(weather)}</strong>
+                <span><b className="weather-number" key={current.t}>{current.t}°</b> {weatherLabel(current.code)}</span>
+              </div>
+            </div>
             <span className="small muted">{current.feels !== undefined && `Sensação de ${current.feels}°`}{current.feels !== undefined && current.wind !== undefined && ' · '}{current.wind !== undefined && `Vento de ${current.wind} km/h`}</span>
             <span className="xsmall muted">Atualizado às {localTime(new Date(current.at), current.timezone)}</span>
-          </> : <span className="small muted">Aguardando dados do clima</span>}
+          </> : <><strong>{locationLabel(weather)}</strong><span className="small muted">Aguardando dados do clima</span></>}
         </div>}
         <button className="btn btn-quiet" onClick={gps} disabled={busy}><IPin size={18} /> Usar minha localização</button>
         <form className="row" style={{ gap: 8 }} onSubmit={(e) => { e.preventDefault(); void search(); }}>

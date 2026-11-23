@@ -369,7 +369,7 @@ body { font-feature-settings: normal; }
 /* =====================================================================
    Ambiente vivo: período do dia e clima (detalhes suaves, mesma paleta)
    ===================================================================== */
-.period-glow { position: absolute; inset: 0; pointer-events: none; transition: opacity 2s ease, background 2s ease; }
+.period-glow { position: absolute; inset: 0; pointer-events: none; transition: opacity 1.3s ease; }
 :root[data-period='manha'] .period-glow { background: radial-gradient(100% 52% at 50% -10%, rgba(150, 205, 255, .56), transparent 72%), radial-gradient(60% 30% at 12% -4%, rgba(190, 225, 255, .18), transparent 70%), linear-gradient(180deg, rgba(160, 205, 255, .08), transparent 40%); }
 :root[data-period='tarde'] .period-glow { background: radial-gradient(90% 50% at 12% -8%, rgba(255, 146, 66, .44), transparent 70%), radial-gradient(70% 34% at 95% -6%, rgba(255, 196, 128, .2), transparent 70%), linear-gradient(180deg, rgba(255, 160, 90, .08), transparent 40%); }
 :root[data-period='noite'] .period-glow { background: radial-gradient(70% 40% at 50% -8%, rgba(150, 120, 255, .16), transparent 70%); }
@@ -390,27 +390,66 @@ body { font-feature-settings: normal; }
 :root[data-wx='rain'] .period-glow, :root[data-wx='storm'] .period-glow, :root[data-wx='fog'] .period-glow { opacity: .6; }
 .ambient-shade { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .study-ambient .ambient-shade { background: linear-gradient(180deg, rgba(5, 7, 25, .26), rgba(5, 7, 25, .46) 70%); }
-.study-ambient .constellation, .study-ambient .wx-rain, .study-ambient .wx-snow, .study-ambient .wx-fog { filter: brightness(.72); }
-.study-ambient .wx-flash { visibility: hidden; }
+.study-ambient .constellation { filter: brightness(.72); }
+.study-ambient .wx-layer > * { opacity: .38; }
+.focus-study .wx-layer { visibility: hidden; }
 :root[data-motion='reduced'] .period-glow { transition: none; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion='full']) .period-glow { transition: none; } }
 
-/* chuva */
-.wx-rain { position: absolute; inset: 0; overflow: hidden; pointer-events: none; transform: rotate(8deg) scale(1.15); }
-.wx-rain i { position: absolute; top: -30px; width: 1.4px; border-radius: 1px; background: linear-gradient(180deg, rgba(200, 210, 255, 0), rgba(200, 210, 255, .9)); animation: wx-fall linear infinite; }
-@keyframes wx-fall { to { transform: translateY(115vh); } }
-/* relâmpago discreto */
-.wx-flash { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(80% 50% at 60% 0%, rgba(210, 220, 255, .5), transparent 70%); opacity: 0; animation: wx-flash 11s infinite; }
-@keyframes wx-flash { 0%, 86%, 100% { opacity: 0; } 87% { opacity: .55; } 88% { opacity: .05; } 89.5% { opacity: .35; } 91% { opacity: 0; } }
-/* neblina */
-.wx-fog { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.wx-fog i { position: absolute; left: -30%; width: 160%; height: 45%; border-radius: 50%; background: radial-gradient(closest-side, rgba(200, 205, 240, .14), transparent); filter: blur(18px); animation: wx-fog 40s ease-in-out infinite alternate; }
-.wx-fog i:first-child { top: 18%; } .wx-fog i:last-child { top: 55%; animation-duration: 55s; animation-direction: alternate-reverse; }
-@keyframes wx-fog { from { transform: translateX(-8%); } to { transform: translateX(8%); } }
-/* neve */
-.wx-snow { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.wx-snow i { position: absolute; top: -10px; border-radius: 50%; background: #fff; animation: wx-snow linear infinite; }
-@keyframes wx-snow { 0% { transform: translate(0, 0); } 50% { transform: translate(14px, 55vh); } 100% { transform: translate(-8px, 112vh); } }
+.wx-layer, .wx-light, .wx-rain, .wx-snow, .wx-clouds { position: absolute; inset: 0; pointer-events: none; }
+.wx-layer { overflow: hidden; }
+.wx-light { background: radial-gradient(75% 48% at 80% 0%, #8aa8ff25, transparent 82%); }
+.wx-layer[data-sky='clear'][data-light='day'] .wx-light {
+  background: radial-gradient(65% 46% at 86% 0%, #ffe1b352, transparent 84%);
+  animation: wx-sky-light 16s ease-in-out infinite alternate;
+}
+.wx-layer[data-sky='clear'][data-light='twilight'] .wx-light {
+  background: radial-gradient(78% 45% at 76% 0%, #ffb8a84d, transparent 85%);
+}
+.wx-layer[data-sky='clear'][data-light='night'] .wx-light {
+  background: radial-gradient(60% 44% at 82% 0%, #aab9ff41, transparent 83%);
+}
+.wx-layer[data-sky='storm'] .wx-light { background: radial-gradient(80% 53% at 67% 3%, #606dba69, transparent 72%); }
+.wx-rain i {
+  position: absolute;
+  top: -34px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, #b9d8ff);
+  animation: wx-fall linear infinite;
+}
+@keyframes wx-fall {
+  from { transform: translate(0, 0) rotate(var(--drop-angle)); }
+  to { transform: translate(var(--drop-drift), calc(100vh + 48px)) rotate(var(--drop-angle)); }
+}
+.wx-snow i { position: absolute; top: -10px; border-radius: 50%; background: #e0edff; animation: wx-snow linear infinite; }
+@keyframes wx-snow {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(22px, 55vh); }
+  100% { transform: translate(-12px, 110vh); }
+}
+.wx-clouds i {
+  position: absolute;
+  inset: 0 -14% auto;
+  height: 40%;
+  background: radial-gradient(ellipse at 26% 27%, #bbc9f829, transparent 49%),
+    radial-gradient(ellipse at 74% 45%, #93a7d93b, transparent 48%);
+  animation: wx-cloud-drift 28s ease-in-out infinite alternate;
+}
+.wx-clouds i + i { top: 15%; opacity: .5; animation-duration: 38s; animation-direction: alternate-reverse; }
+.wx-layer[data-sky='fog'] .wx-clouds i {
+  top: 18%;
+  height: 44%;
+  background: radial-gradient(ellipse at 44% 50%, #c3d3f43d, transparent 66%);
+  animation-duration: 39s;
+}
+.wx-layer[data-sky='fog'] .wx-clouds i + i { top: 48%; animation-duration: 52s; }
+@keyframes wx-cloud-drift { from { transform: translateX(-7%); } to { transform: translateX(7%); } }
+@keyframes wx-sky-light { from { transform: translateX(-3%); opacity: .6; } to { transform: translateX(1%); opacity: 1; } }
+.study-ambient .wx-layer *,
+:root:is([data-motion='reduced'], [data-perf='low']) .wx-layer * { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) .wx-layer * { animation: none; }
+}
 
 /* relógio ao lado do cumprimento */
 .clock { font-size: 13px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; letter-spacing: .02em; }

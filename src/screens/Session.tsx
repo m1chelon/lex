@@ -17,7 +17,7 @@ import { findLawConcept } from '../content/lawCases';
 import { TIPO_LABEL } from '../content/types';
 import { nav } from '../ui/nav';
 import { CType, Progress, Segmented, Sheet, spring, toast, useAsync } from '../ui/primitives';
-import { haptic, reducedMotion, setSettings, useSettings } from '../ui/settings';
+import { haptic, isLowPerformance, reducedMotion, setSettings, useSettings } from '../ui/settings';
 import { IClose, ICheck, IX, IChevR, ISparkle, IFlame, IBolt, IText, ILock, ITimer } from '../ui/icons';
 import { Mascot, MascotQuestion } from '../ui/Mascot';
 import type { CapiReaction } from '../ui/capi';
@@ -95,11 +95,10 @@ function OptionList({ options, answered, chosen, onPick }: { options: NonNullabl
       {options.map((o, i) => {
         const cls = answered ? (o.correct ? 'correct' : chosen === o.id ? 'wrong' : 'dim') : '';
         return (
-          <motion.button key={o.id} role="radio" aria-checked={chosen === o.id} className={`opt ${cls}`} disabled={answered} onClick={() => onPick(o.id)}
-            initial={reducedMotion() ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...spring, delay: reducedMotion() ? 0 : i * 0.03 }}>
+          <button key={o.id} role="radio" aria-checked={chosen === o.id} className={`opt ${cls}`} disabled={answered} onClick={() => onPick(o.id)}>
             <span className="opt-key">{answered ? (o.correct ? <ICheck size={15} /> : chosen === o.id ? <IX size={15} /> : String.fromCharCode(65 + i)) : String.fromCharCode(65 + i)}</span>
             <span className="grow">{o.text}</span>
-          </motion.button>
+          </button>
         );
       })}
     </div>
@@ -777,7 +776,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
           <div className="row memory-clock">
             <span className="memory-clock-face" role="timer" aria-label={`Segundo ${previewSecond} de ${GUIDED_MEMORY_SECONDS}`}
               style={{ '--clock-fill': `${previewSecond * 100 / GUIDED_MEMORY_SECONDS}%` } as CSSProperties}>
-              <span aria-hidden="true">{previewSecond}</span>
+              <span aria-hidden="true"><b key={previewSecond}>{previewSecond}</b></span>
             </span>
             <span className="small"><ITimer size={16} /> Memorize o artigo</span>
           </div>
@@ -797,8 +796,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
           </div>)}
       </header>
       <div className="question-body" ref={questionBody}>
-        <motion.div key={ex.key + s.index} initial={settings.studyFocus || reducedMotion() ? false : { opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }}
-          transition={spring} className="stack question-content">
+        <div key={`${s.index}:${ex.key}:${readingPreview}`} className="stack question-content" data-blitz={s.config.blitz || undefined}>
           {readingPreview && previewArticle ? (
             <section className="law-art stack" aria-label="Leitura antes das lacunas">
               <ArticleView art={previewArticle} showNotes={false} selectedUnit={ex.unitId} />
@@ -822,7 +820,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
                 onInspect={setReadingExplanation} />
             </>
           )}
-        </motion.div>
+        </div>
       </div>
       {ex.kind !== 'lesson' && (
         <footer className="answer-dock">
@@ -867,12 +865,12 @@ function trailing(results: SessionState['results']) {
 }
 
 function TucaReact({ correct, reaction, combo, method, review, confidence }: { correct: boolean; reaction?: CapiReaction; combo: number; method?: string; review: boolean; confidence?: { value: 'sabia' | 'chutei' | null; onPick: (v: 'sabia' | 'chutei') => void } }) {
-  const mood = correct ? 'cheer' : 'sad';
+  const mood = reaction === 'recovered' ? 'proud' : correct ? 'cheer' : 'sad';
   const say = confidence?.value === 'chutei'
     ? 'Vou trazer esta questão mais cedo na revisão.'
     : [method, correct && (review || reaction === 'recovered') ? 'Acertou na revisão' : null].filter(Boolean).join(' · ');
   return (
-    <motion.div className={`tuca-react verdict ${correct ? 'ok' : 'bad'}`} role="status" initial={reducedMotion() ? false : { y: 10, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={spring}>
+    <div className={`tuca-react verdict ${correct ? 'ok' : 'bad'}`} role="status">
       <Mascot mood={mood} size={58} reaction={reaction ?? (correct ? 'correct' : 'incorrect')} />
       <Stamp ok={correct} />
       <div className="grow">
@@ -886,7 +884,7 @@ function TucaReact({ correct, reaction, combo, method, review, confidence }: { c
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -944,13 +942,13 @@ function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answere
           if (!sg.blank) return <span key={i}>{sg.t}</span>;
           bi++;
           const v = filled[bi]; const ok = answered && v !== undefined && fold(v) === fold(blanks[bi].answer);
-          return <span key={i} aria-label={`Lacuna ${bi + 1}${v ? `: ${v}` : ''}`} className={`mblank${bi === cur && !answered ? ' current' : ''}${answered ? (ok ? ' ok' : ' bad') : ''}`}><sup>{bi + 1}</sup>{v ?? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'}{answered && !ok && <span className="mfix"> {blanks[bi].answer}</span>}</span>;
+          return <span key={i} aria-label={`Lacuna ${bi + 1}${v ? `: ${v}` : ''}`} data-filled={v !== undefined || undefined} className={`mblank${bi === cur && !answered ? ' current' : ''}${answered ? (ok ? ' ok' : ' bad') : ''}`}><sup>{bi + 1}</sup>{v ?? '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'}{answered && !ok && <span className="mfix"> {blanks[bi].answer}</span>}</span>;
         })}
       </div>
       {!answered && blanks[cur] && (
         <div className="stack" style={{ gap: 8 }}>
           <div className="xsmall muted">Lacuna {cur + 1} de {blanks.length}</div>
-          <div className="chips">{blanks[cur].options.map((o) => <button key={o} className="chip" style={{ fontSize: 15, minHeight: 42 }} onClick={() => choose(o)}>{o}</button>)}</div>
+          <div className="chips memory-choices" key={cur}>{blanks[cur].options.map((o) => <button key={o} className="chip" style={{ fontSize: 15, minHeight: 42 }} onClick={() => choose(o)}>{o}</button>)}</div>
         </div>
       )}
       {!answered && cur > 0 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setFilled(filled.slice(0, -1))}>Desfazer</button>}
@@ -1043,13 +1041,16 @@ function AnswerCorrection({ ex, answer }: { ex: Exercise; answer: Answer }) {
 
 /** Carimbo de decisão: DEFERIDO (acerto, com faíscas) ou INDEFERIDO (erro). */
 function Stamp({ ok }: { ok: boolean }) {
-  const rm = reducedMotion();
+  const rm = reducedMotion() || isLowPerformance();
   return (
     <div className={`stamp ${ok ? 'ok' : 'bad'}`} aria-hidden="true">
-      <motion.span className="stamp-ink" initial={rm ? false : { scale: 2.4, opacity: 0, rotate: -4 }} animate={{ scale: 1, opacity: 1, rotate: -12 }} transition={{ type: 'spring', stiffness: 420, damping: 18 }}>{ok ? 'DEFERIDO' : 'INDEFERIDO'}</motion.span>
-      {ok && !rm && Array.from({ length: 10 }, (_, i) => {
-        const a = (i / 10) * Math.PI * 2;
-        return <motion.i key={i} className="spark" initial={{ x: 0, y: 0, opacity: 1, scale: 1 }} animate={{ x: Math.cos(a) * 46, y: Math.sin(a) * 30, opacity: 0, scale: 0.4 }} transition={{ duration: 0.7, delay: 0.12, ease: 'easeOut' }} />;
+      <motion.span className="stamp-ink" initial={rm ? false : { scale: 1.4, opacity: 0, rotate: -7 }} animate={{ scale: 1, opacity: 1, rotate: -12 }}
+        transition={rm ? { duration: 0 } : { type: 'spring', stiffness: 490, damping: 28 }}>{ok ? 'DEFERIDO' : 'INDEFERIDO'}</motion.span>
+      {ok && !rm && Array.from({ length: 6 }, (_, i) => {
+        const a = (i / 6) * Math.PI * 2;
+        return <motion.i key={i} className="spark" initial={{ x: 0, y: 0, opacity: 0, scale: .6 }}
+          animate={{ x: Math.cos(a) * 40, y: Math.sin(a) * 25, opacity: [0, 1, 0], scale: .35 }}
+          transition={{ duration: .52, delay: .1, ease: 'easeOut' }} />;
       })}
     </div>
   );
@@ -1057,10 +1058,13 @@ function Stamp({ ok }: { ok: boolean }) {
 
 /** Martelo que bate no fim da sessão. */
 function Gavel() {
-  const rm = reducedMotion();
+  const rm = reducedMotion() || isLowPerformance();
   return (
     <div className="gavel-wrap" aria-hidden="true">
-      <motion.svg width="92" height="92" viewBox="0 0 92 92" initial={rm ? false : { rotate: -55, x: 6, y: -10 }} animate={{ rotate: [-55, 8, -2, 0], x: 0, y: 0 }} transition={{ duration: 0.75, times: [0, 0.55, 0.8, 1], ease: 'easeIn' }} style={{ originX: '78%', originY: '78%' }}>
+      <motion.svg width="92" height="92" viewBox="0 0 92 92" initial={rm ? false : { rotate: -42 }}
+        animate={{ rotate: rm ? 0 : [-42, 5, -3, 0] }}
+        transition={rm ? { duration: 0 } : { duration: .65, times: [0, .54, .78, 1], ease: 'easeIn' }}
+        style={{ originX: '78%', originY: '78%' }}>
         <defs><linearGradient id="gw" x1="0" x2="1"><stop offset="0" stopColor="#a8714a" /><stop offset="1" stopColor="#6b4329" /></linearGradient></defs>
         <g transform="rotate(-40 46 46)"><rect x="18" y="26" width="44" height="20" rx="5" fill="url(#gw)" /><rect x="14" y="24" width="8" height="24" rx="2.5" fill="#f1d99a" /><rect x="58" y="24" width="8" height="24" rx="2.5" fill="#f1d99a" /><rect x="37" y="44" width="7" height="40" rx="3" fill="#7a4d30" /></g>
       </motion.svg>

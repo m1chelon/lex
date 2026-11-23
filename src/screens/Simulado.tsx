@@ -3,7 +3,7 @@ import { TucaLoading } from '../ui/TucaLoading';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader, Progress, Segmented, Sheet, CType, toast, useLiveAsync } from '../ui/primitives';
 import { nav } from '../ui/nav';
-import { haptic, reducedMotion, setSettings, useSettings } from '../ui/settings';
+import { haptic, setSettings, useSettings } from '../ui/settings';
 import { IChevR, IClock, ICheck, IClose, IX, IPlay } from '../ui/icons';
 import { FocusList, focusLabel } from './Home';
 import { Flag } from '../ui/Flags';
@@ -14,8 +14,6 @@ import { getArticle, articleTitle } from '../data/corpus';
 import { CONCEPTS } from '../content/concepts';
 import { Mascot, MascotQuestion } from '../ui/Mascot';
 import { LegalReference } from '../ui/LegalReference';
-import { spring } from '../ui/primitives';
-import { motion } from 'motion/react';
 
 const ESTILOS: { id: Estilo; label: string; desc: string; minPorQ: number }[] = [
   { id: 'leiseca', label: 'Lei seca', desc: '5 alternativas sobre prazos, limites, requisitos, competências e exceções da legislação.', minPorQ: 2.5 },
@@ -208,7 +206,7 @@ export function SimuladoRun({ id }: { id: string }) {
         {q.where && q.estilo !== 'fgv' && <LegalReference key={q.where + (q.unitId ?? '')} where={q.where} unitId={q.unitId} />}
       </header>
       <div className="question-body" ref={body}>
-        <motion.div key={q.id} initial={reducedMotion() ? false : { opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={spring} className="stack question-content">
+        <div key={q.id} className="stack question-content">
           {q.contexto && <div className="card elev"><CType k="hipotetico" /><p style={{ marginTop: 8, lineHeight: 1.55 }}>{q.contexto}</p></div>}
           <MascotQuestion text={q.enunciado} />
           {q.contextoLegal && <div className="law-art law muted" style={{ whiteSpace: 'pre-line' }}>{q.contextoLegal}</div>}
@@ -218,7 +216,7 @@ export function SimuladoRun({ id }: { id: string }) {
               ? (['C', 'E'] as const).map((v) => <button key={v} className={`opt ${s.respostas[q.id] === v ? 'selected' : ''}`} aria-pressed={s.respostas[q.id] === v} onClick={() => answer(v)}><strong>{v === 'C' ? 'Certo' : 'Errado'}</strong></button>)
               : q.options!.map((o, k) => <button key={o.id} className={`opt ${s.respostas[q.id] === o.id ? 'selected' : ''}`} aria-pressed={s.respostas[q.id] === o.id} onClick={() => answer(o.id)}><span className="opt-key">{letra(k)}</span><span className="grow">{o.text}</span></button>)}
           </div>
-        </motion.div>
+        </div>
       </div>
       <div className="answer-dock row" style={{ gap: 10 }}>
         <button className="btn btn-quiet" disabled={i === 0} onClick={() => setI(i - 1)}>Anterior</button>

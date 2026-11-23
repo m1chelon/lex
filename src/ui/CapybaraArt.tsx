@@ -21,8 +21,8 @@ const MOUTH: Record<Mood, string> = {
   proud: 'M25 53.7q7 6.2 15.5-.4',
 };
 
-export function CapybaraArt({ id, mood, period, look, gender, scene, animated, reaction, portrait }: {
-  id: string; mood: Mood; period: Period; look: CapiLook; gender: CapiGender; scene: CapiScene; animated: boolean;
+export function CapybaraArt({ id, mood, period, look, gender, scene, animated, idle, reaction, portrait }: {
+  id: string; mood: Mood; period: Period; look: CapiLook; gender: CapiGender; scene: CapiScene; animated: boolean; idle?: boolean;
   reaction?: CapiReaction; portrait?: boolean;
 }) {
   const { effect, ritual, wind, rain } = scene;
@@ -75,70 +75,77 @@ export function CapybaraArt({ id, mood, period, look, gender, scene, animated, r
 
     <ellipse cx="61" cy="111" rx="38" ry="5" fill="#11152d" opacity=".35" />
     <g className={animated && cold ? 'capi-shiver' : undefined}>
-      <g stroke={FUR_OUTLINE} strokeWidth="1.55" strokeLinejoin="round">
-        <path d="M33 101q-5 5-4 8 1 3 7 3h15q6 0 6-5m27-6q6 5 5 8-1 3-7 3H68q-6 0-6-5"
-          fill="#9c7060" />
-        <path d="M39 65q-11 7-11 23c0 16 10 22 32 22s33-7 33-22q0-15-13-23Z" fill={tone.fur} />
-        <path d="M25 78q-11 10-10 17c1 6 9 8 16 1l8-11Zm64 .5q14 9 15 16c0 6-8 9-15 3l-8-12Z"
-          fill="#a97a67" />
-      </g>
-      <path d="M39 88q2 18 21 18t20-18Z" fill="#edc5a6" />
-      {gear('legs')}
-      <CapiClothing item={suit} id={id + '-outfit'} neckCovered={!!look.neck && CAPI_ITEMS[look.neck].model !== 'pin'} />
-      {gear('shoes')}
-      {gear('waist')}
-      {gear('neck')}
-      {gear('hands')}
-      {gear('watch')}
+      <g className={idle ? 'capi-idle' : undefined}>
+        <g stroke={FUR_OUTLINE} strokeWidth="1.55" strokeLinejoin="round">
+          <path d="M33 101q-5 5-4 8 1 3 7 3h15q6 0 6-5m27-6q6 5 5 8-1 3-7 3H68q-6 0-6-5"
+            fill="#9c7060" />
+          <path d="M39 65q-11 7-11 23c0 16 10 22 32 22s33-7 33-22q0-15-13-23Z" fill={tone.fur} />
+          <path d="M25 78q-11 10-10 17c1 6 9 8 16 1l8-11Zm64 .5q14 9 15 16c0 6-8 9-15 3l-8-12Z"
+            fill="#a97a67" />
+        </g>
+        <path d="M39 88q2 18 21 18t20-18Z" fill="#edc5a6" />
+        {gear('legs')}
+        <CapiClothing item={suit} id={id + '-outfit'} neckCovered={!!look.neck && CAPI_ITEMS[look.neck].model !== 'pin'} />
+        {gear('shoes')}
+        {gear('waist')}
+        {gear('neck')}
+        {gear('hands')}
+        {gear('watch')}
 
-      <g className={animated ? 'capi-ears' : undefined} stroke={FUR_OUTLINE} strokeWidth="1.45" strokeLinejoin="round">
-        <path d="M50.6 17.4C47.2 11.9 50.5 6.5 54.4 5.7c3.6-.7 6.2 3.4 7.8 9.4Z" fill="#b57b5d" />
-      </g>
-      <path d="M78 16.8c2.1-4.7 6.3-8.9 10.4-8.5 4.9.5 7.8 5.2 7.1 9.2-.5 3.4-3 5.5-6.9 7.6
-        3.6 4.9 4.1 12.7 4.8 19.8 1 8.7 2.5 15.9-3.8 21.1-8.1 6.8-28.5 7.6-47.4 5.7
-        C27.9 70.2 19 66.4 17.9 56.3c-.8-7.1-.6-16.2.5-23.1 1-6.5 5.6-11.3 12.7-14.2
-        C43.5 13.7 66.2 10.9 78 16.8Z" fill="#ac7253" stroke={FUR_OUTLINE} strokeWidth="1.65" strokeLinejoin="round" />
-      <path d="M79.3 18.7c8.4 1.5 9.1 10.6 10.2 19.6 1.3 10.3 2.1 18-4.2 22.6
-        -8.7 6.5-26.8 7.5-42 6.7-13.8-.8-22.5-3.6-23.5-14.4-.7-8.1.2-15.3 1.5-21.1
-        1.5-5.9 5.6-9.5 12.4-12.1 13.9-5.2 35.9-6.7 45.6-1.3Z" fill={tone.fur} />
-      <path d="M20.4 34.2c2.3-6.9 7.4-10.4 15-13.4 12.8-5 33.3-6.7 43.9-2" fill="none"
-        stroke="#f3c8a2" strokeWidth="1.45" strokeOpacity=".82" strokeLinecap="round" />
-      <path d="M78 16.8c2.1-4.7 6.3-8.9 10.4-8.5 4.9.5 7.8 5.2 7.1 9.2-.5 3.4-3 5.5-6.9 7.6l-3-3.35Z"
-        fill="#bc896f" />
-      <path d="M78.1 17.5q5.2-10 10.6-8.1m-4.95 12.5q.9-4.4 4.25-7.4m.7 10.6q3.55-1.8 5.3-4.4"
-        fill="none" stroke={FUR_OUTLINE} strokeWidth="1.45" strokeLinecap="round" />
+        <g className={idle ? 'capi-head' : undefined}>
+          <g className={idle ? 'capi-ears' : undefined} stroke={FUR_OUTLINE} strokeWidth="1.45" strokeLinejoin="round">
+            <path d="M50.6 17.4C47.2 11.9 50.5 6.5 54.4 5.7c3.6-.7 6.2 3.4 7.8 9.4Z" fill="#b57b5d" />
+          </g>
+          <path d="M78 16.8c2.1-4.7 6.3-8.9 10.4-8.5 4.9.5 7.8 5.2 7.1 9.2-.5 3.4-3 5.5-6.9 7.6
+            3.6 4.9 4.1 12.7 4.8 19.8 1 8.7 2.5 15.9-3.8 21.1-8.1 6.8-28.5 7.6-47.4 5.7
+            C27.9 70.2 19 66.4 17.9 56.3c-.8-7.1-.6-16.2.5-23.1 1-6.5 5.6-11.3 12.7-14.2
+            C43.5 13.7 66.2 10.9 78 16.8Z" fill="#ac7253" stroke={FUR_OUTLINE} strokeWidth="1.65" strokeLinejoin="round" />
+          <path d="M79.3 18.7c8.4 1.5 9.1 10.6 10.2 19.6 1.3 10.3 2.1 18-4.2 22.6
+            -8.7 6.5-26.8 7.5-42 6.7-13.8-.8-22.5-3.6-23.5-14.4-.7-8.1.2-15.3 1.5-21.1
+            1.5-5.9 5.6-9.5 12.4-12.1 13.9-5.2 35.9-6.7 45.6-1.3Z" fill={tone.fur} />
+          <path d="M20.4 34.2c2.3-6.9 7.4-10.4 15-13.4 12.8-5 33.3-6.7 43.9-2" fill="none"
+            stroke="#f3c8a2" strokeWidth="1.45" strokeOpacity=".82" strokeLinecap="round" />
+          <path d="M78 16.8c2.1-4.7 6.3-8.9 10.4-8.5 4.9.5 7.8 5.2 7.1 9.2-.5 3.4-3 5.5-6.9 7.6l-3-3.35Z"
+            fill="#bc896f" />
+          <path d="M78.1 17.5q5.2-10 10.6-8.1m-4.95 12.5q.9-4.4 4.25-7.4m.7 10.6q3.55-1.8 5.3-4.4"
+            fill="none" stroke={FUR_OUTLINE} strokeWidth="1.45" strokeLinecap="round" />
 
-      <path d="M20.1 35.4c1-6.1 4.8-7.8 11-7.7 10.2.2 16.5 4.5 16.5 14.9v9.7c-.1 7.8-4.8 12.1-13.3 11.7
-        -9.2-.4-14.2-4.5-14.8-11.2-.5-5.8-.2-11.9.6-17.4Z" fill="#a97e6d" />
-      <path d="M23 34.2c-2.3 1-1.6 4.3 1.2 4.9 1.2.3 1.9 1 2.1 1.6.3.6 1.45.5 1.6-.4.35-2.7-2.1-7.4-4.9-6.1Zm14.4.6c2.35.2 2.55 3.1.3 4.15-1.1.55-2.6.4-3.05 1.45-.4 1.1-1.6.9-1.6-.35 0-2.4 2.2-5.47 4.35-5.25Z" fill={FUR_OUTLINE} />
-      <path d="M30.7 41.6q-1.25 7.2 1.25 12.95" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.4" strokeLinecap="round" />
-      <path d={MOUTH[mood]} fill={mood === 'cheer' ? FUR_OUTLINE : 'none'} stroke={FUR_OUTLINE}
-        strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
-      {mood === 'cheer' && <path d="M29.7 56.7q3.8-1.6 8-.8-.9 2.2-4 2.5-2.45.1-4-1.7Z" fill="#ff8e95" />}
-      <ellipse cx="77.3" cy="45" rx="4.35" ry="2.45" fill="#ff9398" opacity=".9" />
-      {closedEye ? <path
-        d={mood === 'sleep' ? 'M64 34q6 6.5 12 0' : 'M64 36q6-7 12 0'}
-        fill="none" stroke={FUR_OUTLINE} strokeWidth="2" strokeLinecap="round" />
-        : <g className={animated ? 'tuca-blink' : undefined}>
-          <circle cx="70" cy="34" r="7.8" fill="#fffdf9" stroke={FUR_OUTLINE} strokeWidth="1.55" />
-          <circle cx={pupilX} cy={pupilY} r="5.15" fill="#11172e" />
-          <circle cx={pupilX - 2.55} cy={pupilY - 2.8} r="2.03" fill="#fff" />
-          <circle cx={pupilX + 2.4} cy={pupilY + 2.2} r="1.05" fill="#fff" />
-        </g>}
-      {mood === 'think' && <path d="M65.6 24.3q4.5-3.1 9.2-1.4" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.4" strokeLinecap="round" />}
-      {mood === 'sad' && <path d="M65 24.1q5 2 10.5.6" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.4" strokeLinecap="round" />}
-      {mood === 'grumpy' && <path d="M64.1 26.1q5.2-.7 12.7-3.9" fill="none" stroke={FUR_OUTLINE} strokeWidth="2.1" strokeLinecap="round" />}
-      {mood === 'proud' && <path d="M63.8 24.3q5.5-3.8 11.9-1.4" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.5" strokeLinecap="round" />}
-      {feminine && <>
-        <path d="M40 17.3q12-6 27-4.4 7 1 11 5.1-18-4.1-30 4.3l2.2-3.9q-5.8 2.6-11.3 2.6Z"
-          fill="#8e5b46" opacity=".89" />
-        {!closedEye && <path d="M76 28.9q4.5-.6 5.5-2.5m-4.5 5q4.3 0 5.5-1.6"
-          fill="none" stroke={FUR_OUTLINE} strokeWidth="1.45" strokeLinecap="round" />}
-      </>}
-      {gear('glasses')}
-      {gear('ears')}
-      {gear('head')}
-      {gear('carry')}
+          <path d="M20.1 35.4c1-6.1 4.8-7.8 11-7.7 10.2.2 16.5 4.5 16.5 14.9v9.7c-.1 7.8-4.8 12.1-13.3 11.7
+            -9.2-.4-14.2-4.5-14.8-11.2-.5-5.8-.2-11.9.6-17.4Z" fill="#a97e6d" />
+          <path d="M23 34.2c-2.3 1-1.6 4.3 1.2 4.9 1.2.3 1.9 1 2.1 1.6.3.6 1.45.5 1.6-.4.35-2.7-2.1-7.4-4.9-6.1Zm14.4.6c2.35.2 2.55 3.1.3 4.15-1.1.55-2.6.4-3.05 1.45-.4 1.1-1.6.9-1.6-.35 0-2.4 2.2-5.47 4.35-5.25Z" fill={FUR_OUTLINE} />
+          <path d="M30.7 41.6q-1.25 7.2 1.25 12.95" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.4" strokeLinecap="round" />
+          <path d={MOUTH[mood]} fill={mood === 'cheer' ? FUR_OUTLINE : 'none'} stroke={FUR_OUTLINE}
+            strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
+          {mood === 'cheer' && <path d="M29.7 56.7q3.8-1.6 8-.8-.9 2.2-4 2.5-2.45.1-4-1.7Z" fill="#ff8e95" />}
+          <ellipse cx="77.3" cy="45" rx="4.35" ry="2.45" fill="#ff9398" opacity=".9" />
+          {closedEye ? <path
+            d={mood === 'sleep' ? 'M64 34q6 6.5 12 0' : 'M64 36q6-7 12 0'}
+            fill="none" stroke={FUR_OUTLINE} strokeWidth="2" strokeLinecap="round" />
+            : <g className={idle ? 'tuca-blink' : undefined}>
+              <circle cx="70" cy="34" r="7.8" fill="#fffdf9" stroke={FUR_OUTLINE} strokeWidth="1.55" />
+              <g className={idle ? 'capi-gaze' : undefined}>
+                <circle cx={pupilX} cy={pupilY} r="5.15" fill="#11172e" />
+                <circle cx={pupilX - 2.55} cy={pupilY - 2.8} r="2.03" fill="#fff" />
+                <circle cx={pupilX + 2.4} cy={pupilY + 2.2} r="1.05" fill="#fff" />
+              </g>
+            </g>}
+          {mood === 'think' && <path d="M65.6 24.3q4.5-3.1 9.2-1.4" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.4" strokeLinecap="round" />}
+          {mood === 'sad' && <path d="M65 24.1q5 2 10.5.6" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.4" strokeLinecap="round" />}
+          {mood === 'grumpy' && <path d="M64.1 26.1q5.2-.7 12.7-3.9" fill="none" stroke={FUR_OUTLINE} strokeWidth="2.1" strokeLinecap="round" />}
+          {mood === 'proud' && <path d="M63.8 24.3q5.5-3.8 11.9-1.4" fill="none" stroke={FUR_OUTLINE} strokeWidth="1.5" strokeLinecap="round" />}
+          {feminine && <>
+            <path d="M40 17.3q12-6 27-4.4 7 1 11 5.1-18-4.1-30 4.3l2.2-3.9q-5.8 2.6-11.3 2.6Z"
+              fill="#8e5b46" opacity=".89" />
+            {!closedEye && <path d="M76 28.9q4.5-.6 5.5-2.5m-4.5 5q4.3 0 5.5-1.6"
+              fill="none" stroke={FUR_OUTLINE} strokeWidth="1.45" strokeLinecap="round" />}
+          </>}
+          {gear('glasses')}
+          {gear('ears')}
+          {gear('head')}
+        </g>
+        {gear('carry')}
+        {!reaction && ritual && <RegionalRitual ritual={ritual} animated={animated && mood !== 'sleep'} />}
+      </g>
     </g>
 
     {cold && <g className={animated ? 'capi-breath' : undefined} fill="none" stroke="#e4f3fd" strokeWidth="1.4" strokeLinecap="round" opacity=".62">
@@ -152,14 +159,14 @@ export function CapybaraArt({ id, mood, period, look, gender, scene, animated, r
       <path d="M51 21Q81-12 114 18c-6-3-12-3-17 1-5-3-11-3-17 1-6-3-11-3-16 1-4-3-9-3-13 0Z"
         fill={ref('umbrella')} stroke="#bec7ff" strokeWidth="1.2" strokeLinejoin="round" />
       <path d="M81 5q-11 5-17 16M81 5l-1 15m1-15q10 4 16 14" fill="none" stroke="#4f61ae" strokeWidth="1.15" />
-      <path d="M10 37l-3 6m4 8-3 6m103-19-3 6" stroke="#9bd8ff" strokeWidth="1.8" strokeLinecap="round" />
       {effect === 'storm' && <path d="m13 58-4 8h4l-2 7 8-11h-5l3-4Z" fill="#fce39c" />}
     </g>}
-    {!reaction && ritual && <RegionalRitual ritual={ritual} animated={animated && mood !== 'sleep'} />}
+    {rainy && <path className={animated ? 'capi-raindrops' : undefined}
+      d="M11 32l-3 6m7 14-3 6m99-20-3 6m6 14-3 6" stroke="#a9ddff" strokeWidth="1.8" strokeLinecap="round" />}
     {reaction && <ReactionProp reaction={reaction} animated={animated} />}
     {mood === 'cheer' && <path className={animated ? 'tuca-twinkle' : undefined} d="m104 44 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" fill="#ffe3a2" />}
     {mood === 'think' && <text x="8" y="32" fill={tone.rim} fontSize="16" fontWeight="800">?</text>}
-    {mood === 'sleep' && <text x="11" y="21" fill={tone.rim} fontSize="11" fontWeight="800">z z</text>}
+    {mood === 'sleep' && <text className={idle ? 'capi-sleep' : undefined} x="11" y="24" fill={tone.rim} fontSize="11" fontWeight="800">z z</text>}
   </>;
 }
 
