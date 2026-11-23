@@ -28,10 +28,21 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Busca o HTML atual na abertura online e mantém a cópia pré-carregada para uso offline.
+        directoryIndex: null,
+        navigateFallback: null,
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2}'],
         globIgnores: ['splash/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
+          {
+            urlPattern: ({ request, sameOrigin }) => sameOrigin && request.mode === 'navigate',
+            handler: 'NetworkOnly',
+            options: {
+              precacheFallback: { fallbackURL: 'index.html' },
+              plugins: [{ requestWillFetch: async ({ request }) => new Request(request, { cache: 'no-cache' }) }],
+            },
+          },
           { urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.includes('/data/'), handler: 'NetworkFirst', options: { cacheName: 'lex-data', networkTimeoutSeconds: 3, cacheableResponse: { statuses: [200] }, expiration: { maxEntries: 90 } } },
         ],
       },

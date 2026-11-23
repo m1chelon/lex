@@ -47,7 +47,8 @@ const MAIN_CODES: Partial<Record<Ramo, { id: string; name: string }>> = {
 
 export function VadeHome() {
   const version = useCorpusVersion();
-  const branchCoverage = useLiveAsync(loadBranchCoverage, [version]);
+  const branchCoverage = useLiveAsync(() => loadBranchCoverage().catch(() => null), [version]);
+  const coverageStatus = branchCoverage === undefined ? 'Calculando progresso…' : 'Progresso indisponível';
   const [q, setQ] = useState('');
   return (
     <div className="stack tab-content">
@@ -67,11 +68,12 @@ export function VadeHome() {
           return <button className="branch-card" key={ramo} onClick={() => { haptic('tap'); nav.push({ name: 'ramo', ramo }); }}>
             <span className={`law-glyph${ramo === 'Civil' ? ' civil-glyph' : ''}`} style={{ ['--tint' as string]: TINT[style.color] }}>{style.icon(21)}</span>
             <span className="branch-name"><strong>{branchTitle(ramo)}</strong><IChevR size={15} /></span>
-            {progress && <span className="branch-progress">
-              <small>{branchPercent.format(progress.seen / progress.total)} estudado</small>
-              <progress value={progress.seen} max={progress.total} aria-label={`Progresso em ${branchTitle(ramo)}`}
-                aria-valuetext={`${progress.seen} de ${progress.total} artigos estudados`} />
-            </span>}
+            <span className="branch-progress">
+              <small>{progress ? `${branchPercent.format(progress.seen / progress.total)} estudado` : coverageStatus}</small>
+              <progress value={progress?.seen ?? 0} max={progress?.total ?? 1} aria-label={`Progresso em ${branchTitle(ramo)}`}
+                aria-valuetext={progress ? `${progress.seen} de ${progress.total} artigos estudados` : undefined}
+                aria-hidden={!progress} />
+            </span>
           </button>;
         })}
       </div>

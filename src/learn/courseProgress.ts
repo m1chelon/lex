@@ -27,8 +27,9 @@ function cardArticleIds({ articleId, conceptId }: CardRow) {
 }
 
 export async function loadBranchCoverage() {
-  const [cards, read] = await Promise.all([db.cards.toArray(), kvGet<string[]>('readArticles', [])]);
-  const seen = new Set(read);
+  const [cards, read] = await Promise.all([db.cards.toArray(), db.kv.get('readArticles')]);
+  const savedArticles = read?.value;
+  const seen = new Set<string>(Array.isArray(savedArticles) ? savedArticles.filter((id) => typeof id === 'string') : []);
   for (const card of cards) cardArticleIds(card).forEach((id) => seen.add(id));
 
   const seenByLaw = new Map<string, number>();

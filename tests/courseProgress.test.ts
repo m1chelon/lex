@@ -13,7 +13,7 @@ it('conta cada artigo estudado uma vez por matéria e inclui no total as leis ai
   vi.stubGlobal('fetch', async (url: string) => new Response(await readFile(new URL(`../public/${url}`, import.meta.url), 'utf8')));
   await ensureLaws(['cp']);
   expect(getLaw('l12850')).toBeUndefined();
-  await db.kv.put({ key: 'readArticles', value: ['cp.1', 'cp.1', 'cp.88', 'l12850.1'] });
+  await db.kv.put({ key: 'readArticles', value: ['cp.1', 'cp.1', 'cp.88', 'l12850.1', null, 12] });
   await markSeen('literal:cp.1', { articleId: 'cp.1', dim: 'literal', type: 'cloze-multi' });
   await markSeen('caso:cp.316', { conceptId: 'lex-caso-cp.316', dim: 'aplicacao', type: 'concept' });
   await markSeen('literal:cc.1', { articleId: 'cc.1', dim: 'literal', type: 'cloze-multi' });
