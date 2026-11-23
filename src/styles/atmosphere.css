@@ -862,3 +862,6 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass { background-color: rgb(var(--reading)); }
 }
+.jg-start { display: grid; gap: 6px; margin-top: 4px; }
+.jg-start h3 { margin: 0; font-weight: 600; }
+.opt-diff { background: color-mix(in srgb, var(--gold, #f2c36b) 22%, transparent); color: inherit; border-radius: 4px; padding: 0 3px; font-weight: 650; }

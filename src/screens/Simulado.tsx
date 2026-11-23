@@ -1,3 +1,4 @@
+import { optionDiffs, withDiff } from '../ui/optionDiff';
 import { liveQuery } from 'dexie';
 import { TucaLoading } from '../ui/TucaLoading';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -326,7 +327,7 @@ function SimuladoResult({ s }: { s: Simulado }) {
             {q.estilo === 'cebraspe' ? (
               <p className="small">Gabarito: <strong>{q.ce === 'C' ? 'Certo' : 'Errado'}</strong>{a ? ` · sua resposta: ${a === 'C' ? 'Certo' : 'Errado'}` : ''}{q.mutation && <><br /><CType k="incorreto" /> {q.mutation.note}</>}</p>
             ) : (
-              q.options!.map((o, j) => <p key={o.id} className="small" style={{ color: o.correct ? 'var(--ok)' : o.id === a ? 'var(--bad)' : 'var(--text-2)', lineHeight: 1.45 }}><strong>{letra(j)})</strong> {o.text}{(o.correct || o.id === a) && o.why ? <span className="xsmall" style={{ display: 'block', opacity: 0.85 }}>{o.why}</span> : null}</p>)
+              ((diff) => q.options!.map((o, j) => <p key={o.id} className="small" style={{ color: o.correct ? 'var(--ok)' : o.id === a ? 'var(--bad)' : 'var(--text-2)', lineHeight: 1.45 }}><strong>{letra(j)})</strong> {withDiff(o.text, diff)}{(o.correct || o.id === a) && o.why ? <span className="xsmall" style={{ display: 'block', opacity: 0.85 }}>{o.why}</span> : null}</p>))(optionDiffs(q.options!.map((o) => o.text)))
             )}
             {q.officialText && <div className="law-art" style={{ padding: 12 }}><CType k="oficial" /><p className="law" style={{ fontSize: 15, marginTop: 6, whiteSpace: 'pre-line' }}>{q.officialText}</p></div>}
             {art && <button className="small gold" style={{ alignSelf: 'flex-start' }} onClick={() => nav.push({ name: 'article', id: art.art.id, unitId: q.unitId })}>{articleTitle(art.law.id, art.art)} ›</button>}

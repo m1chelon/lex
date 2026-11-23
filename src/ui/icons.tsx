@@ -90,6 +90,7 @@ export const IHouse = (p: P) => <S {...p}><path d="M4 11 12 4.5l8 6.5" /><path d
 export const IPill = (p: P) => <S {...p}><rect x="3.5" y="8.5" width="17" height="7" rx="3.5" transform="rotate(-40 12 12)" /><path d="m9.7 9.3 5 4.2" /></S>;
 export const IHandshake = (p: P) => <S {...p}><path d="m3 11 3.5-3.5 3 1.5 2.5-1.5 3 .5L21 11" /><path d="m6.5 7.5 6.5 7a1.5 1.5 0 0 0 2.2-2l-3-3.2" /><path d="m9.5 12.5 3 3.2a1.5 1.5 0 0 0 2.2-2M7.5 14.5l2.5 2.6a1.5 1.5 0 0 0 2.2-2M3 11l3 3.2" /></S>;
 export const ICopyright = (p: P) => <S {...p}><circle cx="12" cy="12" r="8.5" /><path d="M14.8 9.6a3.5 3.5 0 1 0 0 4.8" /></S>;
+export const IMonitor = (p: P) => <S {...p}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></S>;
 export const IPhone = (p: P) => <S {...p}><path d="M6.5 4h3l1.5 4-2 1.3a10 10 0 0 0 5.7 5.7l1.3-2 4 1.5v3a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4.5 6.2 2 2 0 0 1 6.5 4Z" /></S>;
 export const IShieldLock = (p: P) => <S {...p}><path d="M12 3.5 5 6v5.5c0 4.3 2.9 7.7 7 9 4.1-1.3 7-4.7 7-9V6Z" /><rect x="9" y="11" width="6" height="4.5" rx="1" /><path d="M10.2 11V9.6a1.8 1.8 0 0 1 3.6 0V11" /></S>;
 export const ICoin = (p: P) => <S {...p}><ellipse cx="12" cy="7" rx="7" ry="3" /><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" /></S>;

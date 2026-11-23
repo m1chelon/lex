@@ -104,7 +104,8 @@ function EditalMap() {
   const v = useCorpusVersion();
   const { area } = useSettings();
   const cov = coverage(area);
-  const [open, setOpen] = useState<Set<string>>(new Set(area === 'tjsp' ? getArea('tjsp').requirements.map((r) => r.id) : []));
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (id: string, law: string) => { const next = new Set(open); if (next.has(id)) next.delete(id); else { void ensureLaws([law]); next.add(id); } setOpen(next); };
   const ids = useMemo(() => [...cov.required], [v, area]); // eslint-disable-line
   const mastery = useLiveAsync(() => masteryFor(ids), [ids]);
   const progress = useLiveAsync(async () => courseStats(await loadArticleProgress(cov.required), cov.required), [cov]);
@@ -165,7 +166,8 @@ function EditalMap() {
               <span className="small muted">{arts.length ? `${Math.round(pct * 100)}%` : 'pendente'}</span>
             </div>
             {area === 'tjsp' && <p className="xsmall muted" style={{ marginBottom: 10, lineHeight: 1.4 }}>{req.texto}</p>}
-            {!isOpen ? <button className="btn btn-sm btn-ghost" onClick={() => { void ensureLaws([req.law]); setOpen(new Set([...open, req.id])); }}>Ver {arts.length || ''} artigos</button> : <div className="mapgrid">
+            <button className="btn btn-sm btn-ghost" aria-expanded={isOpen} onClick={() => toggle(req.id, req.law)}>{isOpen ? 'Ocultar artigos' : arts.length === 1 ? 'Ver 1 artigo' : `Ver ${arts.length || ''} artigos`}</button>
+            {isOpen && <div className="mapgrid" style={{ marginTop: 10 }}>
               {arts.map((id) => {
                 const a = getArticle(id)!;
                 const ma = mastery?.get(id);

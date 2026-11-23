@@ -169,7 +169,7 @@ function DoctrineCourseDetail({ course, initialModule }: { course: (typeof cours
                   <li key={chapter.id} id={`modulo-${id}-${chapter.id}`} className={`doctrine-module${chapter.id === initialModule ? ' highlighted' : ''}`}>
                     <div>
                       <h4 className="title-s">{chapter.number}. {chapter.title}</h4>
-                      <p className="small muted">{chapter.questions.length} questões</p>
+                      <p className="small muted">{chapter.questions.length} {chapter.questions.length === 1 ? 'questão' : 'questões'}</p>
                       {!!seenByChapter.get(chapter.id) && <p className="small">{seenByChapter.get(chapter.id)} praticadas</p>}
                     </div>
                     <button className="btn btn-quiet btn-sm" aria-label={`${resumableModule === chapter.id ? 'Retomar' : 'Praticar'} ${chapter.title}`}

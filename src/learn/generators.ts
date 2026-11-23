@@ -265,10 +265,12 @@ export function contextChain(art: Article, u: Unit): Unit[] {
 }
 
 export function unitContext(art: Article, u: Unit): Seg[] {
-  return contextChain(art, u).flatMap((c) => [{ t: `${c.lab} `, strong: true }, { t: c.t + '\n' }]);
+  return contextChain(art, u).flatMap((c) => [{ t: `${c.k === 'caput' ? c.lab : dashed(c)} `, strong: true }, { t: c.t + '\n' }]);
 }
 
-const labOf = (art: Article, u: Unit) => (u.k === 'caput' ? art.lab : u.lab) + ' ';
+/** Rótulo como aparece na lei: incisos, itens e penas levam travessão ("I –"). */
+const dashed = (u: Pick<Unit, 'k' | 'lab'>) => u.lab + (u.k === 'inc' || u.k === 'pena' || u.k === 'item' ? ' –' : '');
+const labOf = (art: Article, u: Unit) => (u.k === 'caput' ? art.lab : dashed(u)) + ' ';
 
 export function unitPathParts(art: Article, u?: Unit): string[] {
   if (!u) return [art.lab];
@@ -351,7 +353,7 @@ export function buildOrder(law: LawDoc, art: Article, stage: number, requestedPa
   return {
     key: `O:${art.id}:${parentKey}`, kind: 'order', dim: 'literal', family: 'literal', lawId: law.id, articleId: art.id, stage, where: whereOf(law, art, parent && parent.k !== 'caput' ? parent : undefined) + ' — incisos',
     prompt: 'Toque nos incisos na ordem em que aparecem na lei',
-    context: parent ? [{ t: `${parent.lab} `, strong: true }, { t: parent.t }] : [],
+    context: parent ? [{ t: `${parent.k === 'caput' ? parent.lab : dashed(parent)} `, strong: true }, { t: parent.t }] : [],
     stem: [], orderItems: us.map((u) => ({ id: u.id, lab: u.lab, t: u.t })), answer: us.map((u) => u.id).join('|'), expectedMs: 30000,
   };
 }

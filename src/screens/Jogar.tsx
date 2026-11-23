@@ -124,6 +124,23 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
               </p>
               <p className="small muted">{label.sub}</p>
               <p className="small">{label.how}{timed && ` · ${order === 'linear' || mode === 'memorizar-guiada' ? 'Sequencial' : 'Aleatório'}`}</p>
+              {sequential && canStart && (
+                <div className="jg-start" role="group" aria-labelledby="jg-start">
+                  <h3 id="jg-start" className="small muted">Começar</h3>
+                  <Segmented label="Começar" value={startFrom} options={[
+                    { id: 'continuar', label: 'Continuar' },
+                    { id: 'inicio', label: 'Do início' },
+                    { id: 'artigo', label: 'Escolher art.' },
+                  ]} onChange={setStartFrom} />
+                  {startFrom === 'artigo' && (
+                    <label className="stack" style={{ gap: 4, marginTop: 8 }}>
+                      <span className="small muted">Número do artigo{firstLaw && getLaw(firstLaw) ? ` (${getLaw(firstLaw)!.short})` : ''}</span>
+                      <input className="input" inputMode="text" placeholder="Ex.: 7, 144, 104-A" value={startNum} onChange={(e) => setStartNum(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') start(); }} />
+                    </label>
+                  )}
+                </div>
+              )}
               {unfinished && !adjusting && <button className="btn btn-quiet" onClick={resume}><IHistory size={17} /> Continuar sessão em andamento</button>}
               {!canStart && !adjusting && <p className="small muted" role="status">Escolha um conteúdo com normas disponíveis.</p>}
             </>
@@ -193,20 +210,6 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
                     { id: 'linear', label: 'Sequencial' },
                     { id: 'misturado', label: 'Aleatório' },
                   ]} onChange={setOrder} />}
-                {(order === 'linear' || mode === 'memorizar-guiada') && <>
-                  <h2 id="jg-start">Começar</h2>
-                  <Segmented label="Começar" value={startFrom} options={[
-                    { id: 'continuar', label: 'De onde parei' },
-                    { id: 'inicio', label: 'Do início' },
-                    { id: 'artigo', label: 'Do artigo…' },
-                  ]} onChange={setStartFrom} />
-                  {startFrom === 'artigo' && (
-                    <label className="stack" style={{ gap: 4, marginTop: 8 }}>
-                      <span className="small muted">Número do artigo{firstLaw && getLaw(firstLaw) ? ` (${getLaw(firstLaw)!.short})` : ''}</span>
-                      <input className="input" inputMode="text" placeholder="Ex.: 7, 144, 104-A" value={startNum} onChange={(e) => setStartNum(e.target.value)} />
-                    </label>
-                  )}
-                </>}
                 <div className="jg-extras">
                   <button onClick={() => setPomo(true)}><ITomato size={16} /> Pomodoro</button>
                 </div>

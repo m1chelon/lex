@@ -17,6 +17,7 @@ import { findLawConcept } from '../content/lawCases';
 import { TIPO_LABEL } from '../content/types';
 import { nav } from '../ui/nav';
 import { CType, Progress, Segmented, Sheet, spring, toast, useAsync } from '../ui/primitives';
+import { optionDiffs, withDiff } from '../ui/optionDiff';
 import { haptic, isLowPerformance, reducedMotion, setSettings, useSettings } from '../ui/settings';
 import { IClose, ICheck, IX, IChevR, ISparkle, IFlame, IBolt, IText, ILock, ITimer } from '../ui/icons';
 import { Mascot, MascotQuestion } from '../ui/Mascot';
@@ -88,13 +89,16 @@ function KindBadge({ ex }: { ex: Exercise }) {
       {c && <span className="badge badge-muted">{TIPO_LABEL[c.tipo]}</span>}
       {ex.kind === 'case' && <span className="badge badge-muted">Caso prático</span>}
       {ex.kind === 'spot' && <span className="badge badge-muted">Encontre o erro</span>}
-      {ex.kind === 'cloze-multi' && <span className="badge badge-muted">{ex.dim === 'penas' ? 'Pena' : `${ex.blanks?.length ?? 0} lacunas`}</span>}
+      {ex.kind === 'cloze-multi' && <span className="badge badge-muted">{ex.dim === 'penas' ? 'Pena' : (ex.blanks?.length ?? 0) === 1 ? "1 lacuna" : `${ex.blanks?.length ?? 0} lacunas`}</span>}
       {ex.family === 'literal' && ex.kind !== 'spot' && ex.kind !== 'cloze-multi' && <span className="badge badge-muted">{{ literal: 'texto exato', prazos: 'prazos', penas: 'penas', excecoes: 'exceções', conceitual: 'conceitos', aplicacao: 'aplicação' }[ex.dim]}</span>}
     </div>
   );
 }
 
 function OptionList({ options, answered, chosen, onPick }: { options: NonNullable<Exercise['options']>; answered: boolean; chosen?: string; onPick: (id: string) => void }) {
+  // Depois da resposta, destaca o que muda entre alternativas quase iguais.
+  const diff = answered ? optionDiffs(options.map((o) => o.text)) : null;
+  const render = (text: string) => withDiff(text, diff);
   return (
     <div className="study-options" role="radiogroup" aria-label="Alternativas">
       {options.map((o, i) => {
@@ -102,7 +106,7 @@ function OptionList({ options, answered, chosen, onPick }: { options: NonNullabl
         return (
           <button key={o.id} role="radio" aria-checked={chosen === o.id} className={`opt ${cls}`} disabled={answered} onClick={() => onPick(o.id)}>
             <span className="opt-key">{answered ? (o.correct ? <ICheck size={15} /> : chosen === o.id ? <IX size={15} /> : String.fromCharCode(65 + i)) : String.fromCharCode(65 + i)}</span>
-            <span className="grow">{o.text}</span>
+            <span className="grow">{render(o.text)}</span>
           </button>
         );
       })}
@@ -153,7 +157,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
       <div className="stack" style={{ gap: 14 }}>
         <MascotQuestion text={ex.prompt} />
         <OptionList options={ex.options!} answered={answered} chosen={selected} onPick={pick} />
-        {answered && <details className="contest-panel answer-explanation" onToggle={(event) => onInspect(event.currentTarget.open)}>
+        {answered && <details className="contest-panel answer-explanation" open={!!selectedOption && !selectedOption.correct} onToggle={(event) => onInspect(event.currentTarget.open)}>
           <summary>Ver explicação</summary>
           <h3 className="title-s">Por que essa resposta?</h3>
           <p>{correctOption?.why}</p>
@@ -175,7 +179,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         <OptionList options={ex.options!} answered={answered} chosen={selected} onPick={pick} />
         {feedback}
         {answered && (
-          <details className="contest-panel answer-explanation" onToggle={(event) => onInspect(event.currentTarget.open)}>
+          <details className="contest-panel answer-explanation" open={!ex.options!.find((o) => o.id === selected)?.correct} onToggle={(event) => onInspect(event.currentTarget.open)}>
             <summary>Ver explicação</summary>
             {ex.options!.map((o, i) => <div key={o.id} className="small" style={{ lineHeight: 1.45, color: o.correct ? 'var(--ok)' : 'var(--text-2)' }}><strong>{String.fromCharCode(65 + i)}.</strong> {o.why}</div>)}
             <Official ex={ex} />
@@ -198,7 +202,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         <OptionList options={ex.options!} answered={answered} chosen={selected} onPick={pick} />
         {feedback}
         {answered && (
-          <details className="contest-panel answer-explanation" onToggle={(event) => onInspect(event.currentTarget.open)}>
+          <details className="contest-panel answer-explanation" open={!ex.options!.find((o) => o.id === selected)?.correct} onToggle={(event) => onInspect(event.currentTarget.open)}>
             <summary>Ver explicação</summary>
             <CType k="interpretacao" />
             {ex.options!.map((o, i) => (
@@ -552,6 +556,13 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
     tick();
     return () => window.clearTimeout(timer);
   }, [active, previewKey, readingPreview]);
+  const skipPreview = () => {
+    if (!previewKey) return;
+    haptic('soft');
+    shownAt.current = Date.now();
+    questionBody.current?.scrollTo({ top: 0 });
+    setPreview({ key: previewKey, second: GUIDED_MEMORY_SECONDS + 1 });
+  };
   const taskId = s?.config.planner && plannerTaskKey(s.config.planner.day, s.config.planner.goal);
   useLayoutEffect(() => { questionBody.current?.scrollTo({ top: 0 }); }, [ex?.key, s?.index]);
   useEffect(() => {
@@ -858,6 +869,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
             </span>
             <button className="btn btn-quiet btn-sm" onClick={() => setAutoPaused(!autoPaused)}>{autoPaused ? 'Retomar avanço' : 'Pausar avanço'}</button>
           </div>}
+          {readingPreview && <button className="btn btn-primary btn-block" onClick={skipPreview}>Já memorizei</button>}
           {needsContinue && <button className="btn btn-primary btn-block" onClick={advance}>{!s.config.infinite && s.index + 1 >= s.items.length ? 'Ver resumo' : ex.kind === 'read' || ex.kind === 'term' ? 'Entendi' : 'Próxima questão'}</button>}
           <button className="exit-link" onClick={() => void end()}>Encerrar e ver resumo</button>
         </footer>

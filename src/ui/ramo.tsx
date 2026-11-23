@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import type { Ramo } from '../core/sources';
 import { SOURCES } from '../core/sources';
-import { IBook, IBriefcase, IBuilding, ICane, ICar, ICart, IChild, ICity, ICoin, IColumns, ICopyright, IDoc, IFamily, IGavel, IGlobe, IHandcuffs, IHandshake, IHardhat, IHeart, IHouse, INote, IPeople, IPhone, IPill, IProgressChart, IPuzzle, IScale, IShield, IShieldLock, IText, ITree, IUrna } from './icons';
+import { IBook, IBriefcase, IBuilding, ICane, ICar, ICart, IChild, ICity, ICoin, IColumns, ICopyright, IDoc, IFamily, IGavel, IGlobe, IHandcuffs, IHandshake, IHardhat, IHeart, IHouse, IMonitor, INote, IPeople, IPhone, IPill, IProgressChart, IPuzzle, IScale, IShield, IShieldLock, IText, ITree, IUrna } from './icons';
 import { TINT, TILE } from './IconTile';
 
 export const RAMO_STYLE: Record<Ramo, { color: keyof typeof TILE; icon: (size?: number) => ReactNode }> = {
@@ -52,7 +52,7 @@ const SUBJECT_STYLE: Record<string, (typeof RAMO_STYLE)[Ramo]> = {
   'Atualidades — item 2': { color: 'gold', icon: (size) => <IGlobe size={size} /> },
   'Língua Portuguesa': { color: 'teal', icon: (size) => <IText size={size} /> },
   Matemática: { color: 'green', icon: (size) => <IProgressChart size={size} /> },
-  Informática: { color: 'blue', icon: (size) => <IPhone size={size} /> },
+  Informática: { color: 'blue', icon: (size) => <IMonitor size={size} /> },
   'Raciocínio Lógico': { color: 'violet', icon: (size) => <IPuzzle size={size} /> },
   Redação: { color: 'rose', icon: (size) => <INote size={size} /> },
 };
