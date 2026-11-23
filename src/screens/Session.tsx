@@ -12,7 +12,7 @@ import { GUIDED_MEMORY_SECONDS, savePlan, type Plan } from '../learn/plan';
 import { recordAnswer, markSeen } from '../learn/scheduler';
 import { checkTyped, shuffle, rng, fold } from '../learn/text';
 import { db, kvGet, kvSet, type CardRow } from '../data/db';
-import { getArticle, articleTitle } from '../data/corpus';
+import { getArticle, getUnit, articleTitle } from '../data/corpus';
 import { findLawConcept } from '../content/lawCases';
 import { TIPO_LABEL } from '../content/types';
 import { nav } from '../ui/nav';
@@ -49,6 +49,7 @@ function Official({ ex, highlight }: { ex: Exercise; highlight?: string }) {
   const hit = ex.articleId ? getArticle(ex.articleId) : null;
   if (!hit) return null;
   const units = ex.unitId ? hit.art.units.filter((u) => u.id === ex.unitId) : hit.art.units.filter((u) => u.t).slice(0, 8);
+  const companion = ex.companionUnitId ? getUnit(ex.companionUnitId) : undefined;
   return (
     <div className="law-art" style={{ padding: 14 }}>
       <div className="row between" style={{ marginBottom: 8 }}>
@@ -67,6 +68,10 @@ function Official({ ex, highlight }: { ex: Exercise; highlight?: string }) {
             </div>
           );
         })}
+        {companion && <>
+          <p className="small muted">{articleTitle(companion.law.id, companion.art)}</p>
+          <UnitView u={companion.unit} lawId={companion.law.id} showNotes={false} />
+        </>}
       </div>
       <div className="xsmall faint" style={{ marginTop: 6 }}>{hit.law.provenance.sourceName} · {hit.law.provenance.versionLabel}</div>
     </div>
@@ -164,7 +169,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         <div className="card elev">
           <CType k="hipotetico" />
           {ex.context?.length ? <p style={{ marginTop: 8, lineHeight: 1.55 }}>{ex.context.map((c) => c.t).join(' ')}</p> : null}
-          {ex.stem.length ? <p className="law" style={{ marginTop: 8, fontSize: 16 }}>{ex.stem.map((c) => c.t).join('')}</p> : null}
+          {ex.stem.length ? <p className="law" style={{ marginTop: 8, fontSize: 16, whiteSpace: 'pre-line' }}><Segs segs={ex.stem} terms={false} /></p> : null}
         </div>
         <MascotQuestion text={ex.prompt} />
         <OptionList options={ex.options!} answered={answered} chosen={selected} onPick={pick} />
@@ -321,7 +326,7 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
     if (!next) return null;
     const hit = getArticle(next.articleId);
     return { label: `Continuar de ${hit ? articleTitle(hit.law.id, hit.art) : next.articleId}`,
-      config: { ...config, startArticleId: next.articleId, sequenceSkip: next.practiced } };
+      config: { ...config, startArticleId: next.articleId, sequenceSkip: next.practiced, backfillThrough: next.config?.backfillThrough } };
   }, [s.id]);
   const pct = graded.length ? ok / graded.length : 0;
   const gained = s.results.reduce((a, r) => a + (r.correct ? xpFor(s.items.find((it) => it.key === r.key)?.kind ?? '') : 0), 0);
@@ -512,6 +517,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
   const [preview, setPreview] = useState<{ key: string; second: number } | null>(null);
   const previewSecond = preview && preview.key === previewKey ? preview.second : 1;
   const previewArticle = previewKey && ex?.articleId ? getArticle(ex.articleId)?.art : undefined;
+  const previewCompanion = previewArticle && ex?.companionUnitId ? getUnit(ex.companionUnitId) : undefined;
   const readingPreview = !!previewArticle && previewSecond <= GUIDED_MEMORY_SECONDS;
   useEffect(() => {
     if (!active || !readingPreview || !previewKey) return;
@@ -800,6 +806,12 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
           {readingPreview && previewArticle ? (
             <section className="law-art stack" aria-label="Leitura antes das lacunas">
               <ArticleView art={previewArticle} showNotes={false} selectedUnit={ex.unitId} />
+              {previewCompanion && previewCompanion.art.id !== previewArticle.id && (
+                <div className="law">
+                  <div className="law-lab">{articleTitle(previewCompanion.law.id, previewCompanion.art)}</div>
+                  <UnitView u={previewCompanion.unit} lawId={previewCompanion.law.id} showNotes={false} />
+                </div>
+              )}
             </section>
           ) : ex.kind === 'lesson' ? (
             <LessonPlayer id={ex.lessonId!} onDone={advance} embedded />
@@ -936,7 +948,7 @@ function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answere
     <div className="stack" style={{ gap: 14 }}>
       <MascotQuestion text={ex.prompt} />
       {ex.context?.length ? <div className="law-art law muted" style={{ fontSize: '0.92em', whiteSpace: 'pre-line' }}>{ex.context.map((c, i) => c.strong ? <strong key={i}>{c.t}</strong> : <span key={i}>{c.t}</span>)}</div> : null}
-      <div className="law-art law">
+      <div className="law-art law" style={ex.companionUnitId ? { whiteSpace: 'pre-line' } : undefined}>
         {ex.stem.map((sg, i) => {
           if (sg.strong) return <strong key={i}>{sg.t}</strong>;
           if (!sg.blank) return <span key={i}>{sg.t}</span>;

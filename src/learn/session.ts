@@ -2,8 +2,9 @@
 import { db, kvGet, type CardRow, type Dim, type ReviewRow } from '../data/db';
 import { coverage, ensureLaws, getArticle, getLaw, getUnit, lawIdOf } from '../data/corpus';
 import { buildLiteral, buildOrder, buildRubric, buildWhich, canTrainArticle, findTargets, type Exercise } from './generators';
-import { buildCaseIdentify, buildCasePena } from './cases';
-import { buildGuidedRead, buildMemory, buildPenaltyQuestion } from './lawQuestions';
+import { buildCaseForProvision, buildCaseIdentify, buildCasePena } from './cases';
+import { buildGuidedRead, buildMemory, buildPenaltyQuestion, buildProvisionTyped } from './lawQuestions';
+import { hasProvisionText, provisionUnits, shortAnswer } from './provisions';
 import { CONCEPTS } from '../content/concepts';
 import { CASE_BANK, findLawConcept } from '../content/lawCases';
 import { getArea, lawsByRamo, areaLaws, type AreaId } from '../core/areas';
@@ -35,6 +36,7 @@ export interface SessionConfig {
   planner?: { day: string; goal: StudyGoal; quick?: boolean };
   revenge?: boolean;
   sequenceSkip?: string[];
+  backfillThrough?: string;
 }
 export interface SessionState {
   id: string; config: SessionConfig; items: Exercise[]; index: number;
@@ -42,6 +44,7 @@ export interface SessionState {
   startedAt: number; pausedAt?: number; finishedAt?: number; timedOut?: boolean;
   keepsClockOnReload?: true;
   cursor?: number; seed?: number; // modo infinito / linear: posição no escopo
+  provisionCoverage?: true;
   draft?: string[]; // escolhas parciais da questão de doutrina
 }
 
@@ -177,45 +180,33 @@ function unitItems(artId: string, mode: Mode, byKey: Map<string, CardRow>, seed:
   const hit = getArticle(artId);
   if (!hit) return [];
   const { law, art } = hit;
+  const units = provisionUnits(art).sort((a, b) => Number(a.k === 'pena') - Number(b.k === 'pena'));
+  const eligible = (key: string) => {
+    const card = byKey.get(key);
+    return linear || repeat || !card?.fsrs.reps || isDue(card.fsrs);
+  };
   if (isMemoryMode(mode)) {
-    const primary = art.units.flatMap((unit) => {
+    return units.flatMap((unit) => {
       const exercise = buildMemory(law, art, unit, 1, seed);
-      if (!exercise) return [];
-      const card = byKey.get(exercise.key);
-      if (!linear && !repeat && card?.fsrs.reps && !isDue(card.fsrs)) return [];
-      return [{ ...exercise, stage: Math.max(1, card?.stage ?? 1) }];
+      return exercise && eligible(exercise.key)
+        ? [{ ...exercise, stage: Math.max(1, byKey.get(exercise.key)?.stage ?? 1) }] : [];
     });
-    const sanction = art.units.find((unit) => unit.k === 'pena' && !unit.rev);
-    if (primary.length && sanction) {
-      const exercise = buildPenaltyQuestion(law, art, sanction, seed);
-      const card = exercise && byKey.get(exercise.key);
-      if (exercise && (linear || repeat || !card?.fsrs.reps || isDue(card.fsrs))) primary.push(exercise);
-    }
-    return primary;
   }
-  const out: Exercise[] = [];
-  for (const u of art.units) {
-    if (!u.t || u.rev) continue;
-    const dims = [...new Set(findTargets(u).map((t) => t.dim))] as Dim[];
-    for (const d of dims) {
-      const card = byKey.get(`L:${u.id}:${d}`);
-      if (!linear && !repeat && card && card.fsrs.reps > 0 && !isDue(card.fsrs)) continue;
-      const stage = mode === 'provar' ? Math.max(3, card?.stage ?? 0) : Math.max(1, card?.stage ?? 1);
-      const ex = buildLiteral(law, art, u, d, stage, mode === 'provar' ? 'provar' : 'memorizar', seed + (card?.fsrs.reps ?? 0));
-      if (ex) out.push(ex);
-    }
-  }
-  const rubric = !out.length && buildRubric(law, art, 1);
-  if (rubric) out.push(rubric);
-  return out.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  return units.flatMap((unit) => {
+    const exercises = [...new Set(findTargets(unit).map((target) => target.dim))].flatMap((dim) => {
+      const card = byKey.get(`L:${unit.id}:${dim}`);
+      return buildLiteral(law, art, unit, dim, Math.max(3, card?.stage ?? 0), 'provar', seed + (card?.fsrs.reps ?? 0)) ?? [];
+    });
+    return (exercises.length ? exercises : [buildProvisionTyped(law, art, unit, 3)]).flatMap((ex) => ex && eligible(ex.key) ? [ex] : []);
+  });
 }
 
 function caseItems(artId: string, seed: string): Exercise[] {
   const hit = getArticle(artId);
   if (!hit) return [];
-  const out: Exercise[] = [];
-  for (const b of [buildCaseIdentify, buildCasePena]) { const ex = b(hit.law, hit.art, seed); if (ex) out.push(ex); }
-  return out;
+  const { law, art } = hit;
+  return provisionUnits(art).sort((a, b) => Number(a.k === 'pena') - Number(b.k === 'pena'))
+    .flatMap((unit) => buildCaseForProvision(law, art, unit, seed) ?? []);
 }
 
 /** Gera o próximo lote a partir do cursor (usado no início, no modo infinito e no linear). */
@@ -230,17 +221,15 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
   const seed = `${state.seed}:${state.cursor}`;
   const items: Exercise[] = [];
   const practiced = new Set(cfg.sequenceSkip);
+  const backfillEnd = cfg.backfillThrough ? articles.indexOf(cfg.backfillThrough) : -1;
+  const covered = backfillEnd >= 0 ? await practicedUnits(cfg.mode, articles.slice(0, backfillEnd + 1)) : new Set<string>();
   const excluded = new Set(state.items.slice(Math.max(0, state.index - (repeat ? 0 : 2))).map((item) => item.key));
   let spent = 0, cursor = state.cursor ?? 0;
-  let sinceSanction = 0;
   const push = (e: Exercise) => {
     if (e.articleId === cfg.startArticleId && practiced.has(e.key)) return;
+    if (e.unitId && covered.has(e.unitId)) return;
     if (isMemoryMode(cfg.mode) && e.kind !== 'cloze-multi') return;
     if (excluded.has(e.key)) return;
-    if (isMemoryMode(cfg.mode) || cfg.mode === 'casos') {
-      if (e.dim === 'penas' && sinceSanction < 4 && articles.length > 1) return;
-      sinceSanction = e.dim === 'penas' ? 0 : sinceSanction + 1;
-    }
     excluded.add(e.key);
     items.push(e);
     spent += e.kind === 'read' ? e.expectedMs / 1000 : COST[e.kind] ?? 25;
@@ -263,10 +252,10 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
     }
   }
 
-  // Revisões devidas no misturado. Memorização leva sanções junto do dispositivo principal.
+  // Revisões devidas no misturado.
   if (!linear && cursor === 0 && cfg.mode !== 'aprender') {
     const due = all.filter((c) => isDue(c.fsrs) && ((c.articleId && articlesInScope.has(c.articleId)) || (c.conceptId && conceptIds.has(c.conceptId))))
-      .filter((c) => (mix === 'literal' ? c.id.startsWith('L:') && (!isMemoryMode(cfg.mode) || c.dim !== 'penas') || !isMemoryMode(cfg.mode) && c.id.startsWith('R:') : mix === 'casos' ? c.id.startsWith('C:') || c.id.startsWith('CI:') || c.id.startsWith('CP:') : !/^[OW]:/.test(c.id)))
+      .filter((c) => (mix === 'literal' ? c.id.startsWith('L:') : mix === 'casos' ? /^(?:C|CPR|CI|CP):/.test(c.id) : !/^[OW]:/.test(c.id)))
       .sort((a, b) => retrievability(a.fsrs) - retrievability(b.fsrs));
     for (const c of due.slice(0, 40)) { const ex = await exerciseForCard(c, cfg.mode, seed); if (ex) push(ex); if (spent > budgetSec * 0.6) break; }
   }
@@ -275,20 +264,14 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
   const conceptsByArticle = new Map<string, Concept[]>();
   if (mix === 'casos' || mix === 'ambos') {
     const pool = conceptsInScope.filter((c) => repeat || !byKey.get(`C:${c.id}`)?.fsrs.reps);
-    if (linear) {
-      const orderById = new Map(articles.map((id, index) => [id, index]));
-      for (const concept of pool) {
-        const refs = new Set(concept.refs.map((r) => `${r.law}.${r.art}`));
-        let first = articles.length;
-        for (const id of refs) first = Math.min(first, orderById.get(id) ?? articles.length);
-        const id = articles[first];
-        if (!id) continue;
-        const at = conceptsByArticle.get(id) ?? [];
-        at.push(concept);
-        conceptsByArticle.set(id, at);
-      }
-    } else if (cursor === 0) {
-      for (const c of shuffle(pool, rng(seed)).slice(0, mix === 'casos' ? 12 : 5)) push(conceptExercise(c, seed));
+    const orderById = new Map(articles.map((id, index) => [id, index]));
+    for (const concept of pool) {
+      const first = Math.min(...concept.refs.map((r) => orderById.get(`${r.law}.${r.art}`) ?? articles.length));
+      const id = articles[first];
+      if (!id) continue;
+      const at = conceptsByArticle.get(id) ?? [];
+      at.push(concept);
+      conceptsByArticle.set(id, at);
     }
   }
 
@@ -296,23 +279,22 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
     const artId = articles[cursor++];
     if (cfg.mode === 'aprender') {
       const hit = getArticle(artId);
-      if (!hit || !canTrainArticle(hit.art)) continue;
+      if (!hit || !provisionUnits(hit.art).length) continue;
       if (!readArts.has(artId)) push(buildGuidedRead(hit.law, hit.art));
-      for (const u of hit.art.units.filter((unit) => !unit.rev)) for (const h of findTerms(u.t, hit.law.id)) {
-        const term = getTerm(h.id);
-        if (term && !termsSeen.has(term.id)) { termsSeen.add(term.id); push({ key: `T:${term.id}`, kind: 'term', dim: 'conceitual', family: 'glossario', termId: term.id, articleId: artId, prompt: 'Conheça o termo', stem: [], expectedMs: 30000, stage: 0 }); }
+      for (const u of provisionUnits(hit.art)) {
+        const check = buildMemory(hit.law, hit.art, u, 1, seed, true);
+        if (check) push({ ...check, expectedMs: 16_000 });
+        for (const h of findTerms(u.t, hit.law.id)) {
+          const term = getTerm(h.id);
+          if (term && !termsSeen.has(term.id)) { termsSeen.add(term.id); push({ key: `T:${term.id}`, kind: 'term', dim: 'conceitual', family: 'glossario', termId: term.id, articleId: artId, prompt: 'Conheça o termo', stem: [], expectedMs: 30000, stage: 0 }); }
+        }
       }
       continue;
     }
     if (mix === 'literal' || mix === 'ambos') for (const e of unitItems(artId, cfg.mode, byKey, seed, linear, repeat)) push(e);
     if (mix === 'casos' || mix === 'ambos') {
       for (const concept of conceptsByArticle.get(artId) ?? []) push({ ...conceptExercise(concept, seed), articleId: artId });
-      if (cfg.mode === 'provar') for (const exercise of caseItems(artId, seed)) push(exercise);
-      else if (conceptsByArticle.has(artId) && sinceSanction >= 4) {
-        const hit = getArticle(artId);
-        const penalty = hit && buildCasePena(hit.law, hit.art, seed);
-        if (penalty) push(penalty);
-      }
+      for (const exercise of caseItems(artId, seed)) push(exercise);
     }
   }
   return { items: cfg.mode === 'provar' && !linear ? shuffle(items, rng(seed)) : items, cursor };
@@ -332,22 +314,39 @@ export async function exerciseForCard(card: CardRow, mode: Mode, seed: string): 
     const ex = unit && (unit.k === 'pena' ? buildPenaltyQuestion(a.law, a.art, unit, seed) : buildMemory(a.law, a.art, unit, Math.max(1, card.stage), seed));
     return ex ? { ...ex, key: card.id } : null;
   }
-  if (kind === 'L') { const u = a.art.units.find((x) => x.id === card.unitId); return u ? buildLiteral(a.law, a.art, u, card.dim, Math.max(1, card.stage), mode === 'provar' ? 'provar' : 'memorizar', seed) : null; }
+  if (kind === 'L') {
+    const unit = a.art.units.find((item) => item.id === card.unitId);
+    if (!unit || !hasProvisionText(unit)) return null;
+    const stage = Math.max(1, card.stage);
+    const exercise = buildLiteral(a.law, a.art, unit, card.dim, stage, mode === 'provar' ? 'provar' : 'memorizar', seed)
+      ?? (mode === 'provar' ? buildProvisionTyped(a.law, a.art, unit, stage) : buildMemory(a.law, a.art, unit, stage, seed, true));
+    return exercise ? { ...exercise, key: card.id } : null;
+  }
   if (kind === 'O') return parent ? buildOrder(a.law, a.art, card.stage, parent) : null;
   if (kind === 'W') return buildWhich(a.law, a.art, card.stage);
   if (kind === 'R') return buildRubric(a.law, a.art, card.stage);
   if (kind === 'S') {
     const simulatedKind = card.id.split(':', 3)[1];
+    if (simulatedKind === 'CPR') {
+      const unit = a.art.units.find((item) => item.id === card.unitId);
+      const exercise = unit && buildCaseForProvision(a.law, a.art, unit, seed);
+      return exercise ? { ...exercise, key: card.id } : null;
+    }
     if (simulatedKind === 'CI' || simulatedKind === 'CP') {
       const exercise = simulatedKind === 'CI' ? buildCaseIdentify(a.law, a.art, seed) : buildCasePena(a.law, a.art, seed);
       return exercise && { ...exercise, key: card.id };
     }
     const unit = a.art.units.find((item) => item.id === card.unitId);
-    const exercise = unit && buildLiteral(a.law, a.art, unit, card.dim, Math.max(1, card.stage), 'memorizar', seed);
+    const exercise = unit && (buildLiteral(a.law, a.art, unit, card.dim, Math.max(1, card.stage), 'memorizar', seed)
+      ?? buildMemory(a.law, a.art, unit, Math.max(1, card.stage), seed, true));
     return exercise ? { ...exercise, key: card.id } : null;
   }
   if (kind === 'CI') return buildCaseIdentify(a.law, a.art, seed);
   if (kind === 'CP') return buildCasePena(a.law, a.art, seed);
+  if (kind === 'CPR') {
+    const unit = a.art.units.find((item) => item.id === card.unitId);
+    return unit ? buildCaseForProvision(a.law, a.art, unit, seed) : null;
+  }
   return null;
 }
 
@@ -417,27 +416,22 @@ export async function buildDaily(cfg: SessionConfig, now = new Date()): Promise<
 export const BLITZ_SECONDS = 10;
 export const BLITZ_COUNT = 20;
 export const blitzDeadline = (shownAt: number) => shownAt + BLITZ_SECONDS * 1000;
-const words = (e: Exercise) => e.stem.reduce((n, s) => n + s.t.split(/\s+/).filter(Boolean).length, 0);
 
 /** Relâmpago: 20 questões curtas de lei seca, sorteadas no escopo, com alternativas. */
 async function buildBlitz(config: SessionConfig, state: SessionState) {
   const r = rng(String(state.seed));
-  const ids = shuffle(await scopeArticles(config, state.seed ?? 1), r);
-  for (const id of ids) {
-    if (state.items.length >= BLITZ_COUNT) break;
+  const ids = await scopeArticles({ ...config, order: 'misturado' }, state.seed ?? 1);
+  const cards = await db.cards.toArray();
+  const studied = new Set(cards.flatMap(({ unitId, fsrs }) => unitId && fsrs.reps ? [unitId] : []));
+  const pool = ids.flatMap((id) => {
     const hit = getArticle(id);
-    if (!hit) continue;
-    const candidates = shuffle(hit.art.units, r).flatMap((unit) => {
-      const exercise = buildMemory(hit.law, hit.art, unit, 1, String(state.seed), true);
-      return exercise && words(exercise) <= 38 ? [exercise] : [];
-    });
-    const units = new Set<string>();
-    for (const exercise of candidates) {
-      if (!exercise.unitId || units.has(exercise.unitId)) continue;
-      state.items.push({ ...exercise, expectedMs: BLITZ_SECONDS * 1000 });
-      units.add(exercise.unitId);
-      if (state.items.length >= BLITZ_COUNT || units.size >= 2) break;
-    }
+    return hit ? provisionUnits(hit.art).filter((unit) => unit.k !== 'pena').map((unit) => ({ ...hit, unit })) : [];
+  });
+  for (const { law, art, unit } of shuffle(pool, r).sort((a, b) =>
+    Number(studied.has(a.unit.id)) - Number(studied.has(b.unit.id)))) {
+    if (state.items.length >= BLITZ_COUNT) break;
+    const exercise = buildMemory(law, art, unit, 1, String(state.seed), true);
+    if (exercise) state.items.push({ ...exercise, expectedMs: BLITZ_SECONDS * 1000 });
   }
 }
 
@@ -528,10 +522,22 @@ async function buildPlannedStudy(state: SessionState, planner: NonNullable<Sessi
 export async function buildSession(cfg: SessionConfig, persist = true, retryItems?: readonly Exercise[]): Promise<SessionState> {
   const area = cfg.area ?? getSettings().area;
   const config: SessionConfig = { ...cfg, area, order: cfg.order ?? DEFAULT_ARTICLE_ORDER, timed: !cfg.infinite && !cfg.blitz, infinite: cfg.blitz ? false : cfg.infinite };
+  if (isMemoryMode(config.mode) && config.startArticleId && !config.backfillThrough) {
+    const key = sequenceKey(config);
+    const saved = key && await kvGet<SequencePosition | null>(key, null);
+    if (saved && !saved.provisionCoverage && saved.articleId === config.startArticleId) {
+      const repaired = await loadSequence(config);
+      if (repaired) {
+        config.startArticleId = repaired.articleId;
+        config.sequenceSkip = repaired.practiced;
+        config.backfillThrough = repaired.config?.backfillThrough;
+      }
+    }
+  }
   const now = Date.now();
   const state: SessionState = {
     id: `s${now}-${Math.random().toString(36).slice(2, 8)}`, config, items: [], index: 0, results: [],
-    startedAt: now, keepsClockOnReload: true, cursor: 0, seed: hashStr(`${now}:${cfg.focus}`),
+    startedAt: now, keepsClockOnReload: true, cursor: 0, seed: hashStr(`${now}:${cfg.focus}`), provisionCoverage: true,
   };
   if (cfg.activity) {
     if (cfg.activity === 'planner' && cfg.planner) {
@@ -583,7 +589,7 @@ export async function extendSession(state: SessionState): Promise<SessionState> 
   if (state.index < state.items.length) return state;
   const restarted = {
     ...state, cursor: 0, seed: (state.seed ?? 1) + 1,
-    config: { ...state.config, sequenceSkip: undefined },
+    config: { ...state.config, sequenceSkip: undefined, backfillThrough: undefined },
   };
   const repeated = await nextBatch(restarted, 6 * 60, true);
   return repeated.items.length
@@ -591,7 +597,23 @@ export async function extendSession(state: SessionState): Promise<SessionState> 
     : state;
 }
 
-interface SequencePosition { articleId: string; practiced: string[]; config?: SessionConfig; updatedAt?: number }
+interface SequencePosition { articleId: string; practiced: string[]; config?: SessionConfig; updatedAt?: number; provisionCoverage?: true }
+
+async function practicedUnits(mode: Mode, articles: string[]) {
+  const practiced = new Set<string>();
+  if (articles.length) await db.reviews.where('articleId').anyOf(articles).each((review) => {
+    if (review.mode === mode && review.unitId) practiced.add(review.unitId);
+  });
+  return practiced;
+}
+
+async function firstUnpracticedArticle(mode: Mode, articles: string[]) {
+  const covered = await practicedUnits(mode, articles);
+  return articles.find((id) => {
+    const hit = getArticle(id);
+    return hit && provisionUnits(hit.art).some((unit) => !covered.has(unit.id));
+  });
+}
 
 export async function recentSequences() {
   const rows = await db.kv.where('key').startsWith('["sequencia",').toArray();
@@ -612,8 +634,16 @@ export async function loadSequence(cfg: SessionConfig): Promise<SequencePosition
   if (!key) return null;
   const saved = await kvGet<SequencePosition | null>(key, null);
   if (!saved) return null;
-  const articles = await scopeArticles(cfg, 0);
-  return articles.includes(saved.articleId) ? saved : null;
+  const articles = await scopeArticles({ ...cfg, startArticleId: undefined }, 0);
+  const end = articles.indexOf(saved.articleId);
+  if (end < 0) return null;
+  if (saved.provisionCoverage || !isMemoryMode(cfg.mode)) return saved;
+  const first = await firstUnpracticedArticle(cfg.mode, articles.slice(0, end + 1));
+  const articleId = first ?? saved.articleId;
+  return {
+    ...saved, articleId, practiced: articleId === saved.articleId ? saved.practiced : [],
+    config: { ...(saved.config ?? cfg), backfillThrough: saved.articleId },
+  };
 }
 
 export async function finishSession(s: SessionState, timedOut = false, options?: { expected: SessionState; replacement?: SessionState }): Promise<SessionState> {
@@ -622,18 +652,30 @@ export async function finishSession(s: SessionState, timedOut = false, options?:
   let position: SequencePosition | null = null;
   if (key && s.results.length) {
     const pendingArticle = s.items.slice(Math.max(s.index, s.results.length)).find((item) => item.articleId)?.articleId;
-    const articleId = pendingArticle ?? (await scopeArticles(s.config, s.seed ?? 0))[s.cursor ?? 0];
+    const currentScope = await scopeArticles(s.config, s.seed ?? 0);
+    const articleId = pendingArticle ?? currentScope[s.cursor ?? 0];
     const practiced = articleId === s.config.startArticleId ? [...s.config.sequenceSkip ?? []] : [];
     if (pendingArticle) {
       for (const item of s.items.slice(0, s.results.length)) {
         if (item.articleId === pendingArticle) practiced.push(item.key);
       }
     }
-    const { startArticleId, sequenceSkip, ...config } = s.config;
+    const { startArticleId, sequenceSkip, backfillThrough, ...config } = s.config;
+    const stillBackfilling = articleId && backfillThrough && currentScope.indexOf(articleId) <= currentScope.indexOf(backfillThrough);
     position = articleId ? {
-      articleId, practiced: [...new Set(practiced)], config,
-      updatedAt: Date.now(),
+      articleId, practiced: [...new Set(practiced)], config: { ...config, backfillThrough: stillBackfilling ? backfillThrough : undefined },
+      updatedAt: Date.now(), provisionCoverage: s.provisionCoverage,
     } : null;
+    // A sessão em andamento pode ser anterior à cobertura integral, assim como seu ponto de partida.
+    const old = isMemoryMode(s.config.mode) && startArticleId && !backfillThrough && await kvGet<SequencePosition | null>(key, null);
+    if (old && !old.provisionCoverage) {
+      const fullScope = await scopeArticles(config, s.seed ?? 0);
+      const through = articleId ?? fullScope.at(-1);
+      const first = await firstUnpracticedArticle(config.mode, fullScope.slice(0, fullScope.indexOf(through ?? '') + 1));
+      if (first && first !== articleId) {
+        position = { articleId: first, practiced: [], config: { ...config, backfillThrough: through }, updatedAt: Date.now(), provisionCoverage: true };
+      }
+    }
   }
   await db.transaction('rw', db.kv, async () => {
     if (options) await requireCurrentSession(options.expected);
@@ -654,6 +696,39 @@ export async function saveSession(s: SessionState | null, expected?: SessionStat
   });
 }
 
+async function completeSavedMemory(saved: SessionState, pending: Exercise[], firstPending: number) {
+  if (saved.provisionCoverage || saved.config.activity || saved.config.blitz || !isMemoryMode(saved.config.mode)) return pending;
+  const answered = saved.items.slice(0, firstPending);
+  const scheduled = new Set(answered.flatMap(({ unitId }) => unitId ? [unitId] : []));
+  const byUnit = new Map<string, Exercise[]>();
+  for (const exercise of pending) {
+    if (!exercise.unitId) continue;
+    const exercises = byUnit.get(exercise.unitId) ?? [];
+    exercises.push(exercise);
+    byUnit.set(exercise.unitId, exercises);
+  }
+  const articles = await scopeArticles(saved.config, saved.seed ?? 0);
+  const ids = new Set<string>([
+    ...articles.slice(0, saved.cursor ?? 0),
+    ...[...answered, ...pending].flatMap(({ articleId }) => articleId ? [articleId] : []),
+  ]);
+  const queue = pending.filter(({ articleId }) => !articleId);
+  for (const articleId of ids) {
+    const hit = getArticle(articleId);
+    if (!hit) continue;
+    const { art, law } = hit;
+    for (const unit of provisionUnits(art).sort((a, b) => Number(a.k === 'pena') - Number(b.k === 'pena'))) {
+      const existing = byUnit.get(unit.id);
+      if (existing) queue.push(...existing);
+      else if (!scheduled.has(unit.id)) {
+        const next = buildMemory(law, art, unit, 1, saved.id);
+        if (next && !(articleId === saved.config.startArticleId && saved.config.sequenceSkip?.includes(next.key))) queue.push(next);
+      }
+    }
+  }
+  return queue;
+}
+
 export async function resumeSession(): Promise<SessionState | null> {
   const saved = await loadSession();
   if (!saved || saved.finishedAt) return saved;
@@ -667,7 +742,7 @@ export async function resumeSession(): Promise<SessionState | null> {
   }
   if (pendingLaws.size) await ensureLaws([...pendingLaws]);
   const refreshMemory = isMemoryMode(saved.config.mode) && !saved.config.activity;
-  const remaining = saved.items.slice(firstPending).flatMap((exercise) => {
+  let remaining = saved.items.slice(firstPending).flatMap((exercise) => {
     if (saved.config.mode === 'casos' && !saved.config.activity && exercise.kind === 'case'
       && exercise.key.startsWith('CI:')) {
       const replacement = CASE_BANK.find((entry) => entry.refs.some((ref) => `${ref.law}.${ref.art}` === exercise.articleId));
@@ -687,14 +762,13 @@ export async function resumeSession(): Promise<SessionState | null> {
         return hit.art.units.flatMap((unit) => buildMemory(hit.law, hit.art, unit, 1, saved.id) ?? []).slice(0, 1);
       }
       if (exercise.kind === 'cloze-multi' && !saved.config.blitz && exercise.blanks && [2, 3].includes(exercise.blanks.length)
+        && exercise.blanks.every(({ answer }) => shortAnswer(answer))
         && exercise.stem.filter(({ blank }) => blank).length === exercise.blanks.length) return [exercise];
-      if (exercise.kind === 'cloze-mc' && saved.config.blitz && exercise.expectedMs === 10_000 && !exercise.context?.length && exercise.dim !== 'penas') return [exercise];
+      if (exercise.kind === 'cloze-mc' && saved.config.blitz && exercise.expectedMs === 10_000 && !exercise.context?.length) return [exercise];
       const unitId = exercise.unitId ?? (/^L:([^:]+):/.exec(exercise.key)?.[1]);
       const hit = unitId && getUnit(unitId);
       if (!hit) return [];
-      const rebuilt = hit.unit.k === 'pena'
-        ? !saved.config.blitz && buildPenaltyQuestion(hit.law, hit.art, hit.unit, saved.id)
-        : buildMemory(hit.law, hit.art, hit.unit, exercise.stage, saved.id, saved.config.blitz);
+      const rebuilt = buildMemory(hit.law, hit.art, hit.unit, exercise.stage, saved.id, saved.config.blitz);
       return rebuilt ? [{ ...rebuilt, practice: exercise.practice }] : [];
     }
     if (exercise.articleId && ['literal', 'leitura'].includes(exercise.family)) {
@@ -727,6 +801,7 @@ export async function resumeSession(): Promise<SessionState | null> {
     const sameParts = JSON.stringify(current.doctrineParts) === JSON.stringify(exercise.doctrineParts);
     return [current.prompt === exercise.prompt && sameOptions && sameParts ? exercise : { ...current, practice: exercise.practice }];
   });
+  if (refreshMemory) remaining = await completeSavedMemory(saved, remaining, firstPending);
   const used = new Set(saved.items.slice(0, firstPending).map((item) => item.key));
   if (refreshMemory) {
     for (let i = 0; i < remaining.length;) {
@@ -763,7 +838,7 @@ export async function resumeSession(): Promise<SessionState | null> {
   const elapsed = saved.pausedAt !== undefined ? saved.pausedAt - saved.startedAt
     : saved.keepsClockOnReload ? now - saved.startedAt : saved.results.reduce((sum, result) => sum + result.ms, 0);
   const draft = items[saved.index] === saved.items[saved.index] ? saved.draft : undefined;
-  const active = { ...saved, items, draft, startedAt: now - Math.max(0, elapsed), pausedAt: undefined, keepsClockOnReload: true } satisfies SessionState;
+  const active = { ...saved, items, draft, startedAt: now - Math.max(0, elapsed), pausedAt: undefined, keepsClockOnReload: true, provisionCoverage: true } satisfies SessionState;
   if (firstPending >= items.length && saved.index === firstPending) return finishSession(active, false, { expected: saved });
   const deadline = sessionDeadline(active);
   if (firstPending < items.length && deadline !== null && now >= deadline) return finishSession(active, true, { expected: saved });

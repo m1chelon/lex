@@ -20,6 +20,7 @@ export interface Exercise {
   lawId?: string;
   articleId?: string;
   unitId?: string;
+  companionUnitId?: string;
   conceptId?: string;
   doctrine?: { courseId: string; module: string; source: string; pages: string };
   doctrineParts?: DoctrinePart[];

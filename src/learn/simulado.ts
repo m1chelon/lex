@@ -2,10 +2,11 @@
 import type { Article, LawDoc, Unit } from '../core/types';
 import { coverage, ensureLaws, getArticle } from '../data/corpus';
 import { db, DIMS, kvGet, type Dim } from '../data/db';
-import { canTrainArticle, unitContext, unitPath, type Exercise } from './generators';
-import { buildCasePena } from './cases';
+import { unitContext, unitPath, type Exercise } from './generators';
+import { buildCaseForProvision } from './cases';
 import { CASE_BANK } from '../content/lawCases';
-import { questionTargets } from './lawQuestions';
+import { pickProvisionTarget, questionTargets } from './lawQuestions';
+import { provisionUnits } from './provisions';
 import type { Mutation } from './mutations';
 import { scopeArticles, scopeLaws, conceptExercise, conceptInScope, type SessionConfig } from './session';
 import { areaLaws, EDITAL_TJMS, type AreaId } from '../core/areas';
@@ -75,28 +76,37 @@ function qLeiSeca(law: LawDoc, art: Article, u: Unit, seed: string): Questao | n
   const where = `${law.short}, ${unitPath(art, u)}`;
   const base = { estilo: 'leiseca' as const, lawId: law.id, articleId: art.id, unitId: u.id, where, officialText: u.t,
     contextoLegal: unitContext(art, u).map(({ t }) => t).join('').trim() || undefined };
-  const candidates = questionTargets(law, u).sort((a, b) => (b.target.priority ?? 0) - (a.target.priority ?? 0));
-  const primary = candidates.find(({ target, choices }) => target.amount && choices.length >= 4) ?? candidates.find(({ choices }) => choices.length >= 4);
-  if (primary) {
-    const { target, choices } = primary;
-    const texto = u.t.slice(0, target.start) + '________' + u.t.slice(target.start + target.text.length);
-    const options = shuffle([
-      { id: 'ok', text: target.text, correct: true, why: 'É a redação do dispositivo.' },
-      ...choices.slice(0, 4).map((text, i) => ({ id: `d${i}`, text, correct: false })),
-    ], r);
-    return { ...base, id: `S:${u.id}:B:${target.dim}`, enunciado: 'Qual alternativa completa a regra legal?', texto, options, target: target.text, dim: target.dim };
+  const candidates = [...questionTargets(law, u)].sort((a, b) => (b.target.priority ?? 0) - (a.target.priority ?? 0));
+  const primary = candidates.find(({ target, choices }) => target.amount && choices.length >= 4)
+    ?? candidates.find(({ choices }) => choices.length >= 4);
+  if (!primary && u.t.length <= 360) {
+    const changes = [...new Map(alternativesForRule(law, u, seed).map((change) => [change.text, change])).values()];
+    if (changes.length >= 4) {
+      const wrong = changes.slice(0, 4).map((change, i) => ({ id: `m${i}`, text: change.text, correct: false, why: change.note }));
+      const options = shuffle([{ id: 'ok', text: u.t, correct: true, why: 'Corresponde à regra legal.' }, ...wrong], r);
+      return { ...base, id: `S:${u.id}:A`, enunciado: 'Qual alternativa expressa a regra do dispositivo?', options };
+    }
   }
-  const changes = [...new Map(alternativesForRule(law, u, seed).map((change) => [change.text, change])).values()];
-  if (changes.length < 4 || u.t.length > 360) return null;
-  const wrong = changes.slice(0, 4).map((change, i) => ({ id: `m${i}`, text: change.text, correct: false, why: change.note }));
-  const options = shuffle([{ id: 'ok', text: u.t, correct: true, why: 'Corresponde à regra legal.' }, ...wrong], r);
-  return { ...base, id: `S:${u.id}:A`, enunciado: 'Qual alternativa expressa a regra do dispositivo?', options };
+  const pick = primary ?? pickProvisionTarget(law, art, u, 4);
+  if (!pick) return null;
+  const { target, choices } = pick;
+  const texto = u.t.slice(0, target.start) + '________' + u.t.slice(target.start + target.text.length);
+  const options = shuffle([
+    { id: 'ok', text: target.text, correct: true, why: 'É a redação do dispositivo.' },
+    ...choices.slice(0, 4).map((text, i) => ({ id: `d${i}`, text, correct: false })),
+  ], r);
+  return { ...base, id: `S:${u.id}:B:${target.dim}`, enunciado: 'Qual alternativa completa a regra legal?', texto, options, target: target.text, dim: target.dim };
 }
 
 function qCebraspe(law: LawDoc, art: Article, u: Unit, seed: string): Questao | null {
   const r = rng(seed);
   const changes = alternativesForRule(law, u, seed, true);
-  const change = changes[0];
+  const pick = changes.length ? undefined : pickProvisionTarget(law, art, u);
+  const change: Mutation | undefined = changes[0] ?? (pick && {
+    text: u.t.slice(0, pick.target.start) + pick.choices[0] + u.t.slice(pick.target.start + pick.target.text.length),
+    from: pick.target.text, to: pick.choices[0], dim: pick.target.dim, kind: 'sentido',
+    note: `A redação oficial usa “${pick.target.text}” neste ponto.`,
+  });
   if (!change) return null;
   const changed = r() < 0.5;
   return { id: `S:${u.id}:CE`, estilo: 'cebraspe', lawId: law.id, articleId: art.id, unitId: u.id,
@@ -109,9 +119,12 @@ function qCebraspe(law: LawDoc, art: Article, u: Unit, seed: string): Questao | 
 
 async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, seed: number, excluded = new Set<string>(), fiveChoices = false) {
   const r = rng(seed);
-  const arts = await scopeArticles({ ...cfg, order: 'misturado' }, seed);
+  const [arts, cards] = await Promise.all([
+    scopeArticles({ ...cfg, order: 'misturado' }, seed),
+    db.cards.where('type').equals('simulado').toArray(),
+  ]);
+  const studied = new Set(cards.flatMap(({ unitId, fsrs }) => unitId && fsrs.reps ? [unitId] : []));
   const qs: Questao[] = [];
-  const usedArt = new Map<string, number>();
   const used = new Set(excluded);
   const add = (question: Questao) => {
     if (used.has(question.id) || (fiveChoices && question.options?.length !== 5)) return false;
@@ -119,34 +132,58 @@ async function collectQuestions(cfg: SessionConfig, estilo: Estilo, n: number, s
     qs.push(question);
     return true;
   };
+  const casesByArt = new Map<string, typeof CASE_BANK[number]>();
   if (estilo === 'fgv') {
     const laws = new Set(scopeLaws(cfg));
     const scopedArticles = new Set(arts);
     for (const c of shuffle(CASE_BANK.filter((c) => conceptInScope(c, cfg, laws, scopedArticles)), r)) {
-      if (qs.length >= n) break;
-      const ex = conceptExercise(c, String(seed));
-      add({ id: `S:C:${c.id}`, estilo, conceptId: c.id, enunciado: c.pergunta, contexto: c.situacao, options: ex.options!.map((o) => ({ id: o.id, text: o.text, correct: o.correct, why: o.why })) });
+      const article = c.refs.map((ref) => `${ref.law}.${ref.art}`).find((id) => scopedArticles.has(id));
+      if (article && !casesByArt.has(article)) casesByArt.set(article, c);
     }
   }
-  for (let pass = 0; pass < 3 && qs.length < n; pass++) {
-    for (const id of arts) {
-      if (qs.length >= n) break;
-      if ((usedArt.get(id) ?? 0) > pass) continue;
-      const hit = getArticle(id);
-      if (!hit || !canTrainArticle(hit.art)) continue;
-      const s = `${seed}:${id}:${pass}`;
-      let q: Questao | null = null;
-      if (estilo === 'fgv') {
-        const ex = qs.filter((question) => question.dim === 'penas').length < Math.floor(n / 5) && buildCasePena(hit.law, hit.art, s);
-        if (ex) q = { id: `S:${ex.key}`, estilo, lawId: hit.law.id, articleId: id, where: ex.where, dim: ex.dim, enunciado: ex.prompt, contexto: ex.context?.map((c) => c.t).join(' '), texto: ex.stem.map((c) => c.t).join(''), options: ex.options!.map((o) => ({ ...o })) };
+  const groups = arts.flatMap((id) => {
+    const hit = getArticle(id);
+    return hit ? [{ ...hit, units: shuffle(provisionUnits(hit.art), r) }] : [];
+  });
+  for (const seen of [false, true]) {
+    let round = groups.flatMap(({ law, art, units }) => {
+      const eligible = units.filter(({ id }) => studied.has(id) === seen);
+      return eligible.length ? [{ law, art, units: eligible.values(), ordered: false }] : [];
+    });
+    while (round.length && qs.length < n) {
+      const next = [] as typeof round;
+      for (const group of round) {
+        if (qs.length >= n) break;
+        const { law, art } = group;
+        if (!group.ordered) {
+          group.units = [...group.units].map((unit) => ({
+            unit, priority: Math.max(unit.k === 'pena' ? -1 : 0, ...questionTargets(law, unit).map(({ target }) => target.priority ?? 0)),
+          })).sort((a, b) => b.priority - a.priority).map(({ unit }) => unit).values();
+          group.ordered = true;
+        }
+        const step = group.units.next();
+        if (step.done) continue;
+        const unit = step.value;
+        const s = `${seed}:${unit.id}`;
+        const concept = unit.k === 'caput' ? casesByArt.get(art.id) : undefined;
+        const ref = { lawId: law.id, articleId: art.id, unitId: unit.id, officialText: unit.t, where: `${law.short}, ${unitPath(art, unit)}` };
+        if (estilo === 'fgv') {
+          const authoredId = concept && `S:C:${concept.id}`;
+          if (concept && authoredId && !used.has(authoredId) && (!fiveChoices || concept.opcoes.length === 5)) {
+            add({ ...ref, id: authoredId, estilo, conceptId: concept.id, enunciado: concept.pergunta, contexto: concept.situacao,
+              options: conceptExercise(concept, s).options! });
+          } else {
+            const ex = buildCaseForProvision(law, art, unit, s);
+            if (ex) add({ ...ref, id: `S:${ex.key}`, estilo, dim: ex.dim, target: ex.answer, enunciado: ex.prompt,
+              contexto: ex.context?.map((c) => c.t).join(' '), texto: ex.stem.map((c) => c.t).join(''), options: ex.options });
+          }
+        } else {
+          const q = estilo === 'cebraspe' ? qCebraspe(law, art, unit, s) : qLeiSeca(law, art, unit, s);
+          if (q) add(q);
+        }
+        next.push(group);
       }
-      if (!q) {
-        const us = shuffle(hit.art.units.filter((unit) => !unit.rev && unit.k !== 'pena'), rng(s)).map((unit) => ({
-          unit, priority: Math.max(0, ...questionTargets(hit.law, unit).map(({ target }) => target.priority ?? 0)),
-        })).sort((a, b) => b.priority - a.priority).map(({ unit }) => unit);
-        for (const u of us) { q = estilo !== 'cebraspe' ? qLeiSeca(hit.law, hit.art, u, s) : qCebraspe(hit.law, hit.art, u, s); if (q && !used.has(q.id) && (!fiveChoices || q.options?.length === 5)) break; q = null; }
-      }
-      if (q && add(q)) usedArt.set(id, (usedArt.get(id) ?? 0) + 1);
+      round = next;
     }
   }
   return shuffle(qs, r).slice(0, n);

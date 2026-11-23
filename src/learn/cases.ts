@@ -1,8 +1,9 @@
 // Questões de APLICAÇÃO / caso (estilo FGV), separadas da literalidade.
 // Montadas a partir do texto oficial: o caso descreve a conduta exatamente como no tipo penal,
 // e as alternativas são rubricas/penas REAIS de outros dispositivos do mesmo diploma.
-import type { Article, LawDoc } from '../core/types';
-import { canTrainArticle, contextualAlternatives, findTargets, type Exercise, type Option } from './generators';
+import type { Article, LawDoc, Unit } from '../core/types';
+import { canTrainArticle, clozeStem, contextualAlternatives, findTargets, unitContext, whereOf, type Exercise, type Option } from './generators';
+import { pickProvisionTarget } from './lawQuestions';
 import { fold, normAnswer, rng, shuffle } from './text';
 
 const NOMES = ['Ana', 'Bruno', 'Carla', 'Diego', 'Elisa', 'Fábio', 'Gabriela', 'Heitor', 'Inês', 'João', 'Larissa', 'Marcos', 'Natália', 'Otávio', 'Paula', 'Rafael', 'Sílvia', 'Tiago'];
@@ -12,6 +13,33 @@ const CONTEXTOS = [
   'Ao analisar os autos, o juiz constatou que a conduta atribuída a {nome} corresponde, sem nenhum acréscimo, à seguinte descrição:',
   'Segundo a denúncia oferecida pelo Ministério Público, {nome} teria praticado esta conduta:',
 ];
+
+export function buildCaseForProvision(law: LawDoc, art: Article, unit: Unit, seed: string): Exercise | null {
+  const pick = pickProvisionTarget(law, art, unit, 4);
+  if (!pick) return null;
+  const { target, choices } = pick;
+  const r = rng(`caso:${unit.id}:${seed}`);
+  const name = NOMES[Math.floor(r() * NOMES.length)];
+  const situation = unit.k === 'pena'
+    ? `${name} foi condenado pela conduta prevista neste dispositivo. A defesa e a acusação discordam sobre a sanção aplicável.`
+    : target.amount?.kind === 'prazo' ? `${name} precisa cumprir a providência descrita abaixo. As partes divergem sobre o prazo previsto em lei.`
+    : target.amount ? `${name} está em uma das situações descritas abaixo. Há divergência quanto ao parâmetro numérico que a lei manda observar.`
+      : `${name} está em uma das situações descritas no dispositivo. Há divergência sobre qual previsão legal se aplica ao caso.`;
+  const stem = [...unitContext(art, unit), ...clozeStem(art, unit, [target])].map((part) =>
+    part.blank ? { t: '________' } : part);
+  return {
+    key: `CPR:${unit.id}`, kind: 'case', family: 'interpretacao', dim: unit.k === 'pena' ? 'penas' : 'aplicacao',
+    lawId: law.id, articleId: art.id, unitId: unit.id, stage: 1, where: whereOf(law, art, unit),
+    prompt: 'Qual alternativa resolve a divergência de acordo com o dispositivo?',
+    context: [{ t: situation }], stem, answer: target.text, expectedMs: 36_000, priority: target.priority,
+    options: shuffle([
+      { id: 'ok', text: target.text, correct: true, why: 'É a previsão expressa para a situação descrita.' },
+      ...choices.slice(0, 4).map((text, i) => ({
+        id: `d${i}`, text, correct: false, why: `O dispositivo usa “${target.text}” nesse ponto.`,
+      })),
+    ], r),
+  };
+}
 
 function caputOf(art: Article) { return art.units.find((u) => u.k === 'caput' && u.t && !u.rev)?.t; }
 const eligible = (a: Article) => !!a.rub && canTrainArticle(a) && (caputOf(a)?.length ?? 0) > 30;

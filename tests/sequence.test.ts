@@ -12,6 +12,7 @@ import { getArticle, initCorpus } from '../src/data/corpus';
 import { buildSession, canConsultStudySource, exerciseForCard, extendSession, finishSession, isStudyQuestion, loadSequence, loadSession, pendingSessionErrors, questionCheckpoint, recentSequences, requireCurrentSession, resumeSession, saveSession, scopeArticles, SessionConflict, type SessionConfig } from '../src/learn/session';
 import { planToConfig } from '../src/learn/plan';
 import { buildLiteral, buildOrder, buildRubric, buildWhich, shuffledOrderItems } from '../src/learn/generators';
+import { provisionUnits, shortAnswer } from '../src/learn/provisions';
 import { normAnswer } from '../src/learn/text';
 import { getStats } from '../src/learn/stats';
 
@@ -252,6 +253,45 @@ describe('retomada da sequência de artigos', () => {
     expect(resumed?.startedAt).toBe(s.startedAt - 8000);
   });
 
+  it('recoloca alíneas omitidas na sessão salva, mesmo depois de passar pelo artigo', async () => {
+    const previous = await loadSession();
+    const articleIds = ['cpp.240', 'cpp.241'];
+    const current = await buildSession({ ...config, articleIds }, false);
+    const first = current.items.filter(({ articleId, unitId }) => articleId === articleIds[0] && !unitId?.includes('.p1.a'));
+    const next = current.items.filter(({ articleId }) => articleId === articleIds[1]);
+    try {
+      await saveSession({
+        ...current, provisionCoverage: undefined, index: first.length, items: [...first, ...next],
+        results: first.map(({ key }) => ({ key, ms: 1000, correct: true })),
+      });
+      const restored = await resumeSession();
+      expect(restored?.items.slice(0, first.length)).toEqual(first);
+      expect(restored?.items[first.length]).toMatchObject({ unitId: 'cpp.240.p1.a', kind: 'cloze-multi' });
+      expect(restored?.items[first.length].blanks?.map(({ answer }) => answer)).toEqual(['prender', 'criminosos']);
+      expect(restored?.items.slice(first.length + 1)).toEqual(next);
+    } finally { await saveSession(previous); }
+  });
+
+  it('retoma pelo primeiro dispositivo pulado em uma sequência antiga de Memorizar', async () => {
+    const cfg: SessionConfig = { ...config, focus: 'law:cf', order: 'linear' };
+    const key = JSON.stringify(['sequencia', 'geral', cfg.focus, cfg.mode, '']);
+    const previous = await db.kv.get(key);
+    const review = await db.reviews.add({ cardId: 'caput-ja-praticado', articleId: 'cf.1', unitId: 'cf.1.cpt',
+      at: Date.now(), correct: true, ms: 1000, dim: 'literal', type: 'cloze-multi', mode: 'memorizar', rating: 3 });
+    try {
+      await db.kv.put({ key, value: { articleId: 'cf.2', practiced: [], config: cfg } });
+      expect(await loadSequence(cfg)).toMatchObject({ articleId: 'cf.1', config: { backfillThrough: 'cf.2' } });
+      const resumed = await buildSession({ ...cfg, startArticleId: 'cf.2' }, false);
+      expect(resumed.items[0]).toMatchObject({ unitId: 'cf.1.i1', kind: 'cloze-multi' });
+      expect(resumed.items.some(({ unitId }) => unitId === 'cf.1.cpt')).toBe(false);
+      expect(resumed.items.some(({ unitId }) => unitId === 'cf.1.pu')).toBe(true);
+    } finally {
+      await db.reviews.delete(review);
+      if (previous) await db.kv.put(previous);
+      else await db.kv.delete(key);
+    }
+  });
+
   it('mantém o relógio de um treino ativo após recarregar a página', async () => {
     const s = await buildSession(config);
     const clock = vi.spyOn(Date, 'now').mockReturnValue(s.startedAt + 60_000);
@@ -489,4 +529,44 @@ it('gera casos práticos, leitura com pontos-chave, Relâmpago e Memorizar Guiad
   const blitz = await buildSession(planToConfig({ scope, mode: 'relampago', minutes: 5 }), false);
   expect(blitz.items).toHaveLength(20);
   expect(blitz.items.every(({ kind, dim, expectedMs }) => kind === 'cloze-mc' && dim !== 'penas' && expectedMs === 10_000)).toBe(true);
+});
+
+it('cobre caput, parágrafos, incisos e alíneas nos dois modos de Memorizar, com lacunas curtas', async () => {
+  const cfg = { ...config, articleIds: ['cf.1', 'cpp.240', 'cp.157'] };
+  for (const mode of ['memorizar', 'memorizar-guiada'] as const) {
+    const { items } = await buildSession({ ...cfg, mode, minutes: 30 }, false);
+    const expected = cfg.articleIds.flatMap((id) => provisionUnits(getArticle(id)!.art))
+      .map(({ id }) => id).sort();
+    expect(items.map(({ unitId }) => unitId).sort()).toEqual(expected);
+    for (const item of items) {
+      expect(item.kind).toBe('cloze-multi');
+      expect(item.blanks?.length).toBeGreaterThanOrEqual(2);
+      expect(item.blanks?.length).toBeLessThanOrEqual(3);
+      const unit = getArticle(item.articleId!)!.art.units.find(({ id }) => id === item.unitId)!;
+      const primaryStem = item.stem.slice(1).map(({ t }) => t).join('').split('\n\n')[0];
+      expect(primaryStem).toBe(unit.t);
+      expect(item.blanks?.every(({ answer, options }) => shortAnswer(answer) && options.includes(answer))).toBe(true);
+    }
+    expect(items.find(({ unitId }) => unitId === 'cf.1.i1')).toMatchObject({
+      companionUnitId: 'cf.1.cpt', blanks: expect.arrayContaining([expect.objectContaining({ answer: 'soberania' })]),
+    });
+    expect(items.find(({ unitId }) => unitId === 'cp.157.p2-A.i3.b')?.blanks?.[0]).toMatchObject({ answer: 'desabastecimento' });
+  }
+});
+
+it('faz os outros formatos chegarem a todos os dispositivos de um artigo com alíneas', async () => {
+  const cfg = { ...config, articleIds: ['cpp.240'], minutes: 30 };
+  const { items: reading } = await buildSession({ ...cfg, mode: 'aprender' }, false);
+  const expected = provisionUnits(getArticle('cpp.240')!.art).map(({ id }) => id).sort();
+  expect(reading[0].readingFocus?.map(({ unitId }) => unitId).sort()).toEqual(expected);
+  expect(reading.filter(({ kind }) => kind === 'cloze-mc').map(({ unitId }) => unitId).sort()).toEqual(expected);
+  const { items: cases } = await buildSession({ ...cfg, mode: 'casos' }, false);
+  expect(cases.filter(({ kind }) => kind === 'case').map(({ unitId }) => unitId).sort()).toEqual(expected);
+  const { items: blitz } = await buildSession({ ...cfg, blitz: true }, false);
+  expect(blitz.map(({ unitId }) => unitId).sort()).toEqual(expected);
+  for (const style of ['leiseca', 'cebraspe', 'fgv'] as const) {
+    const exam = await gerarSimulado(cfg, style, expected.length, null);
+    expect(exam.questoes.map(({ unitId }) => unitId).sort()).toEqual(expected);
+    expect(exam.questoes.every((q) => style === 'cebraspe' ? !!q.ce : q.options?.length === 5)).toBe(true);
+  }
 });
