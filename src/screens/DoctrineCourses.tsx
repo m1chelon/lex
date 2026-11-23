@@ -12,6 +12,7 @@ import { PageHeader, SectionHeader } from '../ui/primitives';
 import { haptic } from '../ui/settings';
 import { SubjectGlyph } from '../ui/ramo';
 import { StudyMetrics } from '../ui/StudyMetrics';
+import { GrammarPanel } from './GrammarPanel';
 
 const countFor = (chapters: readonly DoctrineChapter[]) =>
   chapters.reduce((sum, chapter) => sum + chapter.questions.length, 0);
@@ -123,6 +124,7 @@ function DoctrineCourseDetail({ course, initialModule }: { course: (typeof cours
           </button>
         </div>
       </section>
+      {id === 'portugues' && <GrammarPanel />}
       {progressError && <p className="small muted" role="status">O histórico do curso está indisponível neste aparelho.</p>}
       {progress && answered > 0 && <section className="contest-panel">
         <h2 className="title-m">Seu desempenho</h2>

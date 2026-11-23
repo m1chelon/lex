@@ -2,6 +2,7 @@ import type { Article, LawDoc, Unit } from '../core/types';
 import { canTrainArticle, type Target } from './generators';
 import { legalContrastsOf } from './synonyms';
 import { fold, normAnswer } from './text';
+import { fitsTarget, isGenericTarget } from './blankQuality';
 
 const removed = /^[\s()–—.,;:[\]]*(?:(?:revogad|vetad|suprimid)[oa]s?|sem efeito|vide)[\s()–—.,;:[\]]*$/iu;
 
@@ -17,8 +18,9 @@ export function provisionUnits(art: Article) {
   return canTrainArticle(art) ? art.units.filter(hasProvisionText) : [];
 }
 
+/** Lacunas curtas: de 1 a 3 palavras (o número por extenso entre parênteses não conta). */
 export const shortAnswer = (value: string) =>
-  value.length <= 42 && (value.replace(/\([^()]*\)/gu, '').trim().match(/\S+/g)?.length ?? 0) <= 4;
+  value.length <= 40 && (value.replace(/\([^()]*\)/gu, '').trim().match(/\S+/g)?.length ?? 0) <= 3;
 
 export type QuestionTarget = { target: Target; choices: string[] };
 
@@ -116,6 +118,7 @@ function fragments(unit: Unit) {
     const contrast = contrasts[key] ?? legalContrastsOf(text);
     const isNumber = /^\d/u.test(text);
     if (!shortAnswer(text) || (stop.has(key) && !contrast.length) || (!isNumber && key.length < 3 && !contrast.length)) return [];
+    if (isGenericTarget(text) && (!contrast.length || key === 'nao')) return [];
     const before = unit.t.slice(Math.max(0, match.index - 20), match.index);
     const citation = isNumber && /(?:arts?\.|§|n[.°º]|lei)\s*$/iu.test(before);
     const form = formOf(text, before);
@@ -125,7 +128,8 @@ function fragments(unit: Unit) {
   });
   // Fica disponível para rótulos curtos, siglas e inscrições alfanuméricas.
   if (!parts.length) {
-    const token = unit.t.match(words)?.[0];
+    const all = unit.t.match(words) ?? [];
+    const token = all.find((word) => !isGenericTarget(word) && !stop.has(fold(word))) ?? all.find((word) => !stop.has(fold(word))) ?? all[0];
     if (token) parts.push({ text: token, start: unit.t.indexOf(token), form: 'm', score: 0, contrast: [] });
   }
   parts.sort((a, b) => b.score - a.score || a.start - b.start);
@@ -173,6 +177,13 @@ function closeNumbers(text: string) {
 
 /** Completa o banco por dispositivo com termos da mesma função e contexto próximo. */
 export function contextualTargets(law: LawDoc, art: Article, unit: Unit): QuestionTarget[] {
+  const strict = buildContextual(law, art, unit, true);
+  // Dispositivos curtíssimos ("cruéis;", "termo;") podem não ter alternativa da mesma forma: aceita as demais.
+  return strict.some(({ choices }) => choices.length >= 2) ? strict.filter(({ choices }) => choices.length >= 2)
+    : buildContextual(law, art, unit, false).filter(({ choices }) => choices.length >= 1);
+}
+
+function buildContextual(law: LawDoc, art: Article, unit: Unit, strictForm: boolean): QuestionTarget[] {
   const parts = fragments(unit);
   if (!parts.length) return [];
   const related = relatedProvisions(law, art, unit).flatMap(({ unit: other }) => fragments(other).slice(0, 4));
@@ -184,13 +195,19 @@ export function contextualTargets(law: LawDoc, art: Article, unit: Unit): Questi
       .map(({ text }) => text);
     const pool = [...part.contrast, ...numbers, ...peerTerms, ...vocabulary[part.form]];
     const choices: string[] = [];
-    for (const candidate of pool) {
-      const key = normAnswer(candidate);
-      if (!key || seen.has(key) || !shortAnswer(candidate)) continue;
-      seen.add(key);
-      choices.push(/^\p{Lu}/u.test(part.text) ? candidate.charAt(0).toUpperCase() + candidate.slice(1) : candidate);
-      if (choices.length === 5) break;
+    // Primeiro as alternativas da mesma forma; se faltarem para 5 opções, completa com as demais.
+    for (const relaxed of strictForm ? [false, true] : [true]) {
+      for (const candidate of pool) {
+        if (choices.length === 5) break;
+        const key = normAnswer(candidate);
+        if (!key || seen.has(key) || !shortAnswer(candidate)) continue;
+        if (!relaxed && !fitsTarget(part.text, candidate, true, !part.contrast.includes(candidate))) continue;
+        if (relaxed && strictForm && choices.length >= 4) break;
+        seen.add(key);
+        choices.push(/^\p{Lu}/u.test(part.text) ? candidate.charAt(0).toUpperCase() + candidate.slice(1) : candidate);
+      }
+      if (choices.length >= 4) break;
     }
-    return { target: { text: part.text, start: part.start, dim: unit.k === 'pena' ? 'penas' : 'literal', priority: 1 }, choices };
+    return { target: { text: part.text, start: part.start, dim: unit.k === 'pena' ? 'penas' as const : 'literal' as const, priority: 1 }, choices };
   });
 }

@@ -258,7 +258,9 @@ export function unitContext(art: Article, u: Unit): Seg[] {
     let p = u.parent ? art.units.find((x) => x.id === u.parent) : undefined;
     while (p) { chain.unshift(p); p = p.parent ? art.units.find((x) => x.id === p!.parent) : undefined; }
     const caput = art.units.find((x) => x.k === 'caput');
-    if (caput && !chain.includes(caput) && (u.k === 'inc' || u.k === 'pena') && !u.parent) chain.unshift(caput);
+    // Incisos, alíneas e itens ligados ao caput mostram também o caput, para a lacuna ter referência.
+    const underCaput = u.k === 'inc' || u.k === 'pena' || ((u.k === 'ali' || u.k === 'item') && chain[0]?.k === 'inc');
+    if (caput && caput !== u && !chain.includes(caput) && underCaput) chain.unshift(caput);
     for (const c of chain) ctx.push({ t: `${c.lab} `, strong: true }, { t: c.t + '\n' });
   }
   return ctx;

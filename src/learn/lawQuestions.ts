@@ -4,6 +4,7 @@ import { contextualTargets, hasProvisionText, provisionUnits, relatedProvisions,
 import { legalContrastsOf } from './synonyms';
 import { amountAlternatives, findLegalAmounts } from './thresholds';
 import { fold, normAnswer, rng, shuffle } from './text';
+import { isGenericTarget, phraseTargets } from './blankQuality';
 
 const REVIEWED = `
 cf.1.cpt|união indissolúvel|união dissolúvel|associação confederativa|aliança federativa
@@ -76,12 +77,21 @@ export function questionTargets(law: LawDoc, unit: Unit): QuestionTarget[] {
     return [{ text: match[0], start: match.index, dim: 'literal', choices, priority: 1 }];
   });
   const inlineSanction = /(?:^|[.;–:]\s*)(?:Pena\s*[-–:]|reclusão,\s*de |detenção,\s*de )|\b(?:incorre|incorrerá)\s+na\s+pena\s+de\b/iu.exec(unit.t);
-  const candidates = [...authored, ...extracted, ...additional].filter((target) => !inlineSanction || target.start < inlineSanction.index);
+  const phrases = phraseTargets(unit);
+  const candidates = [...authored, ...extracted, ...phrases, ...additional]
+    .filter((target) => !inlineSanction || target.start < inlineSanction.index)
+    // Palavras genéricas não viram lacuna, salvo quando revisadas manualmente.
+    .filter((target) => target.priority === 6 || target.amount || !isGenericTarget(target.text))
+    // Uma palavra já coberta por expressão de 2 palavras (ex.: "privada" em "propriedade privada") cede lugar a ela.
+    .filter((target) => target.priority === 6 || phrases.includes(target as never) || !phrases.some((phrase) => overlap(phrase, target) && (target.priority ?? 0) < 3));
   const positions = new Set<string>();
   const targets = candidates.flatMap((target) => {
     const point = `${target.start}:${target.text}`;
     if (!shortAnswer(target.text) || positions.has(point) || (target.priority !== 6 && authored.some((entry) => overlap(entry, target)))) return [];
-    const choices = contextualAlternatives(law, target, unit.t).filter(shortAnswer);
+    const sentenceStart = target.start === 0 || /[.:;]\s*$/u.test(unit.t.slice(0, target.start));
+    // Alternativas dos bancos revisados mantêm-se; só se exige a mesma maiúscula/minúscula da resposta.
+    const choices = contextualAlternatives(law, target, unit.t).filter((choice) => shortAnswer(choice)
+      && (sentenceStart || !/^\p{L}/u.test(choice) || /^\p{Lu}/u.test(choice) === /^\p{Lu}/u.test(target.text)));
     if (!choices.length) return [];
     positions.add(point);
     return [{ target, choices }];
@@ -137,9 +147,15 @@ export function buildMemory(law: LawDoc, art: Article, unit: Unit, stage: number
   const main = mainTargets(law, unit);
   const candidates = shuffle(main, r).sort((a, b) => importance(b) - importance(a));
   const chosen: QuestionTarget[] = [];
+  // As lacunas não podem apagar o dispositivo: no máximo cerca de 40% das palavras ficam ocultas.
+  const wordCount = (text: string) => text.match(/[\p{L}\d]+/gu)?.length ?? 0;
+  // Na pena, espécie e limites são justamente o que se cobra: o limite não se aplica.
+  const budget = unit.k === 'pena' ? Infinity : Math.max(1, Math.floor(wordCount(unit.t) * 0.4));
   const select = (possible: QuestionTarget[], limit: number) => {
     for (const entry of possible) {
       if (chosen.length >= limit) break;
+      const hiddenWords = chosen.reduce((n, { target }) => n + wordCount(target.text), 0) + wordCount(entry.target.text);
+      if (chosen.length && hiddenWords > budget) continue;
       if (!chosen.some(({ target }) => overlap(target, entry.target) || normAnswer(target.text) === normAnswer(entry.target.text))) chosen.push(entry);
     }
   };

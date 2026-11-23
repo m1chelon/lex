@@ -267,7 +267,8 @@ describe('retomada da sequência de artigos', () => {
       const restored = await resumeSession();
       expect(restored?.items.slice(0, first.length)).toEqual(first);
       expect(restored?.items[first.length]).toMatchObject({ unitId: 'cpp.240.p1.a', kind: 'cloze-multi' });
-      expect(restored?.items[first.length].blanks?.map(({ answer }) => answer)).toEqual(['prender', 'criminosos']);
+      // "prender criminosos": uma lacuna no próprio dispositivo (até 40% das palavras) e outra no dispositivo vizinho.
+      expect(restored?.items[first.length].blanks?.map(({ answer }) => answer)).toEqual(['criminosos', 'fundadas razões']);
       expect(restored?.items.slice(first.length + 1)).toEqual(next);
     } finally { await saveSession(previous); }
   });
@@ -508,8 +509,12 @@ it('faz a conduta do art. 293 aparecer antes da pena, com lacunas curtas e alter
   const state = await buildSession({ ...config, focus: 'law:cp', articleIds: ['cp.293'] }, false);
   const conduct = state.items[0];
   expect(conduct).toMatchObject({ unitId: 'cp.293.cpt', kind: 'cloze-multi' });
-  expect(conduct.blanks?.map(({ answer }) => answer)).toEqual(['Falsificar', 'fabricando-os', 'alterando-os']);
-  expect(conduct.blanks?.[0].options).toEqual(expect.arrayContaining(['Falsificar', 'Adulterar', 'Suprimir', 'Utilizar']));
+  // O caput tem só 4 palavras: as lacunas deixam parte do texto visível como referência.
+  expect(conduct.blanks?.length).toBeGreaterThanOrEqual(2);
+  expect(conduct.blanks?.filter(({ answer }) => ['Falsificar', 'fabricando-os', 'alterando-os'].includes(answer)).length).toBe(1);
+  const reviewed = conduct.blanks!.find(({ answer }) => ['Falsificar', 'fabricando-os', 'alterando-os'].includes(answer))!;
+  expect(reviewed.options.length).toBeGreaterThanOrEqual(4);
+  expect(new Set(reviewed.options).size).toBe(reviewed.options.length);
   expect(state.items.find(({ dim }) => dim === 'penas')).toMatchObject({
     kind: 'cloze-multi', blanks: expect.arrayContaining([expect.objectContaining({ answer: 'reclusão' })]),
   });

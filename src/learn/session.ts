@@ -16,6 +16,7 @@ import type { Ramo } from '../core/sources';
 import { getSettings } from '../ui/settings';
 import { buildPairDrill } from './pairDrills';
 import { latestReviews, reviewQueue } from './reviewQueue';
+import { buildGrammarSession, grammarExercise, type GramTopic } from './gramatica';
 import { buildDoctrineSession, doctrineExercise, doctrinePlannerGroups, isCurrentDoctrineQuestion, type DoctrineScope } from './doctrineCourses';
 import { dayKey } from './mood';
 import { getPlannerTask, isPlannedSession, plannerProgress, plannerTaskKey, type PlannerTask, type StudyGoal } from './planner';
@@ -31,8 +32,10 @@ export interface SessionConfig {
   /** Relâmpago: 10 s por questão, com lacunas e alternativas curtas. */
   blitz?: boolean;
   practiceCardIds?: string[];
-  activity?: 'daily' | 'pairs' | 'review' | 'retry' | 'doctrine' | 'planner';
+  activity?: 'daily' | 'pairs' | 'review' | 'retry' | 'doctrine' | 'planner' | 'gramatica';
   doctrine?: DoctrineScope;
+  /** Treino gramatical gerado (Língua Portuguesa), por tema ou misturado. */
+  gramatica?: { topic?: GramTopic };
   planner?: { day: string; goal: StudyGoal; quick?: boolean };
   revenge?: boolean;
   sequenceSkip?: string[];
@@ -302,6 +305,7 @@ async function nextBatch(state: SessionState, budgetSec: number, repeat = false)
 
 export async function exerciseForCard(card: CardRow, mode: Mode, seed: string): Promise<Exercise | null> {
   if (card.id.startsWith('D:')) return doctrineExercise(card.id, seed);
+  if (card.id.startsWith('G:')) return grammarExercise(card.id);
   if (card.id.startsWith('P:')) return (await buildPairDrill(seed)).find((item) => item.key === card.id) ?? null;
   if (card.conceptId) { const c = findLawConcept(card.conceptId); return c ? conceptExercise(c, seed) : null; }
   const [kind, , parent] = card.id.split(':');
@@ -547,6 +551,11 @@ export async function buildSession(cfg: SessionConfig, persist = true, retryItem
       await buildPlannedStudy(state, cfg.planner);
     } else if (cfg.activity === 'doctrine' && cfg.doctrine) {
       state.items = await buildDoctrineSession(cfg.doctrine, String(state.seed));
+    } else if (cfg.activity === 'gramatica') {
+      state.items = await buildGrammarSession(cfg.gramatica?.topic, String(state.seed));
+      state.startedAt = Date.now();
+      if (persist && state.items.length) await saveSession(state);
+      return state;
     } else if (cfg.activity === 'retry') {
       state.items = (retryItems ?? []).filter(isStudyQuestion).map((item, index) => retryExercise(item, `${state.seed}:${index}`));
       state.config.infinite = false;
@@ -586,6 +595,12 @@ export async function buildSession(cfg: SessionConfig, persist = true, retryItem
 
 /** Modo infinito: acrescenta mais itens quando faltam poucos. Recomeça o escopo ao terminar. */
 export async function extendSession(state: SessionState): Promise<SessionState> {
+  if (state.config.activity === 'gramatica') {
+    // Treino gramatical infinito: nova rodada, já considerando os acertos e erros desta.
+    const more = await buildGrammarSession(state.config.gramatica?.topic, `${state.seed}:${state.items.length}`);
+    const used = new Set(state.items.map(({ key }) => key));
+    return { ...state, items: [...state.items, ...more.filter(({ key }) => !used.has(key))] };
+  }
   const batch = await nextBatch(state, 6 * 60);
   if (batch.items.length) return { ...state, items: [...state.items, ...batch.items], cursor: batch.cursor };
   // Enquanto ainda houver perguntas na fila, preserva a ordem e tenta recomeçar ao chegar ao fim.

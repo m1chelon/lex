@@ -9,6 +9,7 @@ import { nav } from '../ui/nav';
 import { SubjectGlyph } from '../ui/ramo';
 import { haptic } from '../ui/settings';
 import { StudyMetrics } from '../ui/StudyMetrics';
+import { startGrammar } from './GrammarPanel';
 
 type Progress = Awaited<ReturnType<typeof doctrineProgress>>;
 
@@ -58,6 +59,7 @@ export function EditalSubjectCard({ area, subject }: { area: 'tjsp' | 'tjms'; su
       <div className="chips" role="group" aria-label={`Ações de ${subject.topico}`}>
         <button className="chip" aria-expanded={open} onClick={() => setOpen(!open)}>Tópicos do edital</button>
         {wrong > 0 && <button className="chip" onClick={() => start('errors')}><IX size={12} /> Refazer erros ({wrong})</button>}
+        {course.id === 'portugues' && <button className="chip" onClick={() => startGrammar(undefined, area)}><IPlay size={12} /> Treino gramatical</button>}
         <button className="chip" onClick={() => nav.push({ name: 'doutrina-curso', id: course.id })}><IBook size={12} /> Abrir curso</button>
       </div>
       {open && <div className="list">

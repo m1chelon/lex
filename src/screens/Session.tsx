@@ -271,6 +271,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         {ex.context?.length ? <div className="muted" style={{ fontSize: '0.92em', marginBottom: 10, whiteSpace: 'pre-line' }}><Segs segs={ex.context} lawId={lawId} terms={terms} /></div> : null}
         <Segs segs={ex.stem} lawId={lawId} terms={terms && ex.kind !== 'which-article' && ex.kind !== 'rubric'} blankContent={blankShown} />
       </div>
+      {(ex.kind === 'cloze-mc' || ex.kind === 'cloze-type') && ex.family === 'literal' && <ArticlePeek ex={ex} answered={answered} />}
       {ex.kind === 'cloze-type' ? (
         !answered ? (
           <form className="stack" style={{ gap: 10 }} onSubmit={(e) => { e.preventDefault(); const r = checkTyped(typed, ex.answer!); onAnswer({ correct: r.ok, given: typed }); }}>
@@ -930,6 +931,36 @@ function SpotView({ ex, answer, onAnswer, lawId, feedback }: { ex: Exercise; ans
   );
 }
 
+/** Artigo inteiro como referência, com o dispositivo da questão oculto até a resposta. */
+function ArticlePeek({ ex, answered }: { ex: Exercise; answered: boolean }) {
+  const hit = ex.articleId ? getArticle(ex.articleId) : null;
+  const units = hit?.art.units.filter((u) => u.t && !u.rev) ?? [];
+  // Aberto por padrão (no Relâmpago, de 10 s, começa fechado). Em artigos longos, rola até o dispositivo da questão.
+  const initial = ex.expectedMs > 10_000;
+  const [open, setOpen] = useState(initial);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => setOpen(initial), [ex.key]); // eslint-disable-line
+  useEffect(() => {
+    const target = box.current?.querySelector<HTMLElement>('[data-current]');
+    if (open && target && box.current) box.current.scrollTop = Math.max(0, target.offsetTop - box.current.offsetTop - 60);
+  }, [open, ex.key]);
+  if (!hit || units.length < 2) return null;
+  const hidden = new Set([ex.unitId, ex.companionUnitId].filter(Boolean));
+  return (
+    <details className="article-peek" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="small">{open ? 'Ocultar' : 'Ver'} {articleTitle(hit.law.id, hit.art)} completo</summary>
+      <div className="law-art law muted" style={{ fontSize: '0.9em' }} ref={box}>
+        {units.map((u) => (
+          <div key={u.id} className={`law-unit k-${u.k}`} data-current={hidden.has(u.id) || undefined}>
+            <strong className="law-lab">{u.k === 'caput' ? hit.art.lab : u.lab}</strong>{' '}
+            {hidden.has(u.id) && !answered ? <em>(dispositivo desta questão)</em> : <span>{u.t}</span>}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 /** Várias lacunas: preencha uma por vez, tocando nas alternativas. */
 function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answered: boolean; onAnswer: (a: Answer) => void; feedback: React.ReactNode }) {
   const [filled, setFilled] = useState<string[]>([]);
@@ -964,6 +995,7 @@ function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answere
         </div>
       )}
       {!answered && cur > 0 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setFilled(filled.slice(0, -1))}>Desfazer</button>}
+      {ex.family === 'literal' && <ArticlePeek ex={ex} answered={answered} />}
       {feedback}
       {answered && <Official ex={ex} />}
     </div>
