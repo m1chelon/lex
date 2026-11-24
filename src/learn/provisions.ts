@@ -22,9 +22,11 @@ export function provisionUnits(art: Article) {
 export const shortAnswer = (value: string) =>
   value.length <= 40 && (value.replace(/\([^()]*\)/gu, '').trim().match(/\S+/g)?.length ?? 0) <= 3;
 
-export type QuestionTarget = { target: Target; choices: string[] };
+/** `strong`: quantas alternativas iniciais têm a mesma forma da resposta (as demais só completam o mínimo). */
+export type QuestionTarget = { target: Target; choices: string[]; strong?: number };
 
 const stop = new Set([
+  'incorre', 'incorrem', 'equipara-se', 'aplica-se', 'considera-se',
   'ao', 'aos', 'aquela', 'aquelas', 'aquele', 'aqueles', 'aquilo', 'assim', 'bem', 'cada', 'caso',
   'com', 'como', 'cuja', 'cujas', 'cujo', 'cujos', 'da', 'das', 'de', 'dele', 'dela', 'desde', 'desse',
   'desta', 'deste', 'disso', 'do', 'dos', 'durante', 'ela', 'elas', 'ele', 'eles', 'em', 'entre',
@@ -78,6 +80,7 @@ const vocabulary = {
   fAdjs: ['provisórias', 'definitivas', 'subsidiárias', 'previstas', 'necessárias', 'facultativas'],
   mAdj: ['provisório', 'definitivo', 'subsidiário', 'previsto', 'necessário', 'facultativo'],
   mAdjs: ['provisórios', 'definitivos', 'subsidiários', 'previstos', 'necessários', 'facultativos'],
+  ger: ['falsificando', 'adulterando', 'alterando', 'fabricando', 'reproduzindo', 'imitando', 'suprimindo', 'ocultando', 'destruindo', 'utilizando', 'emitindo', 'expedindo'],
   adv: ['exclusivamente', 'preferencialmente', 'imediatamente', 'subsidiariamente', 'obrigatoriamente', 'facultativamente'],
 };
 type Form = keyof typeof vocabulary;
@@ -91,6 +94,7 @@ const phrase = /(?:dignidade da pessoa humana|valores sociais do trabalho|livre 
 function formOf(text: string, before: string): Form {
   const key = fold(text);
   if (key.endsWith('mente')) return 'adv';
+  if (/ndo(?:-(?:o|a|os|as|se|lhe|lhes))?$/u.test(key)) return 'ger';
   if (/^(?:dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|mil)$/u.test(key)) return 'amount';
   if (/^(?:metade|terco|tercos)$/u.test(key)) return 'fraction';
   if (/rão$/iu.test(text)) return 'futurePl';
@@ -183,6 +187,13 @@ export function contextualTargets(law: LawDoc, art: Article, unit: Unit): Questi
     : buildContextual(law, art, unit, false).filter(({ choices }) => choices.length >= 1);
 }
 
+/** Termos com a mesma terminação (particípio com particípio, -ção com -ção) soam mais plausíveis. */
+function suffixDistance(a: string, b: string) {
+  const x = fold(a), y = fold(b);
+  for (const n of [4, 3, 2]) if (x.slice(-n) === y.slice(-n)) return 4 - n;
+  return 4;
+}
+
 function buildContextual(law: LawDoc, art: Article, unit: Unit, strictForm: boolean): QuestionTarget[] {
   const parts = fragments(unit);
   if (!parts.length) return [];
@@ -191,11 +202,15 @@ function buildContextual(law: LawDoc, art: Article, unit: Unit, strictForm: bool
     const seen = new Set([normAnswer(part.text)]);
     const numbers = closeNumbers(part.text);
     const peerTerms = related.filter((peer) => peer.form === part.form && !/^\d/u.test(peer.text))
-      .sort((a, b) => Math.abs(a.text.length - part.text.length) - Math.abs(b.text.length - part.text.length))
+      .sort((a, b) => suffixDistance(a.text, part.text) - suffixDistance(b.text, part.text) || Math.abs(a.text.length - part.text.length) - Math.abs(b.text.length - part.text.length))
       .map(({ text }) => text);
-    const pool = [...part.contrast, ...numbers, ...peerTerms, ...vocabulary[part.form]];
+    // Gerúndios mantêm o pronome do alvo ("fabricando-os" → "adulterando-os").
+    const clitic = part.form === 'ger' ? /-\p{L}+$/u.exec(part.text)?.[0] ?? '' : '';
+    const lexicon = part.form === 'ger' ? vocabulary.ger.map((verb) => verb + clitic) : vocabulary[part.form];
+    const pool = [...part.contrast, ...numbers, ...peerTerms, ...lexicon];
     const choices: string[] = [];
     // Primeiro as alternativas da mesma forma; se faltarem para 5 opções, completa com as demais.
+    let strong = 0;
     for (const relaxed of strictForm ? [false, true] : [true]) {
       for (const candidate of pool) {
         if (choices.length === 5) break;
@@ -206,8 +221,9 @@ function buildContextual(law: LawDoc, art: Article, unit: Unit, strictForm: bool
         seen.add(key);
         choices.push(/^\p{Lu}/u.test(part.text) ? candidate.charAt(0).toUpperCase() + candidate.slice(1) : candidate);
       }
+      if (!relaxed) strong = choices.length;
       if (choices.length >= 4) break;
     }
-    return { target: { text: part.text, start: part.start, dim: unit.k === 'pena' ? 'penas' as const : 'literal' as const, priority: 1 }, choices };
+    return { strong: strictForm ? strong : undefined, target: { text: part.text, start: part.start, dim: unit.k === 'pena' ? 'penas' as const : 'literal' as const, priority: 1 }, choices };
   });
 }

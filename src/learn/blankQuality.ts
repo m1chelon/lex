@@ -6,9 +6,10 @@
 import type { Unit } from '../core/types';
 import type { Target } from './generators';
 import { fold } from './text';
+import { legalContrastsOf } from './synonyms';
 
 const GROUPS = [
-  ['pública', 'privada', 'particular', 'estatal'],
+  ['pública', 'privada', 'particular', 'oficial'],
   ['nacional', 'estrangeira', 'internacional', 'regional'],
   ['federal', 'estadual', 'municipal', 'distrital'],
   ['penal', 'civil', 'administrativa', 'eleitoral'],
@@ -60,8 +61,14 @@ export function phraseTargets(unit: Unit): (Target & { choices: string[] })[] {
     const masculine = variable ? /os?$/iu.test(adjective)
       : /(?:os?|or|ores|ão|al|ais|ul|ema|emas)$/iu.test(noun) && !/(?:ção|ções|são|sões|dade|dades|gem|gens)$/iu.test(noun);
     const plural = /s$/iu.test(noun) || form.plural;
-    const choices = form.group.map((fem) => inflect(fem, plural, masculine)).filter((adj) => fold(adj) !== fold(adjective))
-      .map((adj) => `${noun} ${adj}`).slice(0, 4);
+    const adjSwaps = form.group.map((fem) => inflect(fem, plural, masculine)).filter((adj) => fold(adj) !== fold(adjective))
+      .map((adj) => `${noun} ${adj}`);
+    // Trocar o substantivo ("servidor público" por "funcionário público") é a pegadinha mais comum:
+    // o adjetivo fica igual e só quem lembra da redação acerta. Só entram substantivos de mesmo gênero e número.
+    const kind = (w: string) => `${/(?:a|ção|são|dade|gem)s?$|ções$|sões$|dades$/iu.test(w) ? 'f' : 'm'}${/s$/iu.test(w) ? 'p' : 's'}`;
+    const nounSwaps = legalContrastsOf(noun).filter((other) => !/\s/u.test(other) && kind(other) === kind(noun))
+      .map((other) => `${other} ${adjective}`);
+    const choices = [...nounSwaps.slice(0, 2), ...adjSwaps].slice(0, 4);
     if (choices.length < 2) continue;
     out.push({ text: whole, start: match.index, dim: 'literal', kind: 'regra', priority: 3, choices });
     covered.push([match.index, match.index + whole.length]);
@@ -74,7 +81,14 @@ export function phraseTargets(unit: Unit): (Target & { choices: string[] })[] {
     const before = unit.t.slice(Math.max(0, match.index - 12), match.index);
     const after = unit.t.slice(match.index + match[0].length, match.index + match[0].length + 5);
     if (/\b(?:é|são|será|serão|foi|for|ser|sendo|seja|sejam|está|estar|ficar|fica)\s+$/iu.test(before) || /^\s+d[aoe]s?\b/iu.test(after)) continue;
-    const choices = form.group.map((fem) => inflect(fem, form.plural, form.masculine)).filter((adj) => fold(adj) !== fold(match[0])).slice(0, 4);
+    // Adjetivo invariável ("particular", "federal"): o gênero vem da palavra flexionada mais próxima antes dele.
+    let masculine = form.masculine;
+    if (!/[oa]s?$/iu.test(match[0])) {
+      const previous = unit.t.slice(Math.max(0, match.index - 40), match.index).match(/\p{L}+(?=[^\p{L}]*$)|\p{L}*[oa]s?(?=\s)/gu);
+      const cue = [...(previous ?? [])].reverse().find((w) => /[oa]s?$/iu.test(w) && !/^(?:ou|e|da|do|na|no|a|o)$/iu.test(w));
+      if (cue) masculine = /os?$/iu.test(cue);
+    }
+    const choices = form.group.map((fem) => inflect(fem, form.plural, masculine)).filter((adj) => fold(adj) !== fold(match[0])).slice(0, 4);
     if (choices.length >= 2) out.push({ text: match[0], start: match.index, dim: 'literal', kind: 'regra', priority: 2, choices });
   }
   return out;

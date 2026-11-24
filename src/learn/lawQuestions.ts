@@ -185,9 +185,10 @@ export function buildMemory(law: LawDoc, art: Article, unit: Unit, stage: number
     stem.push({ t: '\n\n' }, ...extraStem);
     chosen.push(companion.extra);
   }
-  const blanks = chosen.map(({ target, choices }) => ({
+  // Alternativas de outra classe ("funcionário" para um particípio) facilitam: só entram se faltarem plausíveis.
+  const blanks = chosen.map(({ target, choices, strong }) => ({
     answer: target.text,
-    options: shuffle([target.text, ...choices.slice(0, 4)], r),
+    options: shuffle([target.text, ...choices.slice(0, strong !== undefined && strong >= 2 ? Math.min(4, strong) : 4)], r),
   }));
   return { ...base, stem, context: companion ? undefined : unitContext(art, unit), kind: 'cloze-multi', blanks, companionUnitId: companion?.unit.id,
     prompt: unit.k === 'pena' && !companion ? 'Complete os elementos da sanção.' : prompts[Math.floor(r() * prompts.length)], answer: blanks.map(({ answer }) => answer).join(' | '),

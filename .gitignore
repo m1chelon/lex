@@ -8,3 +8,4 @@ raw/
 lex-doutrina.json
 public/data/doutrina/
 audit/coverage-*.txt
+audit/probe.txt
