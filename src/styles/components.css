@@ -269,3 +269,19 @@ textarea.input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .doutrina-text { font-family: var(--font-law); font-size: 15px; line-height: 1.5; color: var(--text); margin: 8px 0; display: -webkit-box; -webkit-line-clamp: 10; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
 .doutrina-text.open { -webkit-line-clamp: unset; }
 .doutrina.empty-note { padding: 10px 14px; }
+
+/* ---------- Mapa por desempenho (verde/amarelo/vermelho) ---------- */
+.cell.s-todo, .scell.s-todo { background: rgba(255, 255, 255, 0.06); color: var(--text-3); }
+.cell.s-ok, .scell.s-ok { background: var(--ok); color: rgba(0, 0, 0, 0.7); }
+.cell.s-mid, .scell.s-mid { background: var(--warn); color: rgba(0, 0, 0, 0.7); }
+.cell.s-bad, .scell.s-bad { background: var(--bad); color: rgba(0, 0, 0, 0.7); }
+.cell.current, .scell.current { outline: 2px solid var(--text); outline-offset: 2px; }
+.status-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.status-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sdot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sdot.ok { background: var(--ok); } .sdot.mid { background: var(--warn); } .sdot.bad { background: var(--bad); } .sdot.todo { background: rgba(255, 255, 255, 0.14); }
+.status-strip { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 2px 0; background: none; border: 0; color: inherit; text-align: left; }
+.status-rail { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; padding: 3px 2px; scroll-behavior: smooth; }
+.status-rail::-webkit-scrollbar { display: none; }
+.scell { flex: 0 0 auto; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; transition: background 300ms ease; }
+.status-strip-more { flex: 0 0 auto; color: var(--text-2); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 999px; padding: 3px 9px; }

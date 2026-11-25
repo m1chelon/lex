@@ -26,12 +26,14 @@ import { useCorpusVersion } from '../App';
 import { courseStats, loadArticleProgress } from '../learn/courseProgress';
 import { StudyMetrics } from '../ui/StudyMetrics';
 import { SubjectProgress } from './SubjectProgress';
+import { historyArticleStatus } from '../learn/articleStatus';
+import { STATUS_LABEL, StatusLegend } from '../ui/LawStatusMap';
 
-type View = 'geral' | Dim;
+type View = 'acertos' | 'geral' | Dim;
 
 function levelOf(m: ArticleMastery | undefined, view: View): number {
   if (!m) return 0;
-  if (view === 'geral') return m.level;
+  if (view === 'geral' || view === 'acertos') return m.level;
   const d = m.dims[view];
   if (!d || (!d.applicable && !d.cards)) return -1; // não aplicável
   if (!d.cards) return 0;
@@ -71,6 +73,8 @@ function LawMap() {
   const doc = getLaw(law);
   const ids = useMemo(() => doc?.articles.filter((a) => !a.rev).map((a) => a.id) ?? [], [doc, v]); // eslint-disable-line
   const mastery = useLiveAsync(() => masteryFor(ids), [ids]);
+  const results = useLiveAsync(() => historyArticleStatus(ids), [ids]);
+  const [colors, setColors] = useState<'acertos' | 'dominio'>('acertos');
   const progress = useLiveAsync(async () => {
     const scope = new Set(ids);
     return courseStats(await loadArticleProgress(scope), scope);
@@ -90,8 +94,14 @@ function LawMap() {
       ) : (
         <div className="card">
           <div className="small muted" style={{ marginBottom: 10 }}>{doc.title} · {ids.length} artigos</div>
+          <Segmented label="Cores do mapa" value={colors} options={[{ id: 'acertos', label: 'Acertos' }, { id: 'dominio', label: 'Domínio' }]} onChange={setColors} />
+          <div style={{ margin: '10px 0' }}>{colors === 'acertos' ? <StatusLegend /> : <div className="legend xsmall muted" style={{ flexWrap: 'wrap', gap: 10 }}>{[0, 1, 2, 3, 4, 5].map((l) => <span key={l} className="legend"><i className={`cell l${l}`} style={{ width: 12, height: 12, aspectRatio: 'auto' }} />{LEVEL_LABEL[l]}</span>)}</div>}</div>
           <div className="mapgrid">
-            {ids.map((id) => { const a = getArticle(id)!; const m = mastery?.get(id); return <button key={id} className={`cell l${m?.level ?? 0}${m?.due ? ' due' : ''}`} onClick={() => setSel(id)} aria-label={`${a.art.lab}: ${LEVEL_LABEL[m?.level ?? 0]}`}>{a.art.n.replace(/^[a-z]+\d*-/, '')}</button>; })}
+            {ids.map((id) => {
+              const a = getArticle(id)!; const m = mastery?.get(id); const st = results?.get(id) ?? 'todo';
+              const cls = colors === 'acertos' ? `cell s-${st}` : `cell l${m?.level ?? 0}${m?.due ? ' due' : ''}`;
+              return <button key={id} className={cls} onClick={() => setSel(id)} aria-label={`${a.art.lab}: ${colors === 'acertos' ? STATUS_LABEL[st] : LEVEL_LABEL[m?.level ?? 0]}`}>{a.art.n.replace(/^[a-z]+\d*-/, '')}</button>;
+            })}
           </div>
         </div>
       )}
@@ -109,7 +119,8 @@ function EditalMap() {
   const ids = useMemo(() => [...cov.required], [v, area]); // eslint-disable-line
   const mastery = useLiveAsync(() => masteryFor(ids), [ids]);
   const progress = useLiveAsync(async () => courseStats(await loadArticleProgress(cov.required), cov.required), [cov]);
-  const [view, setView] = useState<View>('geral');
+  const [view, setView] = useState<View>('acertos');
+  const results = useLiveAsync(() => historyArticleStatus(ids), [ids]);
   const [sel, setSel] = useState<string | null>(null);
   const manifest = getManifest();
 
@@ -138,16 +149,16 @@ function EditalMap() {
       </div>
 
       <div className="hscroll"><div className="chips" style={{ flexWrap: 'nowrap' }}>
-        {([{ id: 'geral', label: 'Geral' }, ...DIMS.map((d) => ({ id: d.id, label: d.label }))] as { id: View; label: string }[]).map((o) => (
+        {([{ id: 'acertos', label: 'Acertos' }, { id: 'geral', label: 'Domínio' }, ...DIMS.map((d) => ({ id: d.id, label: d.label }))] as { id: View; label: string }[]).map((o) => (
           <button key={o.id} className="chip" style={{ whiteSpace: 'nowrap' }} aria-pressed={view === o.id} onClick={() => { haptic('soft'); setView(o.id); }}>{o.label}</button>
         ))}
       </div></div>
 
-      <div className="legend xsmall muted" style={{ flexWrap: 'wrap', gap: 10 }}>
+      {view === 'acertos' ? <StatusLegend /> : <div className="legend xsmall muted" style={{ flexWrap: 'wrap', gap: 10 }}>
         {[0, 1, 2, 3, 4, 5].map((l) => <span key={l} className="legend"><i className={`cell l${l}`} style={{ width: 12, height: 12, aspectRatio: 'auto' }} />{view === 'geral' ? LEVEL_LABEL[l] : ['sem prática', '0–20%', '20–40%', '40–60%', '60–80%', '80–100%'][l]}</span>)}
         <span className="legend"><i className="cell pending" style={{ width: 12, height: 12, aspectRatio: 'auto' }} />lei pendente</span>
         <span className="legend"><i className="cell l0 due" style={{ width: 12, height: 12, aspectRatio: 'auto' }} />revisão devida</span>
-      </div>
+      </div>}
 
       {REQS.map((req) => {
         const it = cov.items.find((i) => i.req.id === req.id)!;
@@ -173,7 +184,7 @@ function EditalMap() {
                 const ma = mastery?.get(id);
                 const l = levelOf(ma, view);
                 return (
-                  <button key={id} className={`cell l${Math.max(0, l)}${ma?.due ? ' due' : ''}`} style={l < 0 ? { opacity: 0.25 } : undefined} onClick={() => { haptic('soft'); setSel(id); }}
+                  <button key={id} className={view === 'acertos' ? `cell s-${results?.get(id) ?? 'todo'}` : `cell l${Math.max(0, l)}${ma?.due ? ' due' : ''}`} style={l < 0 ? { opacity: 0.25 } : undefined} onClick={() => { haptic('soft'); setSel(id); }}
                     aria-label={`${articleTitle(req.law, a.art)}: ${LEVEL_LABEL[ma?.level ?? 0]}`}>
                     {a.art.n.replace(/^dt-/, 'T')}
                   </button>

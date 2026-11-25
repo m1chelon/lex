@@ -315,3 +315,23 @@
   :root:not([data-motion='full']) .study-layout :is(.study-options > .opt, .memory-choices > .chip):active { transform: none; }
 }
 
+
+/* Número do artigo em destaque: brilho de entrada e respiração suave. */
+.art-tag {
+  position: relative; display: inline-block; padding: 0 6px; margin-inline-start: -6px; border-radius: 7px;
+  color: var(--accent, #b9b4ff); background: color-mix(in srgb, var(--accent, #8f88ff) 14%, transparent);
+  background-image: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
+  background-size: 250% 100%; background-repeat: no-repeat; background-position: 150% 0;
+  animation: art-tag-in 900ms var(--ease, ease-out) both, art-tag-breathe 3.6s ease-in-out 1s infinite;
+}
+@keyframes art-tag-in {
+  0% { transform: scale(0.94); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent, #8f88ff) 55%, transparent); background-position: 150% 0; }
+  45% { transform: scale(1.05); }
+  100% { transform: scale(1); box-shadow: 0 0 0 7px transparent; background-position: -60% 0; }
+}
+@keyframes art-tag-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 10px 0 color-mix(in srgb, var(--accent, #8f88ff) 35%, transparent); }
+}
+:root[data-motion='reduced'] .art-tag { animation: none; }
+@media (prefers-reduced-motion: reduce) { .art-tag { animation: none; } }

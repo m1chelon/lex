@@ -12,7 +12,9 @@ import { GUIDED_MEMORY_SECONDS, savePlan, type Plan } from '../learn/plan';
 import { recordAnswer, markSeen } from '../learn/scheduler';
 import { checkTyped, shuffle, rng, fold } from '../learn/text';
 import { db, kvGet, kvSet, type CardRow } from '../data/db';
-import { getArticle, getUnit, articleTitle } from '../data/corpus';
+import { getArticle, getLaw, getUnit, articleTitle } from '../data/corpus';
+import { historyArticleStatus, sessionArticleStatus } from '../learn/articleStatus';
+import { LawStatusGrid, LawStatusStrip, StatusLegend } from '../ui/LawStatusMap';
 import { findLawConcept } from '../content/lawCases';
 import { TIPO_LABEL } from '../content/types';
 import { nav } from '../ui/nav';
@@ -35,12 +37,15 @@ import { DoctrineQuestion } from './DoctrineQuestion';
 
 type Answer = { correct: boolean | null; given?: string; optionId?: string; tokenIndex?: number; doctrineChoices?: string[]; capiReaction?: CapiReaction };
 
+/** Rótulo do artigo ("Art. 296") ganha destaque animado para o jogador saber onde está. */
+const ART_TAG = /^\s*Art\.\s/u;
+
 function Segs({ segs, blankContent, lawId, terms }: { segs: Seg[]; blankContent?: React.ReactNode; lawId?: string; terms: boolean }) {
   const seen = new Set<string>();
   return (
     <>
       {segs.map((s, i) => s.blank ? <span key={i} className="blank">{blankContent ?? ' '}</span>
-        : s.strong ? <strong key={i}>{s.t}</strong>
+        : s.strong ? <strong key={i} className={ART_TAG.test(s.t) ? 'art-tag' : undefined}>{s.t}</strong>
         : <span key={i}>{terms ? <TermText text={s.t} onTerm={openTerm} seen={seen} lawId={lawId} /> : s.t}</span>)}
     </>
   );
@@ -223,7 +228,7 @@ function ExerciseView({ ex, mode, onAnswer, answer, feedback, onInspect }: {
         <MascotQuestion text={ex.prompt} />
         <div className="law-art law">
           {ex.context?.length ? <div className="muted" style={{ fontSize: '0.92em', marginBottom: 10, whiteSpace: 'pre-line' }}><Segs segs={ex.context} lawId={lawId} terms={false} /></div> : null}
-          {ex.stem.map((s, i) => <span key={i} className={answered && s.altered ? 'altered' : undefined} style={s.strong ? { fontWeight: 680 } : undefined}>{s.t}</span>)}
+          {ex.stem.map((s, i) => <span key={i} className={[answered && s.altered ? 'altered' : '', s.strong && ART_TAG.test(s.t) ? 'art-tag' : ''].join(' ').trim() || undefined} style={s.strong ? { fontWeight: 680 } : undefined}>{s.t}</span>)}
         </div>
         {!answered ? (
           <div className="row" style={{ gap: 10 }}>
@@ -311,6 +316,7 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
   const ok = graded.filter((r) => r.correct).length;
   const wrong = pendingSessionErrors(s);
   const missed = wrong.length;
+  const summaryMap = useMemo(() => sessionArticleStatus(s), [s]);
   const resultTitle = missed ? `${missed} ${missed === 1 ? 'ponto' : 'pontos'} para revisar`
     : graded.length ? `${ok} ${ok === 1 ? 'acerto' : 'acertos'} no treino`
       : s.results.length ? 'Estudo concluído' : 'Sessão encerrada';
@@ -370,6 +376,13 @@ function Summary({ s, onClose, onNext, startXp }: { s: SessionState; onClose: ()
         <div className="card grow" style={{ textAlign: 'center' }}><div className="title-l">{ok}</div><div className="xsmall muted">{ok === 1 ? 'correta' : 'corretas'}</div></div>
         <div className="card grow" style={{ textAlign: 'center' }}><div className="title-l">{missed}</div><div className="xsmall muted">a revisar</div></div>
       </div>
+      {summaryMap.order.length > 1 && (
+        <section className="card stack" style={{ gap: 10 }} aria-label="Mapa da legislação desta sessão">
+          <div className="caps">Mapa da legislação</div>
+          <StatusLegend />
+          <LawStatusGrid ids={summaryMap.order} status={summaryMap.status} />
+        </section>
+      )}
       {wrong.length > 0 && (
         <div className="list">
           <div className="caps" style={{ padding: '12px 16px 4px' }}>Revise estes pontos</div>
@@ -447,6 +460,8 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
   const [seconds, setSeconds] = useState(3);
   const [autoPaused, setAutoPaused] = useState(false);
   const [levelSheet, setLevelSheet] = useState(false);
+  const [mapSheet, setMapSheet] = useState(false);
+  const [mapScope, setMapScope] = useState<'sessao' | 'lei'>('sessao');
   const [lawSheet, setLawSheet] = useState(false);
   const [readingExplanation, setReadingExplanation] = useState(false);
   const settings = useSettings();
@@ -756,6 +771,14 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
       <button className="btn btn-quiet" onClick={close}>Voltar</button>
     </div>
   );
+  // Mapa da legislação: resultado desta sessão por artigo e, na aba "Lei inteira", o histórico.
+  const sessionMap = useMemo(() => s ? sessionArticleStatus(s) : null, [s?.items, s?.results]); // eslint-disable-line
+  const mapLawId = ex?.lawId ?? (sessionMap?.order[0]?.split('.')[0]);
+  const lawIds = useMemo(() => {
+    const law = mapLawId ? getLaw(mapLawId) : undefined;
+    return law ? law.articles.filter((a) => !a.rev).map((a) => a.id) : [];
+  }, [mapLawId]);
+  const lawStatus = useAsync(() => mapSheet && mapScope === 'lei' ? historyArticleStatus(lawIds) : Promise.resolve(undefined), [mapSheet, mapScope, lawIds, s?.results.length]);
   if (!s) return <TucaLoading msg="Montando sua sessão" full />;
   if (!ex) return <Summary s={s} startXp={career?.xp}
     onClose={async () => {
@@ -770,6 +793,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
   const progress = s.config.infinite ? (s.index % 20) / 20 : s.index / s.items.length;
   const question = s.items.slice(0, s.index + 1).filter(isStudyQuestion).length;
   const total = s.items.filter(isStudyQuestion).length;
+  const showMap = !!sessionMap && sessionMap.order.length > 1 && !ex.doctrine && !settings.studyFocus;
   const position = isStudyQuestion(ex) ? `Questão ${question}${s.config.infinite ? '' : ` de ${total}`}` : `Etapa ${s.index + 1}`;
   const checkpoint = isStudyQuestion(ex) ? questionCheckpoint(question, s.config.infinite ? undefined : total, !!answer && answer.correct !== null) : null;
   const needsContinue = !!answer || ex.kind === 'read' || ex.kind === 'term';
@@ -825,6 +849,7 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
             } : undefined} />
             {article && !canConsult && !readingPreview && <span className="reference-lock"><ILock size={14} /> Texto após responder</span>}
           </div>)}
+        {showMap && <LawStatusStrip ids={sessionMap!.order} status={sessionMap!.status} current={ex.articleId} onOpen={() => { setAutoPaused(true); setMapSheet(true); }} />}
       </header>
       <div className="question-body" ref={questionBody}>
         <div key={`${s.index}:${ex.key}:${readingPreview}`} className="stack question-content" data-blitz={s.config.blitz || undefined}>
@@ -880,6 +905,17 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
             <button className="btn btn-quiet btn-sm" onClick={() => setLawSheet(false)}>Voltar à pergunta</button></div>
           <ArticleView art={article.art} selectedUnit={ex.unitId} highlights={ex.unitId ? new Set([ex.unitId]) : undefined} showNotes={false} />
           <p className="small muted">{article.law.provenance.sourceName} · {article.law.provenance.versionLabel}</p>
+        </div>
+      </Sheet>}
+      {sessionMap && <Sheet open={mapSheet} onClose={() => setMapSheet(false)} label="Mapa da legislação" tall>
+        <div className="stack">
+          <h2 className="title-m">Mapa da legislação</h2>
+          <Segmented label="Mostrar" value={mapScope} options={[{ id: 'sessao', label: 'Nesta sessão' }, { id: 'lei', label: `Lei inteira${mapLawId && getLaw(mapLawId) ? ` (${getLaw(mapLawId)!.short})` : ''}` }]} onChange={setMapScope} />
+          <StatusLegend />
+          {mapScope === 'sessao'
+            ? <LawStatusGrid ids={sessionMap.order} status={sessionMap.status} current={ex.articleId} />
+            : lawStatus ? <LawStatusGrid ids={lawIds} status={lawStatus} current={ex.articleId} /> : <p className="small muted">Carregando…</p>}
+          <p className="small muted">{mapScope === 'sessao' ? 'Cores pelas respostas desta sessão.' : 'Cores pela última resposta de cada questão, em todos os treinos.'}</p>
         </div>
       </Sheet>}
       <Sheet open={levelSheet} onClose={() => setLevelSheet(false)} label="Opções de leitura">
@@ -974,7 +1010,7 @@ function MultiView({ ex, answered, onAnswer, feedback }: { ex: Exercise; answere
   return (
     <div className="stack" style={{ gap: 14 }}>
       <MascotQuestion text={ex.prompt} />
-      {ex.context?.length ? <div className="law-art law muted" style={{ fontSize: '0.92em', whiteSpace: 'pre-line' }}>{ex.context.map((c, i) => c.strong ? <strong key={i}>{c.t}</strong> : <span key={i}>{c.t}</span>)}</div> : null}
+      {ex.context?.length ? <div className="law-art law muted" style={{ fontSize: '0.92em', whiteSpace: 'pre-line' }}>{ex.context.map((c, i) => c.strong ? <strong key={i} className={ART_TAG.test(c.t) ? 'art-tag' : undefined}>{c.t}</strong> : <span key={i}>{c.t}</span>)}</div> : null}
       <div className="law-art law" style={ex.companionUnitId ? { whiteSpace: 'pre-line' } : undefined}>
         {ex.stem.map((sg, i) => {
           if (sg.strong) return <strong key={i}>{sg.t}</strong>;
