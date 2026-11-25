@@ -26,6 +26,7 @@ import { COMPARISONS } from '../content/comparisons';
 import { masteryFor, LEVEL_LABEL } from '../learn/mastery';
 import { useCorpusVersion } from '../App';
 import { lawStyle } from '../ui/ramo';
+import { PUBLISHED_DOCTRINE_COURSES } from '../content/doctrineCatalog';
 import { TINT } from '../ui/IconTile';
 import { parseArticleQuery, searchArticles, searchCatalog } from '../learn/search';
 import { articlesInSection, lawSections } from '../learn/lawSections';
@@ -34,6 +35,11 @@ import { loadBranchCoverage } from '../learn/courseProgress';
 const FIRST_BRANCHES = ['Penal', 'Civil'] as const;
 const BROWSE_BRANCHES = [...FIRST_BRANCHES, ...RAMOS.filter((ramo) => ramo !== 'Penal' && ramo !== 'Civil' && !ramo.startsWith('Interna'))]
   .filter((ramo) => lawsByRamo(ramo).length);
+/** "Abuso de autoridade (13.869/2019)" → "Lei 13.869/2019", sem repetir o nome curto. */
+const lawNumber = (title: string, short: string) => {
+  const num = /\(([\d./]+)\)\s*$/u.exec(title)?.[1];
+  return num ? `Lei ${num}` : title === short ? '' : title;
+};
 const branchTitle = (ramo: Ramo) => ramo === 'Direitos sociais' ? ramo : `Direito ${ramo}`;
 const branchPercent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 2 });
 const MAIN_CODES: Partial<Record<Ramo, { id: string; name: string }>> = {
@@ -52,7 +58,7 @@ export function VadeHome() {
   const [q, setQ] = useState('');
   return (
     <div className="stack tab-content">
-      <SectionHeader title="Direito" description="Constituição, códigos e leis por matéria." icon={<span className="section-icon legislation"><IScale /></span>} />
+      <SectionHeader title="Leis" description="Lei seca: leia e treine a Constituição, os códigos e as leis, por matéria." icon={<span className="section-icon legislation"><IScale /></span>} />
       <form onSubmit={(e) => { e.preventDefault(); nav.push({ name: 'search', q: q.trim() || undefined }); }}>
         <div className="search-field glass">
           <input type="search" name="q" autoComplete="off" placeholder="Ex. art. 37 CF" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar na legislação" enterKeyHint="search" />
@@ -99,9 +105,12 @@ export function RamoScreen({ ramo }: { ramo: Ramo }) {
   const sections = law ? lawSections(law) : [];
   useEffect(() => { if (main) void ensureLaws([main.id]); }, [main]);
   const otherLaws = ids.filter((id) => id !== main?.id);
+  const theory = PUBLISHED_DOCTRINE_COURSES.find((course) => course.title === branchTitle(ramo));
   return <div className="stack ramo-screen">
     <PageHeader title={branchTitle(ramo)} />
     <button className="btn btn-primary btn-block" onClick={() => nav.push({ name: 'jogar', scope: { kind: 'geral', ramo } })}><IPlay size={17} /> Treinar esta matéria</button>
+    {theory && <button className="btn btn-quiet btn-block" onClick={() => nav.push({ name: 'doutrina-curso', id: theory.id })}><IBook size={17} /> Teoria e questões comentadas</button>}
+    <p className="small muted" style={{ margin: 0 }}>Toque numa parte ou norma para ler a lei; no texto, use Treinar para praticar só aquele trecho.</p>
     {main && <section className="stack branch-code" aria-label={main.name}>
       <h2 className="title-m">{main.name}</h2>
       {!!sections.length && <div className="branch-grid">
@@ -123,7 +132,7 @@ export function RamoScreen({ ramo }: { ramo: Ramo }) {
         const outOfDate = doc?.articles.filter(({ outdated }) => outdated?.length).length ?? 0;
         return <button key={id} className="list-item ramo-law" onClick={() => nav.push(available ? { name: 'law', id } : { name: 'admin' })}>
           <span className="law-glyph" style={{ ['--tint' as string]: TINT[style.color] }}>{style.icon(19)}</span>
-          <span className="grow"><strong>{source.short}</strong><small className="muted">{source.title}</small>
+          <span className="grow"><strong>{source.short}</strong><small className="muted">{lawNumber(source.title, source.short)}</small>
             {!available && <small className="warn">Aguardando importação</small>}
             {!!outOfDate && <small className="warn">{outOfDate} artigos com alteração pendente</small>}
           </span><IChevR className="chev" />

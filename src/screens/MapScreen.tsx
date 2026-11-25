@@ -52,7 +52,7 @@ export function MapScreen() {
         right={<button className="btn btn-quiet btn-sm" onClick={() => nav.push({ name: 'planner' })}><ICalendar size={17} /> Planner</button>} />
       <ProgressTop />
       <h2 className="title-m">Domínio da legislação</h2>
-      <Segmented label="Ver progresso de" value={area} options={[{ id: 'geral', label: 'Direito' }, { id: 'tjsp', label: 'TJSP' }, { id: 'tjms', label: 'TJMS' }]} onChange={(v) => setSettings({ area: v })} />
+      <Segmented label="Ver progresso de" value={area} options={[{ id: 'geral', label: 'Todas as leis' }, { id: 'tjsp', label: 'TJSP' }, { id: 'tjms', label: 'TJMS' }]} onChange={(v) => setSettings({ area: v })} />
       <SubjectProgress key={area} area={area} />
       <Segmented label="Visão" value={tab} options={[{ id: 'mapa', label: area === 'geral' ? 'Mapa da lei' : 'Mapa do edital' }, { id: 'floresta', label: 'Floresta' }]} onChange={setTab} />
       {tab === 'floresta' ? <ForestGrid lawIds={areaLaws(area)} /> : area === 'geral' ? <LawMap /> : <EditalMap />}

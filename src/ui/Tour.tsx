@@ -12,7 +12,7 @@ const STEPS: Step[] = [
   { title: 'Oi! Eu sou a Capi', text: 'Vou te mostrar o LEX em um minuto. Aqui você aprende a lei artigo por artigo, jogando.' },
   { target: '[data-tour="play"]', title: 'O botão Jogar', text: 'É por aqui que tudo começa: em 3 passos você escolhe o que estudar, como treinar e por quanto tempo.' },
   { target: '[data-tour="today"]', title: 'Seu estudo', text: 'Confira os artigos praticados e as revisões do seu plano. Em “Continue estudando”, você pode voltar ao próximo artigo.', tab: 'home' },
-  { target: '[data-tour="tab-direito"]', title: 'Direito em geral', text: 'O Vade Mecum completo, por ramo: Constitucional, Penal, Eleitoral… Leia a lei ou toque em Treinar.' },
+  { target: '[data-tour="tab-direito"]', title: 'Leis', text: 'A lei seca completa, por ramo: Constitucional, Penal, Eleitoral… Leia a lei ou toque em Treinar.' },
   { target: '[data-tour="tab-cursos"]', title: 'Concursos', text: 'Acompanhe seus acertos e revisões por disciplina nos editais do TJSP e do TJMS.' },
   { target: '[data-tour="tab-map"]', title: 'Progresso', text: 'Sua carreira, o mapa de domínio, a folha de ponto e a liga da semana.' },
   { target: '[data-tour="bell"]', title: 'Seus avisos', text: 'Revisões pendentes, ofensiva em risco, ponto do dia: tudo o que precisa da sua atenção.', tab: 'home' },

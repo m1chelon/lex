@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Progress, Segmented, Sheet, useLiveAsync } from '../ui/primitives';
 import { nav } from '../ui/nav';
 import { haptic, setSettings, useSettings } from '../ui/settings';
-import { ISliders, IPunch, ICheck, IChevR, IClock, IFlame, IPlay, ITarget, IHistory, IInfo, ILayers, IBell, IStudy, IBrain, IPuzzle, ITrophy, ICompare, IMap, IBolt, ITomato, ISearch, IClipboard, IBook, ICalendar, ICart } from '../ui/icons';
+import { ISliders, IPunch, ICheck, IChevR, IClock, IFlame, IPlay, ITarget, IHistory, IInfo, ILayers, IBell, IStudy, IBrain, IPuzzle, ITrophy, ICompare, IMap, IBolt, ITomato, ISearch, IClipboard, IBook, ICalendar, ICart, IScale, IProgressChart } from '../ui/icons';
 import { TILE } from '../ui/IconTile';
 import { CourseCover, type CoverKind } from '../ui/CourseCover';
 import { SubjectGlyph } from '../ui/ramo';
@@ -209,7 +209,7 @@ export function Home() {
       label: 'Continuar do artigo', action: () => startSequence({ ...sequence, config: planConfig }),
     };
     if (L) return { title: L.title, detail: `${L.sub} · ${L.how}`, label: 'Começar treino', action: () => play() };
-    return { title: 'Treino de hoje', detail: 'Lei seca e revisão · até 7 minutos', label: 'Começar estudo', action: startDaily };
+    return { title: 'Treino de hoje', detail: `${settings.area !== 'geral' ? COURSE_NAME[settings.area] : 'Constituição Federal'} · lei seca e revisão · até 7 min`, label: 'Começar estudo', action: startDaily };
   })();
   const renderSequence = (entry: typeof recentPlans[number]) => {
     const label = displayArticle(entry.articleId);
@@ -289,6 +289,16 @@ export function Home() {
         <div className="home-tools">
           <button className="home-search glass" onClick={() => nav.push({ name: 'search' })}><ISearch size={20} /><span>Buscar no LEX</span><IChevR size={16} /></button>
         </div>
+
+        <section className="home-guide" aria-labelledby="home-guide-title">
+          <h2 id="home-guide-title" className="title-s">O que você quer fazer?</h2>
+          <div className="home-guide-grid">
+            <button onClick={() => { haptic('tap'); nav.tab('direito'); }}><IScale size={20} /><strong>Ler e treinar a lei</strong><small>Lei seca por matéria</small></button>
+            <button onClick={() => { haptic('tap'); nav.tab('cursos'); }}><IClipboard size={20} /><strong>Estudar um edital</strong><small>TJSP, TJMS</small></button>
+            <button onClick={() => { haptic('tap'); nav.tab('formacao'); }}><IBook size={20} /><strong>Teoria e questões</strong><small>Doutrina, Português, Informática</small></button>
+            <button onClick={() => { haptic('tap'); nav.tab('map'); }}><IProgressChart size={20} /><strong>Ver meu progresso</strong><small>Mapa de acertos</small></button>
+          </div>
+        </section>
 
         <FeaturedCarousel slides={[
         {

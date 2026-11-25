@@ -41,7 +41,7 @@ export function ConcursosScreen() {
   }, [version]);
   return (
     <div className="stack tab-content">
-      <SectionHeader title="Concursos" description="Escolha um edital para montar seu treino." icon={<span className="section-icon contests"><IClipboard /></span>}
+      <SectionHeader title="Concursos" description="Escolha o edital do seu concurso: o treino segue as leis que ele cobra." icon={<span className="section-icon contests"><IClipboard /></span>}
         right={<button className="icon-btn glass" aria-label="Buscar no LEX" onClick={() => nav.push({ name: 'search' })}><ISearch size={20} /></button>} />
       <div className="contest-catalog">
       {(['tjsp', 'tjms'] as const).map((id) => {
@@ -63,8 +63,8 @@ export function ConcursosScreen() {
         <CourseCover kind="geral" />
         <span className="row contest-cover-flag"><Flag area="geral" width={26} rounded={4} wave /></span>
         <span className="contest-cover-copy">
-          <strong>Direito em geral</strong>
-          <small>Treine por matéria ou lei</small>
+          <strong>Sem edital</strong>
+          <small>Escolha qualquer lei ou matéria</small>
         </span>
       </button>
       </div>
@@ -162,12 +162,18 @@ export function CursoScreen({ id, active }: { id: 'tjsp' | 'tjms'; active: boole
       <section className="contest-cover-header" aria-label="Seu próximo treino">
         <CourseCover kind={id} />
         <div className="contest-cover-copy">
-          <strong>{resumeHere ? 'Sessão em andamento' : nextArticle ? `A seguir · ${articleTitle(nextArticle.law.id, nextArticle.art)}` : 'Treine por disciplina'}</strong>
+          <strong>{resumeHere ? 'Sessão em andamento' : nextArticle ? `A seguir · ${articleTitle(nextArticle.law.id, nextArticle.art)}` : 'Comece pela lei seca do edital ou escolha uma disciplina'}</strong>
           {resumeHere ? <button className="catalog-primary" onClick={() => nav.push({ name: 'session', resume: true })}><IPlay size={17} /> Retomar sessão</button>
             : nextSequence && nextArticle && !unfinished ? <button className="catalog-primary" onClick={() => nav.push({ name: 'session', config: { ...nextSequence.config, startArticleId: nextSequence.articleId, sequenceSkip: nextSequence.practiced } })}><IPlay size={17} /> Continuar do artigo</button>
-            : <a className="catalog-primary" href="#contest-subjects">Ver disciplinas</a>}
+            : <a className="catalog-primary" href="#contest-subjects">Escolher disciplina</a>}
         </div>
       </section>
+
+      <button className="pill-cta" onClick={() => train()}>Treinar legislação do edital<span className="go"><IPlay size={16} /></span></button>
+      <div className="row">
+        <button className="btn btn-quiet grow" onClick={() => { haptic('tap'); setSettings({ area: id }); nav.tab('map'); }}><IMap size={17} /> Mapa do edital</button>
+        <button className="btn btn-quiet grow" onClick={() => { haptic('tap'); nav.push({ name: 'jogar', scope: { kind: 'curso', area: id }, mode: 'simulado' }); }}><ITrophy size={17} /> Simulado</button>
+      </div>
 
       <section className="contest-panel" aria-labelledby="contest-progress">
         <div className="row between">
@@ -191,11 +197,6 @@ export function CursoScreen({ id, active }: { id: 'tjsp' | 'tjms'; active: boole
         )}
       </section>
 
-      <button className="pill-cta" onClick={() => train()}>Treinar legislação do edital<span className="go"><IPlay size={16} /></span></button>
-      <div className="row">
-        <button className="btn btn-quiet grow" onClick={() => { haptic('tap'); setSettings({ area: id }); nav.tab('map'); }}><IMap size={17} /> Mapa do edital</button>
-        <button className="btn btn-quiet grow" onClick={() => { haptic('tap'); nav.push({ name: 'jogar', scope: { kind: 'curso', area: id }, mode: 'simulado' }); }}><ITrophy size={17} /> Simulado</button>
-      </div>
       {a.edital && (
         <section className="contest-panel" aria-labelledby="contest-edital">
           <div className="row between" style={{ gap: 10, flexWrap: 'wrap' }}>
@@ -289,11 +290,11 @@ export function CursoScreen({ id, active }: { id: 'tjsp' | 'tjms'; active: boole
               </div>
               {hasPractice && <progress aria-label={`Cobertura de ${title}`} value={pct} />}
               {subject && <>
-                <StudyMetrics seen={subject.seen} total={articles.size} correct={subject.firstCorrect} attempts={subject.firstTotal} label="Cobertura da disciplina" />
+                {subject.seen > 0 && <StudyMetrics seen={subject.seen} total={articles.size} correct={subject.firstCorrect} attempts={subject.firstTotal} label="Cobertura da disciplina" />}
                 <div className="chips" role="group" aria-label={`Checklist de ${topicoLabel(d.topico)}`}>
-                  <button className="chip" aria-pressed={activeChecklist?.filter === 'pending'} onClick={() => openChecklist('pending')}>Pendentes {pending.length}</button>
-                  <button className="chip" aria-pressed={activeChecklist?.filter === 'seen'} onClick={() => openChecklist('seen')}>Praticados {subject.seen}</button>
-                  <button className="chip" aria-pressed={activeChecklist?.filter === 'review'} onClick={() => openChecklist('review')}>A revisar {toReview.length}</button>
+                  <button className="chip" aria-pressed={activeChecklist?.filter === 'pending'} onClick={() => openChecklist('pending')}>{subject.seen ? `Pendentes ${pending.length}` : `Ver ${pending.length} artigos`}</button>
+                  {subject.seen > 0 && <button className="chip" aria-pressed={activeChecklist?.filter === 'seen'} onClick={() => openChecklist('seen')}>Praticados {subject.seen}</button>}
+                  {toReview.length > 0 && <button className="chip" aria-pressed={activeChecklist?.filter === 'review'} onClick={() => openChecklist('review')}>A revisar {toReview.length}</button>}
                 </div>
                 {activeChecklist && <div className="stack contest-checklist">
                   {rows.length ? <>

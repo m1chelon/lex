@@ -42,7 +42,7 @@ export function useCorpusVersion() { return useSyncExternalStore(onCorpus, corpu
 
 const TABS: { id: Tab; label: string; Icon: (p: { size?: number }) => JSX.Element }[] = [
   { id: 'home', label: 'Início', Icon: IHome },
-  { id: 'direito', label: 'Direito', Icon: IScale },
+  { id: 'direito', label: 'Leis', Icon: IScale },
   { id: 'cursos', label: 'Concursos', Icon: IClipboard },
   { id: 'formacao', label: 'Cursos', Icon: IBook },
   { id: 'map', label: 'Progresso', Icon: IProgressChart },
