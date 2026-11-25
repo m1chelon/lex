@@ -190,3 +190,23 @@ export async function doctrineExamQuestions(courseId: string, n: number, seed: s
       source: COURSE_BOOKS[card.book], pages: card.question.pages, options };
   });
 }
+
+/** Cursos praticados recentemente, com o próximo módulo ainda não feito (para "Continuar de onde parou"). */
+export async function recentDoctrineCourses(limit = 4) {
+  const lastAt = new Map<string, number>();
+  await db.reviews.where('cardId').startsWith('D:').each((row) => {
+    const card = byKey.get(row.cardId);
+    if (!card || !('question' in card)) return;
+    if ((lastAt.get(card.course.id) ?? 0) < row.at) lastAt.set(card.course.id, row.at);
+  });
+  const recent = [...lastAt].sort((a, b) => b[1] - a[1]).slice(0, limit);
+  return Promise.all(recent.map(async ([courseId, at]) => {
+    const entries = await readProgress({ courseId });
+    const next = entries.find((entry) => !entry.last);
+    return {
+      courseId, at, title: entries[0]?.course.title ?? doctrineLabel(courseId),
+      answered: entries.filter((entry) => entry.last).length, total: entries.length,
+      nextModule: next?.module.title,
+    };
+  }));
+}

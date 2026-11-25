@@ -8,10 +8,21 @@ import { nav } from './nav';
 import { haptic } from './settings';
 import { IPlay } from './icons';
 import { focusLabel } from '../screens/Home';
+import { recentDoctrineCourses } from '../learn/doctrineCourses';
 
 type Entry = Awaited<ReturnType<typeof recentSequences>>[number];
 
+type CourseRow = Awaited<ReturnType<typeof recentDoctrineCourses>>[number];
+const COURSE_BADGE: Record<string, string> = { portugues: 'PT', informatica: 'INF' };
+
 async function load(limit: number) {
+  const [laws, courses] = await Promise.all([loadLaws(limit), recentDoctrineCourses(limit).catch(() => [] as CourseRow[])]);
+  return [...laws.map((row) => ({ kind: 'lei' as const, at: row.entry.updatedAt, row })),
+    ...courses.filter((c) => c.total).map((row) => ({ kind: 'curso' as const, at: row.at, row }))]
+    .sort((a, b) => b.at - a.at).slice(0, limit);
+}
+
+async function loadLaws(limit: number) {
   const recent = (await recentSequences()).slice(0, limit * 2);
   const laws = [...new Set(recent.map((r) => r.articleId.split('.')[0]))];
   try { await ensureLaws(laws); } catch { /* sem rede: mostra só as leis já baixadas */ }
@@ -39,12 +50,28 @@ export function ContinueList({ limit = 4, title = 'Continuar de onde parou' }: {
     <section className="continue-list" aria-labelledby="continue-title">
       <h2 id="continue-title" className="title-s">{title}</h2>
       <div className="list">
-        {rows.map(({ entry, articleId, practiced }) => {
+        {rows.map((item) => {
+          if (item.kind === 'curso') {
+            const c = item.row;
+            return (
+              <button key={`curso:${c.courseId}`} className="list-item continue-item"
+                onClick={() => { haptic('ok'); nav.push({ name: 'session', config: { area: 'geral', focus: 'auto', mode: 'memorizar', minutes: 7, title: c.title, activity: 'doctrine', doctrine: { courseId: c.courseId, filter: 'study' } } }); }}>
+                <span className="continue-badge">{COURSE_BADGE[c.courseId] ?? 'Curso'}</span>
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <strong>{c.title}</strong>
+                  <small className="muted" style={{ display: 'block' }}>{c.nextModule ? `Próximo: ${c.nextModule}` : 'Curso concluído'} · {c.answered}/{c.total} · {ago(c.at)}</small>
+                </span>
+                <span className="continue-go"><IPlay size={14} /> Continuar</span>
+              </button>
+            );
+          }
+          const { entry, articleId, practiced } = item.row;
           const hit = getArticle(articleId)!;
           const law = getLaw(hit.law.id);
           const cfg = entry.config;
           const mode = MODE_INFO[cfg.mode as PlanMode]?.label ?? cfg.mode;
-          const scope = cfg.focus.startsWith('law:') ? '' : ` · ${focusLabel(cfg.focus, cfg.area ?? 'geral')}`;
+          const edital = cfg.area && cfg.area !== 'geral' ? ` · ${cfg.area.toUpperCase()}` : '';
+          const scope = cfg.focus.startsWith('law:') ? edital : `${edital} · ${focusLabel(cfg.focus, cfg.area ?? 'geral')}`;
           return (
             <button key={JSON.stringify([cfg.area, cfg.focus, cfg.mode, cfg.mix])} className="list-item continue-item"
               onClick={() => { haptic('ok'); nav.push({ name: 'session', config: { ...cfg, startArticleId: articleId, sequenceSkip: practiced } }); }}>
