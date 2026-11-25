@@ -285,3 +285,10 @@ textarea.input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .status-rail::-webkit-scrollbar { display: none; }
 .scell { flex: 0 0 auto; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; transition: background 300ms ease; }
 .status-strip-more { flex: 0 0 auto; color: var(--text-2); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 999px; padding: 3px 9px; }
+
+/* ---------- Conta Google ---------- */
+.account-card { display: grid; gap: 10px; padding: 16px; border-radius: 22px; }
+.account-photo { width: 44px; height: 44px; border-radius: 50%; flex: none; display: grid; place-items: center; background: rgba(255, 255, 255, 0.08); object-fit: cover; }
+.account-card .ellipsis { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-google { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; border-radius: 999px; background: #fff; color: #1f1f1f; font-weight: 650; border: 0; }
+.btn-google:disabled { opacity: 0.6; }

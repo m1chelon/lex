@@ -12,6 +12,7 @@ import { getCalibration } from '../learn/scheduler';
 import { LEVELS } from './TermSheet';
 import { IChevR, IExternal, IShield, IUpload, IFull, IInfo, ISettings, IBook, ISparkle, IHeart, IShieldLock, IDoc, IDownload, ITrash, ICart, IPeople } from '../ui/icons';
 import { Mascot } from '../ui/Mascot';
+import { AccountCard } from '../ui/AccountCard';
 import { profileDisplayName, profileKindLabel } from './Profiles';
 import { startTour } from '../ui/Tour';
 import { MoodSheet } from '../ui/Wellbeing';
@@ -60,6 +61,7 @@ export function Me() {
         <span className="grow profile-name"><strong>{profileName}</strong><small>{profileKindLabel(activeProfile.kind)} · Perfil ativo</small></span>
         <button className="btn btn-quiet btn-sm" onClick={() => { haptic('soft'); nav.push({ name: 'perfis' }); }}><IPeople size={18} /> Trocar perfil</button>
       </div>
+      <AccountCard />
       <div className="list">
         <button className="list-item" onClick={() => { haptic('soft'); nav.push({ name: 'capi-shop' }); }}>
           <ICart size={22} style={{ color: 'var(--gold)' }} /><div className="grow"><strong>Loja do Capi</strong><p className="small muted">Ternos, óculos e relógios</p></div><IChevR className="chev" />
@@ -145,7 +147,7 @@ export function Me() {
         <button className="list-item" onClick={async () => { const ok = await navigator.storage?.persist?.(); setPersisted(!!ok); toast(ok ? 'Armazenamento protegido' : 'O navegador não concedeu proteção'); }}><IInfo /><div className="grow">Proteger dados contra limpeza automática<div className="xsmall muted">{persisted ? 'Ativo' : 'Recomendado'}</div></div></button>
         <button className="list-item" style={{ color: 'var(--bad)' }} onClick={() => setConfirmReset(true)}><span className="set-ico" style={{ background: 'linear-gradient(160deg,#fb7185,#e11d48)' }}><ITrash size={18} /></span><div className="grow">Apagar dados do perfil</div></button>
       </div>
-      <p className="xsmall faint" style={{ padding: '0 4px' }}>Seu progresso, destaques e anotações ficam apenas neste aparelho. Use o backup para trocar de aparelho.</p>
+      <p className="xsmall faint" style={{ padding: '0 4px' }}>Seu progresso, destaques e anotações ficam neste aparelho. Para usar em outro aparelho, entre com a conta Google (no topo desta tela) ou use o backup.</p>
 
       <Sheet open={help} onClose={() => setHelp(false)} label="Ajuda e contato">
         <div className="stack">

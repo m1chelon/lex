@@ -1,4 +1,5 @@
 // Montagem de sessões: escopo (área/edital/lei/ramo), ordem, modo e modo infinito.
+import { scheduleSync } from '../data/cloudSync';
 import { db, kvGet, type CardRow, type Dim, type ReviewRow } from '../data/db';
 import { coverage, ensureLaws, getArticle, getLaw, getUnit, lawIdOf } from '../data/corpus';
 import { buildLiteral, buildOrder, buildRubric, buildWhich, canTrainArticle, findTargets, type Exercise } from './generators';
@@ -667,6 +668,12 @@ export async function loadSequence(cfg: SessionConfig): Promise<SequencePosition
 }
 
 export async function finishSession(s: SessionState, timedOut = false, options?: { expected: SessionState; replacement?: SessionState }): Promise<SessionState> {
+  const done = await finishSessionInner(s, timedOut, options);
+  scheduleSync();
+  return done;
+}
+
+async function finishSessionInner(s: SessionState, timedOut = false, options?: { expected: SessionState; replacement?: SessionState }): Promise<SessionState> {
   const next = { ...s, index: s.items.length, finishedAt: Date.now(), timedOut };
   const key = sequenceKey(s.config);
   let position: SequencePosition | null = null;

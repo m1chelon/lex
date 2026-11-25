@@ -1,12 +1,12 @@
 // Textos legais do app (Política de Privacidade, Termos de Uso e Sobre), exigidos pelas lojas
 // e pela LGPD (Lei 13.709/2018). Revisar o campo RESPONSAVEL e o contato antes de publicar.
-export const LEGAL_UPDATED = '20 de novembro de 2026';
+export const LEGAL_UPDATED = '25 de novembro de 2026';
 export const RESPONSAVEL = 'Responsável pelo LEX (dados a preencher antes da publicação nas lojas)';
 export const CONTATO = 'pela seção Ajuda e contato, no perfil do LEX';
 
 export interface LegalSection { h: string; p: string[] }
 export const PRIVACIDADE: LegalSection[] = [
-  { h: 'Resumo', p: ['O LEX funciona sem conta e sem servidor próprio. Seu progresso, suas anotações, seus check-ins de bem-estar e suas preferências ficam guardados apenas neste aparelho. Não vendemos, não compartilhamos e não usamos seus dados para publicidade.'] },
+  { h: 'Resumo', p: ['O LEX funciona sem conta. Seu progresso, suas anotações e suas preferências ficam guardados neste aparelho; se você entrar com sua conta Google (opcional), uma cópia é guardada no Google Firebase para sincronizar entre aparelhos. Os check-ins de bem-estar nunca saem do aparelho. Não vendemos, não compartilhamos e não usamos seus dados para publicidade.'] },
   { h: 'Quem é o controlador', p: [`${RESPONSAVEL}. Contato: ${CONTATO}.`] },
   { h: 'Quais dados o app trata', p: [
     'Progresso de estudo (respostas, revisões, tempo de estudo, pontos, carreira, folha de ponto e liga): gerado por você e armazenado localmente (IndexedDB do aparelho).',
@@ -16,13 +16,14 @@ export const PRIVACIDADE: LegalSection[] = [
   ] },
   { h: 'Com quem os dados são compartilhados', p: [
     'Open-Meteo (open-meteo.com): recebe somente as coordenadas arredondadas ou o nome da cidade digitada, para devolver a temperatura e o tempo. Nenhum identificador seu é enviado. Você pode desligar o clima em Você → Aparência.',
+    'Google Firebase (somente se você entrar com a conta Google): recebe seu nome, e-mail e foto da conta Google e uma cópia do progresso, das anotações e das preferências do perfil, guardada em servidores do Google em São Paulo, acessível apenas pela sua conta. Os check-ins de bem-estar não são enviados. Ao sair da conta, a cópia permanece até você pedir a exclusão pela seção Ajuda e contato.',
     'Nenhum outro terceiro recebe dados. O app não usa ferramentas de análise, rastreamento ou anúncios.',
   ] },
   { h: 'Bases legais (LGPD, art. 7º e art. 11)', p: ['Execução do serviço que você pediu (estudo e progresso), consentimento para o clima por localização e consentimento específico e destacado para o check-in de bem-estar, revogável a qualquer momento.'] },
   { h: 'Por quanto tempo', p: ['Os dados ficam no aparelho até você apagá-los. O histórico de humor guarda no máximo os últimos 120 registros.'] },
   { h: 'Seus direitos (LGPD, art. 18)', p: ['Você pode exportar o backup, editar as preferências ou apagar os dados do perfil ativo em Você. As opções de clima e bem-estar ficam nas preferências do perfil.'] },
   { h: 'Crianças e adolescentes', p: ['O LEX é destinado a estudantes e concurseiros. Menores de 18 anos devem usá-lo com ciência dos responsáveis.'] },
-  { h: 'Segurança', p: ['Como não há servidor, não há base central a ser invadida. Proteja o aparelho com senha ou biometria; quem tiver acesso ao aparelho desbloqueado poderá ver o seu progresso.'] },
+  { h: 'Segurança', p: ['Sem login, nada sai do aparelho. Com login, a cópia na nuvem só pode ser lida pela sua própria conta Google (regras de acesso do Firebase). Proteja o aparelho com senha ou biometria; quem tiver acesso ao aparelho desbloqueado poderá ver o seu progresso.'] },
   { h: 'Alterações', p: [`Esta política pode mudar quando surgirem recursos online (como ranking e câmaras). Você será avisado no app antes. Última atualização: ${LEGAL_UPDATED}.`] },
 ];
 
