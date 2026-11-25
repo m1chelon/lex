@@ -294,3 +294,11 @@ textarea.input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .btn-google:disabled { opacity: 0.6; }
 
 .crash-card { display: grid; gap: 10px; align-content: center; justify-items: start; padding: 28px 20px; max-width: 520px; margin: 40px auto; }
+
+/* ---------- Continuar de onde parou ---------- */
+.continue-list { display: grid; gap: 8px; }
+.continue-list h2 { margin: 0; }
+.continue-item { gap: 12px; }
+.continue-badge { flex: none; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center; font-size: .78rem; font-weight: 750; letter-spacing: .02em; background: rgba(255, 255, 255, .08); color: var(--gold); }
+.continue-go { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; font-weight: 650; color: var(--accent, #b9b4ff); }
+.continue-item small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

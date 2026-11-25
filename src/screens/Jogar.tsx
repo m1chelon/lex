@@ -1,3 +1,4 @@
+import { ContinueList } from '../ui/ContinueList';
 import { useState } from 'react';
 import { RAMOS, areaLaws, lawsByRamo, type AreaId } from '../core/areas';
 import { SOURCES, type Ramo } from '../core/sources';
@@ -150,6 +151,7 @@ export function JogarScreen({ scope: preset, mode: presetMode, adjust }: { scope
             setAdjusting(!adjusting);
           }}><ISliders size={18} /> {adjusting ? 'Recolher opções' : 'Ajustar treino'}</button>
         </section>
+        {!adjusting && <ContinueList title="Ou continue outra leitura" />}
         <div className="jg-options" id="jg-options" hidden={!adjusting}>
           {adjusting && <>
             <section className="jg-panel" aria-labelledby="jg-content">

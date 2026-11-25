@@ -8,6 +8,7 @@ import { CourseCover, type CoverKind } from '../ui/CourseCover';
 import { SubjectGlyph } from '../ui/ramo';
 import { Flag } from '../ui/Flags';
 import { WeatherChip, Clock } from '../ui/Weather';
+import { ContinueList } from '../ui/ContinueList';
 import { getPending, updateAppBadge, type Pending } from '../learn/pending';
 import { MoodSheet } from '../ui/Wellbeing';
 import { COURSE_NAME, planLabel, planToConfig, usePlan } from '../learn/plan';
@@ -289,6 +290,8 @@ export function Home() {
         <div className="home-tools">
           <button className="home-search glass" onClick={() => nav.push({ name: 'search' })}><ISearch size={20} /><span>Buscar no LEX</span><IChevR size={16} /></button>
         </div>
+
+        <ContinueList />
 
         <section className="home-guide" aria-labelledby="home-guide-title">
           <h2 id="home-guide-title" className="title-s">O que você quer fazer?</h2>
