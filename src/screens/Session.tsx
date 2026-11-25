@@ -757,6 +757,14 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
       acting.current = false;
     }
   };
+  // Mapa da legislação: resultado desta sessão por artigo e, na aba "Lei inteira", o histórico.
+  const sessionMap = useMemo(() => s ? sessionArticleStatus(s) : null, [s?.items, s?.results]); // eslint-disable-line
+  const mapLawId = ex?.lawId ?? (sessionMap?.order[0]?.split('.')[0]);
+  const lawIds = useMemo(() => {
+    const law = mapLawId ? getLaw(mapLawId) : undefined;
+    return law ? law.articles.filter((a) => !a.rev).map((a) => a.id) : [];
+  }, [mapLawId]);
+  const lawStatus = useAsync(() => mapSheet && mapScope === 'lei' ? historyArticleStatus(lawIds) : Promise.resolve(undefined), [mapSheet, mapScope, lawIds, s?.results.length]);
   if (err) return <div className="stack" style={{ paddingTop: 40 }}>
     <div className="empty" role="status">{err}</div>
     {config?.activity === 'daily' && <button className="btn btn-primary" onClick={() => nav.replace({ name: 'jogar', adjust: true })}>Escolher outro treino</button>}
@@ -771,14 +779,6 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
       <button className="btn btn-quiet" onClick={close}>Voltar</button>
     </div>
   );
-  // Mapa da legislação: resultado desta sessão por artigo e, na aba "Lei inteira", o histórico.
-  const sessionMap = useMemo(() => s ? sessionArticleStatus(s) : null, [s?.items, s?.results]); // eslint-disable-line
-  const mapLawId = ex?.lawId ?? (sessionMap?.order[0]?.split('.')[0]);
-  const lawIds = useMemo(() => {
-    const law = mapLawId ? getLaw(mapLawId) : undefined;
-    return law ? law.articles.filter((a) => !a.rev).map((a) => a.id) : [];
-  }, [mapLawId]);
-  const lawStatus = useAsync(() => mapSheet && mapScope === 'lei' ? historyArticleStatus(lawIds) : Promise.resolve(undefined), [mapSheet, mapScope, lawIds, s?.results.length]);
   if (!s) return <TucaLoading msg="Montando sua sessão" full />;
   if (!ex) return <Summary s={s} startXp={career?.xp}
     onClose={async () => {
