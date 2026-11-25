@@ -371,7 +371,7 @@ body { font-feature-settings: normal; }
    ===================================================================== */
 .period-glow { position: absolute; inset: 0; pointer-events: none; transition: opacity 1.3s ease; }
 :root[data-period='manha'] .period-glow { background: radial-gradient(100% 52% at 50% -10%, rgba(150, 205, 255, .56), transparent 72%), radial-gradient(60% 30% at 12% -4%, rgba(190, 225, 255, .18), transparent 70%), linear-gradient(180deg, rgba(160, 205, 255, .08), transparent 40%); }
-:root[data-period='tarde'] .period-glow { background: radial-gradient(90% 50% at 12% -8%, rgba(255, 146, 66, .44), transparent 70%), radial-gradient(70% 34% at 95% -6%, rgba(255, 196, 128, .2), transparent 70%), linear-gradient(180deg, rgba(255, 160, 90, .08), transparent 40%); }
+:root[data-period='tarde'] .period-glow { background: radial-gradient(90% 50% at 12% -8%, rgba(255, 160, 100, .22), transparent 70%), radial-gradient(70% 34% at 95% -6%, rgba(255, 196, 128, .2), transparent 70%), linear-gradient(180deg, rgba(255, 160, 90, .08), transparent 40%); }
 :root[data-period='noite'] .period-glow { background: radial-gradient(70% 40% at 50% -8%, rgba(150, 120, 255, .16), transparent 70%); }
 :root[data-period='madrugada'] .period-glow { background: radial-gradient(60% 34% at 50% -8%, rgba(90, 110, 220, .08), transparent 70%); }
 /* madrugada: azul quase preto, constelação mais visível */
@@ -465,7 +465,7 @@ body { font-feature-settings: normal; }
 @property --sky-bot { syntax: '<color>'; inherits: true; initial-value: #04061a; }
 :root { --sky-top: #0d1640; --sky-mid: #0a0f30; --sky-bot: #04061a; transition: --sky-top 2.5s ease, --sky-mid 2.5s ease, --sky-bot 2.5s ease; }
 :root[data-light='day'] { --sky-top: #2f6fd6; --sky-mid: #24479b; --sky-bot: #0d1742; }
-:root[data-light='twilight'] { --sky-top: #d9774f; --sky-mid: #5e3b82; --sky-bot: #12143d; }
+:root[data-light='twilight'] { --sky-top: #8e6476; --sky-mid: #45366e; --sky-bot: #10133a; }
 :root[data-light='day'][data-wx='cloudy'] { --sky-top: #5a6f96; --sky-mid: #35466e; --sky-bot: #0f173b; }
 :root[data-light='day']:is([data-wx='rain'], [data-wx='storm']) { --sky-top: #45536d; --sky-mid: #283249; --sky-bot: #0b1025; }
 :root[data-light='day'][data-wx='fog'] { --sky-top: #6c7586; --sky-mid: #3f4757; --sky-bot: #10141f; }
@@ -486,7 +486,7 @@ body { font-feature-settings: normal; }
 :root[data-light='day']:not([data-wx='cloudy'], [data-wx='rain'], [data-wx='storm'], [data-wx='fog']) .sky-sun { opacity: 1; }
 :root[data-light='day'][data-wx='cloudy'] .sky-sun { opacity: .35; }
 :root[data-light='twilight']:not([data-wx='rain'], [data-wx='storm']) .sky-sun { opacity: .9; }
-:root[data-light='twilight'] .sky-sun::before { top: auto; bottom: 38vh; right: 10vw; background: radial-gradient(circle, rgba(255, 190, 130, .85) 0%, rgba(255, 140, 90, .4) 16%, transparent 60%); }
+:root[data-light='twilight'] .sky-sun::before { top: auto; bottom: 38vh; right: 10vw; background: radial-gradient(circle, rgba(255, 205, 160, .55) 0%, rgba(255, 170, 120, .22) 16%, transparent 60%); }
 @keyframes sky-sun { from { transform: scale(1); opacity: .85; } to { transform: scale(1.06); opacity: 1; } }
 
 /* Lua e estrelas: noite limpa */
