@@ -776,7 +776,8 @@ export function SessionScreen({ active, resume, config, plan, retryItems }: {
       <p className="small muted">Começar um novo treino encerra a sessão anterior. Suas respostas registradas ficam no histórico.</p>
       <button className="btn btn-primary" onClick={() => void chooseSession(false)}>{config?.title ? `Começar ${config.title}` : 'Encerrar a anterior e começar'}</button>
       <button className="btn btn-quiet" onClick={() => void chooseSession(true)}>Retomar treino anterior</button>
-      <button className="btn btn-quiet" onClick={close}>Voltar</button>
+      {/* Voltar leva de novo à escolha do treino (o Jogar foi substituído por esta tela). */}
+      <button className="btn btn-quiet" onClick={() => { haptic('soft'); nav.replace({ name: 'jogar', adjust: true }); }}>Voltar à escolha do treino</button>
     </div>
   );
   if (!s) return <TucaLoading msg="Montando sua sessão" full />;

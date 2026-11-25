@@ -292,3 +292,5 @@ textarea.input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .account-card .ellipsis { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn-google { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; border-radius: 999px; background: #fff; color: #1f1f1f; font-weight: 650; border: 0; }
 .btn-google:disabled { opacity: 0.6; }
+
+.crash-card { display: grid; gap: 10px; align-content: center; justify-items: start; padding: 28px 20px; max-width: 520px; margin: 40px auto; }

@@ -30,7 +30,7 @@ export function AccountCard() {
           </span>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <button className="btn btn-quiet btn-sm grow" disabled={c.syncing} onClick={async () => { haptic('tap'); await syncNow(); if (!useCloudError()) toast('Progresso sincronizado'); }}><ICloud size={16} /> Sincronizar agora</button>
+          <button className="btn btn-quiet btn-sm grow" disabled={c.syncing} onClick={async () => { haptic('tap'); await syncNow(); if (!cloudErrorNow()) toast('Progresso sincronizado'); }}><ICloud size={16} /> Sincronizar agora</button>
           <button className="btn btn-quiet btn-sm" onClick={async () => { haptic('soft'); await signOutCloud(); toast('Você saiu da conta. O progresso continua neste aparelho.'); }}>Sair</button>
         </div>
       </section>
@@ -48,4 +48,4 @@ export function AccountCard() {
   );
 }
 
-const useCloudError = () => cloudState().error;
+const cloudErrorNow = () => cloudState().error;

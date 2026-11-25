@@ -9,6 +9,7 @@ import './styles/study.css';
 import './styles/atmosphere.css';
 import './styles/capi-shop.css';
 import { App } from './App';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 import { initCloud } from './data/cloudSync';
 
 try { if (window.self !== window.top) document.documentElement.dataset.framed = '1'; } catch { document.documentElement.dataset.framed = '1'; }
@@ -16,5 +17,5 @@ try { if (window.self !== window.top) document.documentElement.dataset.framed = 
 initCloud();
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><App /></StrictMode>,
+  <StrictMode><ErrorBoundary full><App /></ErrorBoundary></StrictMode>,
 );

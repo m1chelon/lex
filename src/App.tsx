@@ -1,3 +1,4 @@
+import { ErrorBoundary } from './ui/ErrorBoundary';
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { corpusVersion, initCorpus, onCorpus, prepareCorpus } from './data/corpus';
@@ -217,7 +218,7 @@ function StudyApp() {
       <AnimatePresence initial={false} custom={dir}>
         {(!top || keepCatalog) && (
           <motion.main key={`tab-${tab}`} id={`lex-tab-${tab}`} tabIndex={-1} className="screen" data-section={tab} aria-hidden={!!top || undefined} style={{ display: top ? 'none' : undefined }} custom={dir} variants={tabV} initial="initial" animate="animate" exit="exit">
-            <div className="wrap"><TabScreen tab={tab} /></div>
+            <div className="wrap"><ErrorBoundary key={tab} onBack={() => nav.tab('home')}><TabScreen tab={tab} /></ErrorBoundary></div>
           </motion.main>
         )}
         {routeIndexes.map((index) => {
@@ -244,7 +245,7 @@ function StudyApp() {
               }}
               onDragEnd={(_e: unknown, i: PanInfo) => { if (active && (i.offset.x > 120 || i.velocity.x > 700)) { haptic('soft'); nav.back(); } }}
             >
-              <div className="wrap" style={isModal ? { height: '100%' } : undefined}><RouteScreen r={route} active={active} /></div>
+              <div className="wrap" style={isModal ? { height: '100%' } : undefined}><ErrorBoundary onBack={() => nav.back()}><RouteScreen r={route} active={active} /></ErrorBoundary></div>
             </motion.main>
           );
         })}

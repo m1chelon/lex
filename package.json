@@ -11,9 +11,11 @@
     "test": "vitest run",
     "validate": "tsx scripts/validate.ts",
     "import:refresh": "tsx scripts/import.ts --refresh",
-    "build:public": "tsc --noEmit && VITE_WITH_DOUTRINA= vite build --outDir dist-public && node -e \"require('node:fs').rmSync('dist-public/data/doutrina',{recursive:true,force:true})\"",
+    "build:public": "tsc --noEmit && eslint src && vitest run && VITE_WITH_DOUTRINA= vite build --outDir dist-public && node -e \"require('node:fs').rmSync('dist-public/data/doutrina',{recursive:true,force:true})\"",
     "doutrina": "python3 -I scripts/doutrina.py acervo public/data/doutrina && python3 -I scripts/doutrina-bundle.py public/data/doutrina lex-doutrina.json",
-    "audit": "vitest run --config audit/vitest.audit.config.ts"
+    "audit": "vitest run --config audit/vitest.audit.config.ts",
+    "lint": "eslint src",
+    "check": "tsc --noEmit -p . && eslint src && vitest run"
   },
   "keywords": [],
   "author": "",
@@ -35,9 +37,12 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
     "cheerio": "^1.2.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "fake-indexeddb": "^6.2.8",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.74.0",
     "vite": "^5.4.21",
     "vite-plugin-pwa": "^0.21.2",
     "vitest": "^2.1.9"
