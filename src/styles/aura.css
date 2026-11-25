@@ -453,3 +453,84 @@ body { font-feature-settings: normal; }
 
 /* relógio ao lado do cumprimento */
 .clock { font-size: 13px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+
+/* =====================================================================
+   Céu de fundo no estilo de app de tempo: a cor do céu acompanha a hora
+   (dia, entardecer, noite) e o tempo (limpo, nublado, chuva, tempestade,
+   neblina). Sol, lua, estrelas, nuvens e relâmpagos aparecem conforme o caso.
+   O degradê escurece embaixo para manter o texto legível.
+   ===================================================================== */
+@property --sky-top { syntax: '<color>'; inherits: true; initial-value: #0d1640; }
+@property --sky-mid { syntax: '<color>'; inherits: true; initial-value: #0a0f30; }
+@property --sky-bot { syntax: '<color>'; inherits: true; initial-value: #04061a; }
+:root { --sky-top: #0d1640; --sky-mid: #0a0f30; --sky-bot: #04061a; transition: --sky-top 2.5s ease, --sky-mid 2.5s ease, --sky-bot 2.5s ease; }
+:root[data-light='day'] { --sky-top: #2f6fd6; --sky-mid: #24479b; --sky-bot: #0d1742; }
+:root[data-light='twilight'] { --sky-top: #d9774f; --sky-mid: #5e3b82; --sky-bot: #12143d; }
+:root[data-light='day'][data-wx='cloudy'] { --sky-top: #5a6f96; --sky-mid: #35466e; --sky-bot: #0f173b; }
+:root[data-light='day']:is([data-wx='rain'], [data-wx='storm']) { --sky-top: #45536d; --sky-mid: #283249; --sky-bot: #0b1025; }
+:root[data-light='day'][data-wx='fog'] { --sky-top: #6c7586; --sky-mid: #3f4757; --sky-bot: #10141f; }
+:root[data-light='twilight']:is([data-wx='cloudy'], [data-wx='rain'], [data-wx='storm'], [data-wx='fog']) { --sky-top: #7a5a6e; --sky-mid: #3b3352; --sky-bot: #0e1029; }
+:root[data-light='night']:is([data-wx='cloudy'], [data-wx='fog']) { --sky-top: #1d2338; --sky-mid: #12172b; --sky-bot: #05070f; }
+:root[data-light='night']:is([data-wx='rain'], [data-wx='storm']) { --sky-top: #161b2b; --sky-mid: #0e1222; --sky-bot: #04050c; }
+
+.sky, .sky-sun, .sky-moon, .sky-stars, .sky-clouds, .sky-flash { position: absolute; inset: 0; pointer-events: none; }
+.sky { background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-bot) 100%); }
+/* faixa inferior mais escura: o conteúdo continua legível em qualquer céu */
+.sky::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(4, 6, 20, .45) 100%); }
+
+/* Sol: só em dia de céu limpo ou poucas nuvens */
+.sky-sun { opacity: 0; transition: opacity 2s ease; }
+.sky-sun::before { content: ''; position: absolute; width: min(70vw, 520px); aspect-ratio: 1; right: -12vw; top: -18vw; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 236, 180, .9) 0%, rgba(255, 210, 120, .45) 14%, rgba(255, 190, 110, .14) 38%, transparent 66%);
+  animation: sky-sun 9s ease-in-out infinite alternate; }
+:root[data-light='day']:not([data-wx='cloudy'], [data-wx='rain'], [data-wx='storm'], [data-wx='fog']) .sky-sun { opacity: 1; }
+:root[data-light='day'][data-wx='cloudy'] .sky-sun { opacity: .35; }
+:root[data-light='twilight']:not([data-wx='rain'], [data-wx='storm']) .sky-sun { opacity: .9; }
+:root[data-light='twilight'] .sky-sun::before { top: auto; bottom: 38vh; right: 10vw; background: radial-gradient(circle, rgba(255, 190, 130, .85) 0%, rgba(255, 140, 90, .4) 16%, transparent 60%); }
+@keyframes sky-sun { from { transform: scale(1); opacity: .85; } to { transform: scale(1.06); opacity: 1; } }
+
+/* Lua e estrelas: noite limpa */
+.sky-moon { opacity: 0; transition: opacity 2s ease; }
+.sky-moon::before { content: ''; position: absolute; width: 26px; height: 26px; right: 44%; top: 10px; border-radius: 50%;
+  box-shadow: inset -9px 3px 0 0 #e9ecff, 0 0 40px 6px rgba(200, 210, 255, .18); transform: rotate(-20deg); }
+.sky-stars { opacity: 0; transition: opacity 2s ease;
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 28% 8%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 44% 26%, #fff, transparent), radial-gradient(1px 1px at 61% 12%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 77% 30%, #fff, transparent), radial-gradient(1px 1px at 90% 6%, #fff, transparent),
+    radial-gradient(1px 1px at 8% 40%, #fff, transparent), radial-gradient(1.3px 1.3px at 35% 44%, #fff, transparent),
+    radial-gradient(1px 1px at 68% 48%, #fff, transparent), radial-gradient(1px 1px at 86% 52%, #fff, transparent);
+  animation: sky-twinkle 5s ease-in-out infinite alternate; }
+:root[data-light='night']:not([data-wx='cloudy'], [data-wx='rain'], [data-wx='storm'], [data-wx='fog']) :is(.sky-moon, .sky-stars) { opacity: 1; }
+:root[data-light='night'][data-wx='cloudy'] .sky-moon { opacity: .35; }
+@keyframes sky-twinkle { from { opacity: .55; } to { opacity: 1; } }
+:root[data-light='night']:not([data-wx='cloudy'], [data-wx='rain'], [data-wx='storm'], [data-wx='fog']) .sky-stars { animation: sky-twinkle 5s ease-in-out infinite alternate; }
+
+/* Nuvens: aparecem em nublado, chuva, tempestade e neblina */
+.sky-clouds { opacity: 0; transition: opacity 2s ease; overflow: hidden; }
+.sky-clouds i { position: absolute; left: -30%; width: 160%; height: 34vh; border-radius: 50%; filter: blur(28px);
+  background: radial-gradient(ellipse at 30% 50%, rgba(220, 228, 245, .30), transparent 60%), radial-gradient(ellipse at 70% 40%, rgba(200, 212, 236, .26), transparent 58%);
+  animation: sky-cloud 60s ease-in-out infinite alternate; }
+.sky-clouds i:nth-child(1) { top: -6vh; }
+.sky-clouds i:nth-child(2) { top: 14vh; opacity: .7; animation-duration: 80s; animation-direction: alternate-reverse; }
+.sky-clouds i:nth-child(3) { top: 34vh; opacity: .45; animation-duration: 95s; }
+:root:is([data-wx='cloudy'], [data-wx='rain'], [data-wx='storm'], [data-wx='fog']) .sky-clouds { opacity: 1; }
+:root[data-light='night'] .sky-clouds i { background: radial-gradient(ellipse at 30% 50%, rgba(150, 160, 200, .22), transparent 60%), radial-gradient(ellipse at 70% 40%, rgba(130, 140, 180, .18), transparent 58%); }
+:root:is([data-wx='rain'], [data-wx='storm']) .sky-clouds i { background: radial-gradient(ellipse at 30% 50%, rgba(120, 132, 160, .38), transparent 60%), radial-gradient(ellipse at 70% 40%, rgba(100, 112, 140, .32), transparent 58%); }
+:root[data-wx='fog'] .sky-clouds i { height: 46vh; filter: blur(40px); background: radial-gradient(ellipse at 50% 50%, rgba(225, 230, 240, .32), transparent 65%); }
+@keyframes sky-cloud { from { transform: translateX(-6%); } to { transform: translateX(6%); } }
+
+/* Relâmpago ocasional na tempestade */
+.sky-flash { opacity: 0; background: radial-gradient(90% 60% at 60% 0%, rgba(220, 230, 255, .55), transparent 70%); }
+:root[data-wx='storm'] .sky-flash { animation: sky-flash 11s linear infinite; }
+@keyframes sky-flash { 0%, 91%, 94%, 100% { opacity: 0; } 92% { opacity: .9; } 93% { opacity: .2; } 93.5% { opacity: .7; } }
+
+/* Chuva mais visível no céu de fundo */
+.wx-rain i { background: linear-gradient(180deg, transparent, rgba(200, 225, 255, .9)); }
+
+/* Durante o estudo e no modo foco o céu fica mais calmo */
+.study-ambient :is(.sky-sun, .sky-clouds, .sky-stars) { opacity: .4 !important; }
+.study-ambient .sky-flash, .focus-study :is(.sky-sun, .sky-moon, .sky-stars, .sky-clouds, .sky-flash) { display: none; }
+:root:is([data-motion='reduced'], [data-perf='low']) :is(.sky-sun::before, .sky-stars, .sky-clouds i, .sky-flash) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion='full']) :is(.sky-stars, .sky-clouds i, .sky-flash) { animation: none !important; } .sky-sun::before { animation: none; } }
+:root[data-perf='low'] .sky-clouds i { filter: none; }

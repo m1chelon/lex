@@ -262,6 +262,12 @@ function StudyApp() {
 function AmbientBackdrop() {
   return (
     <div className="ambient" aria-hidden="true">
+      <div className="sky" />
+      <div className="sky-sun" />
+      <div className="sky-moon" />
+      <div className="sky-stars" />
+      <div className="sky-clouds"><i /><i /><i /></div>
+      <div className="sky-flash" />
       <div className="period-glow" />
       <Constellation />
       <div className="stars" />
