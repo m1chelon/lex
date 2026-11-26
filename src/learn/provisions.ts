@@ -39,6 +39,10 @@ const stop = new Set([
   'outrem', 'outro', 'outra', 'outros', 'outras',
 ]);
 
+const PARTICLES = new Set(['mediante', 'alguem', 'ninguem', 'quem', 'quando', 'enquanto', 'senao', 'perante', 'nao', 'nem', 'ate', 'antes', 'depois', 'contra', 'sem', 'ou', 'e', 'mas', 'salvo', 'exceto', 'inclusive', 'apenas', 'somente']);
+/** Substantivos, adjetivos e particípios: o que a banca troca e o jogador precisa memorizar. */
+const CONTENT = /(?:ção|ções|são|sões|dade|dades|ncia|ncias|gem|gens|ura|uras|mento|mentos|ismo|tude|ante|antes|ente|entes|ivo|iva|ivos|ivas|ico|ica|icos|icas|oso|osa|osos|osas|vel|veis|al|ais|ário|ária|ários|árias|ório|ória|órios|órias)$/iu;
+
 const contrasts: Record<string, string[]> = {
   nao: ['também', 'sempre', 'excepcionalmente', 'preferencialmente'],
   nem: ['ou', 'e', 'inclusive', 'bem como'],
@@ -126,8 +130,12 @@ function fragments(unit: Unit) {
     const before = unit.t.slice(Math.max(0, match.index - 20), match.index);
     const citation = isNumber && /(?:arts?\.|§|n[.°º]|lei)\s*$/iu.test(before);
     const form = formOf(text, before);
-    const score = (contrast.length ? 9 : 0) + (citation ? -5 : isNumber ? 5 : 0) + (articles.test(before) ? 3 : 0)
-      + (endings.test(text) || form === 'adv' ? 2 : 0) + Math.min(text.length, 14) / 10;
+    // Partículas ("nem", "não", "sem", "até") só viram lacuna quando não há palavra de conteúdo:
+    // o jogador deve lembrar o termo jurídico ("degradante"), não a conjunção.
+    const particle = PARTICLES.has(key);
+    const content = !particle && (CONTENT.test(text) || /(?:ad|id)[oa]s?$/u.test(key));
+    const score = (particle ? -4 : contrast.length ? 9 : 0) + (citation ? -5 : isNumber ? 5 : 0) + (articles.test(before) ? 3 : 0)
+      + (content ? 4 : 0) + (endings.test(text) || form === 'adv' ? 2 : 0) + Math.min(text.length, 14) / 10;
     return [{ text, start: match.index, form, score, contrast }];
   });
   // Fica disponível para rótulos curtos, siglas e inscrições alfanuméricas.

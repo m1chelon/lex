@@ -165,8 +165,8 @@ metade|dobro|triplo|terço
 *atribuído|conferido|outorgado|delegado
 *delegado|avocado|atribuído|transferido
 *avocado|delegado|reservado|transferido
-*vedado|proibido|defeso|impedido
-*proibido|vedado|defeso|restrito
+*vedado|proibido|impedido|restrito
+*proibido|vedado|impedido|restrito
 *permitido|facultado|autorizado|admitido
 *facultado|permitido|assegurado|autorizado
 *assegurado|garantido|reconhecido|facultado
@@ -327,6 +327,103 @@ advertência|suspensão|repreensão|demissão
 suspensão|advertência|demissão|multa
 repreensão|advertência|suspensão|censura
 *postal|fiscal|bancário|comercial
+*degradante|humilhante|vexatório|aviltante
+*desumano|cruel|degradante|vexatório
+*cruel|desumano|degradante|infamante
+*inviolável|indisponível|irrenunciável|intangível
+*livre|garantido|assegurado|permitido
+*pacífico|ostensivo|lícito|público
+*fundamentado|motivado|justificado|registrado
+*competente|responsável|superior|judiciária
+*hediondo|inafiançável|imprescritível|insuscetível
+*inafiançável|imprescritível|insuscetível|hediondo
+*imprescritível|inafiançável|insuscetível|perpétuo
+*culposo|doloso|preterdoloso|omissivo
+*doloso|culposo|preterdoloso|comissivo
+submetido|sujeitado|exposto|constrangido
+tortura|tratamento cruel|maus-tratos|sevícia
+liberdade|igualdade|segurança|propriedade
+igualdade|liberdade|isonomia|dignidade
+vida|liberdade|integridade|dignidade
+segurança|liberdade|propriedade|igualdade
+propriedade|posse|liberdade|segurança
+manifestação|expressão|opinião|comunicação
+pensamento|opinião|expressão|consciência
+anonimato|sigilo|pseudônimo|segredo
+resposta|retificação|réplica|reparação
+indenização|reparação|compensação|ressarcimento
+consciência|crença|convicção|opinião
+crença|consciência|religião|convicção
+culto|liturgia|crença|religião
+casa|domicílio|residência|habitação
+domicílio|residência|casa|morada
+correspondência|comunicação|dados|informação
+flagrante|delito|crime|infração
+desastre|calamidade|acidente|sinistro
+socorro|auxílio|assistência|amparo
+determinação|ordem|decisão|autorização
+reunião|assembleia|manifestação|associação
+associação|sociedade|entidade|cooperativa
+herança|sucessão|legado|patrimônio
+juízo|tribunal|foro|vara
+tribunal|juízo|júri|corte
+júri|tribunal|juízo|conselho
+racismo|discriminação|preconceito|intolerância
+homicídio|lesão corporal|feminicídio|latrocínio
+motivo|razão|móvel|fundamento
+*torpe|fútil|vil|egoístico
+*fútil|torpe|banal|insignificante
+paga|promessa|recompensa|vantagem
+recompensa|vantagem|pagamento|retribuição
+emboscada|traição|dissimulação|surpresa
+traição|emboscada|dissimulação|surpresa
+dissimulação|emboscada|traição|fraude
+veneno|explosivo|fogo|asfixia
+asfixia|veneno|tortura|fogo
+meio cruel|meio insidioso|perigo comum|recurso cruel
+ofendido|vítima|lesado|agredido
+vítima|ofendido|lesado|prejudicado
+ofensa|lesão|agressão|violência
+gestante|parturiente|puérpera|nascituro
+aborto|infanticídio|homicídio|feticídio
+furto|roubo|apropriação indébita|estelionato
+roubo|furto|extorsão|latrocínio
+extorsão|roubo|concussão|chantagem
+estelionato|fraude|furto mediante fraude|apropriação indébita
+peculato|concussão|corrupção passiva|prevaricação
+concussão|corrupção passiva|peculato|extorsão
+prevaricação|corrupção passiva|condescendência criminosa|concussão
+receptação|favorecimento real|furto|apropriação
+calúnia|difamação|injúria|denunciação caluniosa
+difamação|calúnia|injúria|ofensa
+injúria|calúnia|difamação|ofensa
+reclusão|detenção|prisão simples|multa
+*culposo|doloso|preterdoloso|tentado
+*insidioso|cruel|perigoso|dissimulado
+*relevante|significativo|elevado|considerável
+*social|moral|público|coletivo
+*moral|social|ético|religioso
+*injusta|ilícita|indevida|ilegítima
+*violenta|grave|intensa|súbita
+emoção|paixão|perturbação|comoção
+provocação|agressão|ameaça|ofensa
+matar|ferir|lesionar|agredir
+ofender|lesionar|agredir|ferir
+subtrair|apropriar-se|desviar|ocultar
+constranger|obrigar|coagir|forçar
+induzir|instigar|auxiliar|incitar
+instigar|induzir|auxiliar|incitar
+auxiliar|induzir|instigar|favorecer
+exigir|solicitar|receber|aceitar
+solicitar|exigir|receber|aceitar
+receber|aceitar|solicitar|exigir
+falsificar|adulterar|alterar|forjar
+adquirir|receber|ocultar|transportar
+ocultar|esconder|dissimular|suprimir
+destruir|inutilizar|deteriorar|danificar
+expor|abandonar|submeter|deixar
+privar|restringir|retirar|suspender
+tráfico|contrabando|comércio|transporte
 cartão|título|documento|boleto
 professor|médico|magistrado|pesquisador
 informações|dados|documentos|registros

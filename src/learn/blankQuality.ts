@@ -98,7 +98,7 @@ export function phraseTargets(unit: Unit): (Target & { choices: string[] })[] {
 const GENERIC = new Set(['nao', 'sem', 'com', 'por', 'para', 'tambem', 'e', 'sao', 'sera', 'serao', 'foi', 'ser', 'ha', 'ter', 'tem', 'esta', 'estao',
   'o', 'a', 'os', 'as', 'um', 'uma', 'lei', 'leis', 'crime', 'crimes', 'caso', 'casos', 'agente', 'agentes', 'fato', 'fatos', 'pais', 'brasil',
   'seguinte', 'seguintes', 'disposto', 'artigo', 'artigos', 'forma', 'pessoa', 'pessoas', 'modo', 'termos', 'termo', 'hipotese',
-  'hipoteses', 'presente', 'respectivo', 'respectiva', 'referido', 'referida', 'mesmo', 'mesma', 'anterior', 'deste', 'desta', 'ainda']);
+  'hipoteses', 'presente', 'respectivo', 'respectiva', 'referido', 'referida', 'mesmo', 'mesma', 'anterior', 'deste', 'desta', 'ainda', 'coisa', 'coisas', 'alguma', 'algum', 'qualquer', 'nem', 'ou', 'salvo', 'alguem', 'ninguem', 'mediante', 'outrem']);
 
 export const isGenericTarget = (text: string) => GENERIC.has(fold(text));
 

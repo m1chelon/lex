@@ -9,7 +9,7 @@ it('probe', async () => {
   vi.stubGlobal('fetch', async (url: string) => new Response(await readFile(new URL(`../public/${url}`, import.meta.url), 'utf8')));
   await initCorpus(); await ensureLaws(['cp', 'cpp', 'cf']);
   const out: string[] = [];
-  for (const [lawId, from, to] of [['cp', '293', '300'], ['cp', '312', '316'], ['cpp', '41', '44'], ['cf', '37', '37']] as const) {
+  for (const [lawId, from, to] of [['cf', '5', '5'], ['cp', '293', '297'], ['cp', '121', '122'], ['cpp', '41', '42']] as const) {
     const law = getLaw(lawId)!;
     const arts = law.articles.filter((a) => { const n = parseInt(a.num ?? a.lab.replace(/\D/g, '')); return n >= +from && n <= +to; });
     for (const art of arts) for (const u of provisionUnits(art)) {

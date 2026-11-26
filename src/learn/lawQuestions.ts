@@ -159,10 +159,12 @@ export function buildMemory(law: LawDoc, art: Article, unit: Unit, stage: number
       if (!chosen.some(({ target }) => overlap(target, entry.target) || normAnswer(target.text) === normAnswer(entry.target.text))) chosen.push(entry);
     }
   };
-  select(candidates, quick ? 1 : 3);
+  // Trechos longos (18+ palavras) e penas (espécie e limites) pedem três lacunas; curtos, até duas.
+  const goal = quick ? 1 : unit.k === 'pena' || wordCount(unit.t) >= 18 ? 3 : 2;
+  select(candidates, goal);
   // Cada questão trata de um só dispositivo: quando o trecho é curto, basta uma lacuna. Antes, a falta de
   // segunda lacuna puxava outro dispositivo para a mesma tela, o que misturava caput e inciso e repetia trechos.
-  if (chosen.length < (quick ? 1 : 2)) select(contextualTargets(law, art, unit), quick ? 1 : 2);
+  if (chosen.length < goal) select(contextualTargets(law, art, unit), goal);
   const minimum = 1;
   if (!chosen.length) return null;
   const dim = unit.k === 'pena' ? 'penas' : main.length && main.every(({ target }) => target.dim === 'prazos') ? 'prazos' : 'literal';
@@ -186,9 +188,11 @@ export function buildMemory(law: LawDoc, art: Article, unit: Unit, stage: number
     chosen.push(companion.extra);
   }
   // Alternativas de outra classe ("funcionário" para um particípio) facilitam: só entram se faltarem plausíveis.
+  // A alternativa de uma lacuna não pode ser a resposta de outra (ex.: "degradante" como opção de "desumano").
+  const answers = new Set(chosen.map(({ target }) => normAnswer(target.text)));
   const blanks = chosen.map(({ target, choices, strong }) => ({
     answer: target.text,
-    options: shuffle([target.text, ...choices.slice(0, strong !== undefined && strong >= 2 ? Math.min(4, strong) : 4)], r),
+    options: shuffle([target.text, ...choices.filter((c) => !answers.has(normAnswer(c))).slice(0, strong !== undefined && strong >= 2 ? Math.min(4, strong) : 4)], r),
   }));
   return { ...base, stem, context: companion ? undefined : unitContext(art, unit), kind: 'cloze-multi', blanks, companionUnitId: companion?.unit.id,
     prompt: unit.k === 'pena' && !companion ? 'Complete os elementos da sanção.' : prompts[Math.floor(r() * prompts.length)], answer: blanks.map(({ answer }) => answer).join(' | '),
